@@ -1,105 +1,90 @@
-name: Derby Arena Android APK (wreck-circuit)
+name: Derby Arena Native Android APK (Kotlin migration)
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - 'native-android/**'
+      - '.github/workflows/android-build.yml'
+      - 'README_NATIVE_MIGRATION_TR.md'
 
 permissions:
   contents: read
 
 jobs:
-  android-debug-apk:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 35
+  build-debug-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: native-android
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
+          cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
-
-      - name: Install Android SDK packages
+      - name: Configure Android SDK
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          SDK_PATH="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          if [ -z "$SDK_PATH" ]; then
-            echo "Android SDK path was not provided by setup-android" >&2
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_ROOT" ]; then
+            echo "Android SDK directory not found: $SDK_ROOT" >&2
             exit 1
           fi
-          echo "ANDROID_HOME=$SDK_PATH" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_PATH" >> "$GITHUB_ENV"
-          mkdir -p "$HOME/.android"
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -v \
-              -keystore "$HOME/.android/debug.keystore" \
-              -storepass android -alias androiddebugkey -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -keyalg RSA -keysize 2048 -validity 10000
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK_ROOT/cmdline-tools" >&2
+            exit 1
           fi
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          AVAILABLE="$("$SDKMANAGER" --list --include_obsolete --channel=3 2>/dev/null)"
+          if grep -Fq 'platforms;android-37.0' <<<"$AVAILABLE"; then
+            PLATFORM_PACKAGE="platforms;android-37.0"
+          elif grep -Eq 'platforms;android-37[[:space:]]+\|' <<<"$AVAILABLE"; then
+            PLATFORM_PACKAGE="platforms;android-37"
+          else
+            echo "Android API 37 SDK platform was not listed by sdkmanager" >&2
+            echo "$AVAILABLE" | grep -E 'platforms;android-37|Available Packages' | tail -n 30 || true
+            exit 1
+          fi
+          "$SDKMANAGER" --channel=3 --install "$PLATFORM_PACKAGE" "build-tools;36.0.0" "platform-tools"
 
-      - name: Install Godot 4.7.2 and export templates
+      - name: Verify app identity
         shell: bash
         run: |
           set -euo pipefail
-          VER="4.7.2-stable"
-          curl -fL --retry 3 \
-            "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v4.7.2-stable_linux.x86_64.zip" \
-            -o godot.zip
-          unzip -oq godot.zip
-          sudo install -m 0755 Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
-          curl -fL --retry 3 \
-            "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v4.7.2-stable_export_templates.tpz" \
-            -o templates.tpz
-          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable" /tmp/godot-templates
-          unzip -oq templates.tpz -d /tmp/godot-templates
-          cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/4.7.2.stable/"
-          mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EDITOR_SETTINGS
-          [gd_resource type="EditorSettings" format=3]
+          grep -q 'applicationId = "com.lenstedreal.derbyarena"' app/build.gradle.kts
+          grep -q 'versionName = "1.0.5"' app/build.gradle.kts
+          grep -q 'versionCode = 105' app/build.gradle.kts
 
-          [resource]
-          export/android/android_sdk_path = "$ANDROID_HOME"
-          export/android/java_sdk_path = "$JAVA_HOME"
-          EDITOR_SETTINGS
-          godot --version
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
 
-      - name: Import GLB and scene resources
+      - name: Verify APK
         shell: bash
         run: |
           set -euo pipefail
-          godot --headless --editor --path wreck-circuit --import --quit
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK"
 
-      - name: Run smoke tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          godot --headless --path wreck-circuit -s res://tests/smoke.gd
-
-      - name: Export Derby Arena 1.0.5 debug APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p wreck-circuit/build
-          godot --headless --path wreck-circuit --export-debug "Android" build/derby-arena-1.0.5.apk
-          test -s wreck-circuit/build/derby-arena-1.0.5.apk
-          ls -lh wreck-circuit/build/derby-arena-1.0.5.apk
-
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: derby-arena-1.0.5-debug-apk
-          path: wreck-circuit/build/derby-arena-1.0.5.apk
+          name: DerbyArena-1.0.5-native-debug-apk
+          path: native-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
