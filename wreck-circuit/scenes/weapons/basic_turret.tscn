@@ -1,0 +1,40 @@
+[gd_scene load_steps=6 format=3 uid="uid://bwreckturret01"]
+
+[ext_resource type="Script" path="res://scripts/weapons/turret.gd" id="1_script"]
+[ext_resource type="Resource" path="res://resources/basic_cannon.tres" id="2_stats"]
+
+[sub_resource type="BoxMesh" id="Box_base"]
+size = Vector3(0.42, 0.16, 0.42)
+
+[sub_resource type="BoxMesh" id="Box_barrel"]
+size = Vector3(0.12, 0.12, 0.9)
+
+[sub_resource type="BoxMesh" id="Box_flash"]
+size = Vector3(0.2, 0.2, 0.2)
+
+[node name="Turret" type="Node3D"]
+script = ExtResource("1_script")
+stats = ExtResource("2_stats")
+
+[node name="Base" type="MeshInstance3D" parent="."]
+mesh = SubResource("Box_base")
+
+[node name="Barrel" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, -0.7)
+mesh = SubResource("Box_barrel")
+
+[node name="Muzzle" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, -1.35)
+
+[node name="Flash" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, -1.4)
+light_color = Color(1, 0.7, 0.35, 1)
+light_energy = 2.0
+omni_range = 3.5
+shadow_enabled = false
+visible = false
+
+[node name="FlashMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, -1.4)
+mesh = SubResource("Box_flash")
+visible = false

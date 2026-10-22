@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="WeaponStats" load_steps=2 format=3 uid="uid://bwcannonstats01"]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_stats.gd" id="1_stats"]
+
+[resource]
+script = ExtResource("1_stats")
+damage = 14.0
+speed = 46.0
+range_m = 30.0
+cooldown = 0.38

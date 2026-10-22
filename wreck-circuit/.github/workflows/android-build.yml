@@ -1,0 +1,43 @@
+name: Android debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  debug-apk:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Godot 4.7.2 and export templates
+        run: |
+          set -euo pipefail
+          VER=4.7.2-stable
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v4.7.2-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          curl -fsSL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v4.7.2-stable_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          unzip -q templates.tpz -d /tmp/godot-templates
+          mv /tmp/godot-templates/templates/* "$HOME/.local/share/godot/export_templates/4.7.2.stable/"
+      - name: Import and headless smoke
+                run: |
+          set -euo pipefail
+          godot --headless --path . --import --quit
+          godot --headless --path . -s res://tests/smoke.gd
+      - name: Export debug APK
+                run: |
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/wreck-circuit-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wreck-circuit-debug-apk
+          path: build/wreck-circuit-debug.apk
+
+  release-aab:
+    if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - run: echo "Release AAB skipped in this MVP workflow. Gradle template is not vendored. Use a release keystore locally when Play upload starts. Debug APK is the CI path."

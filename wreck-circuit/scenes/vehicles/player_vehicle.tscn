@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=3 uid="uid://bwreckplayer01"]
+
+[ext_resource type="Script" path="res://scripts/vehicles/arcade_vehicle_controller.gd" id="1_car"]
+[ext_resource type="Script" path="res://scripts/vehicles/vehicle_health.gd" id="2_hp"]
+[ext_resource type="PackedScene" uid="uid://bwreckturret01" path="res://scenes/weapons/basic_turret.tscn" id="3_gun"]
+
+[node name="PlayerVehicle" type="RigidBody3D" groups=["player", "vehicle"]]
+collision_layer = 2
+collision_mask = 5
+mass = 1400.0
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 4
+can_sleep = false
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+linear_damp = 0.2
+angular_damp = 3.0
+script = ExtResource("1_car")
+human = true
+paint = Color(0.12, 0.14, 0.17, 1)
+
+[node name="Health" type="Node" parent="."]
+script = ExtResource("2_hp")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Turret" parent="." instance=ExtResource("3_gun")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, -0.15)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.55, 0)
+collision_mask = 1
+spring_length = 7.2
+margin = 0.4
+
+[node name="Camera3D" type="Camera3D" parent="SpringArm3D"]
+current = true
+fov = 60.0

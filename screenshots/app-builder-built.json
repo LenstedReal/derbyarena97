@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "DERBY ARENA",
+      "hasCanvas": true,
+      "bodyTextLen": 421,
+      "bodyTextHash": "cfff18837b505645f55d7739d0d6fad7139012fe8be249e5a8e678e4f1a3799d",
+      "bodyTextPrefix": "KOLEZYUM DERBY ARENA Daralan arenada son araç kazanır. Hasar çar",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "DERBY ARENA",
+      "hasCanvas": true,
+      "bodyTextLen": 421,
+      "bodyTextHash": "cfff18837b505645f55d7739d0d6fad7139012fe8be249e5a8e678e4f1a3799d",
+      "bodyTextPrefix": "KOLEZYUM DERBY ARENA Daralan arenada son araç kazanır. Hasar çar",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}

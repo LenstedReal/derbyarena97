@@ -1,0 +1,90 @@
+[gd_scene load_steps=12 format=3 uid="uid://bwreckarena001"]
+
+[ext_resource type="Script" path="res://scripts/match/match_manager.gd" id="1_match"]
+[ext_resource type="Script" path="res://scripts/arena/arena_builder.gd" id="2_build"]
+[ext_resource type="PackedScene" uid="uid://bwreckplayer01" path="res://scenes/vehicles/player_vehicle.tscn" id="3_player"]
+[ext_resource type="PackedScene" uid="uid://bwreckenemy001" path="res://scenes/vehicles/enemy_vehicle.tscn" id="4_enemy"]
+[ext_resource type="Script" path="res://scripts/weapons/projectile_pool.gd" id="5_pool"]
+[ext_resource type="Script" path="res://scripts/ui/safe_frame.gd" id="6_safe"]
+[ext_resource type="PackedScene" uid="uid://bwreckhud00001" path="res://scenes/ui/hud.tscn" id="7_hud"]
+[ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="8_touch"]
+[ext_resource type="PackedScene" uid="uid://bwreckpause001" path="res://scenes/ui/pause_menu.tscn" id="9_pause"]
+[ext_resource type="PackedScene" uid="uid://bwreckresult01" path="res://scenes/ui/result_panel.tscn" id="10_result"]
+
+[sub_resource type="Environment" id="Env_arena"]
+background_mode = 1
+background_color = Color(0.42, 0.16, 0.09, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.9, 0.5, 0.32, 1)
+ambient_light_energy = 0.7
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.72, 0.34, 0.16, 1)
+fog_density = 0.016
+fog_aerial_perspective = 0.15
+
+[node name="ArenaMvp" type="Node3D"]
+script = ExtResource("1_match")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_arena")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+light_color = Color(1, 0.82, 0.62, 1)
+light_energy = 1.3
+shadow_enabled = true
+directional_shadow_max_distance = 55.0
+
+[node name="ArenaGeometry" type="Node3D" parent="."]
+script = ExtResource("2_build")
+
+[node name="Player" parent="." instance=ExtResource("3_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 8)
+
+[node name="Enemy" parent="." instance=ExtResource("4_enemy")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.55, -8)
+
+[node name="ProjectilePool" type="Node3D" parent="."]
+script = ExtResource("5_pool")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="SafeFrame" type="MarginContainer" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("6_safe")
+
+[node name="Stack" type="Control" parent="UI/SafeFrame"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="HUD" parent="UI/SafeFrame/Stack" instance=ExtResource("7_hud")]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="TouchControls" type="Control" parent="UI/SafeFrame/Stack"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("8_touch")
+
+[node name="PauseMenu" parent="UI/SafeFrame/Stack" instance=ExtResource("9_pause")]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="ResultPanel" parent="UI/SafeFrame/Stack" instance=ExtResource("10_result")]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
