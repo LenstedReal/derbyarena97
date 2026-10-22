@@ -1,6 +1,9 @@
 extends RigidBody3D
 
+signal pickup_received(kind: StringName)
+
 const VisualBuilder := preload("res://scripts/vehicles/vehicle_visual.gd")
+const CombatVFX := preload("res://scripts/vfx/combat_vfx.gd")
 
 @export var human: bool = false
 @export var paint: Color = Color(0.14, 0.16, 0.18)
@@ -30,6 +33,10 @@ var shake: float = 0.0
 var _spawn: Vector3 = Vector3.ZERO
 var _ram_cd: Dictionary = {}
 var _wheels: Array[Node3D] = []
+var _boost_fx: Node3D
+var _boost_pressed_last: bool = false
+var _shake_phase: float = 0.0
+var _steer_smoothed: float = 0.0
 
 func _ready() -> void:
 	_spawn = global_position
@@ -43,19 +50,21 @@ func _ready() -> void:
 	mat.friction = 0.85
 	mat.bounce = 0.02
 	physics_material_override = mat
+	# More stable arcade handling on touch devices: less yaw oscillation and a
+	# slightly narrower body collider aligned to the visible GLB car.
+	angular_damp = 4.0
 	if not has_node("CollisionShape3D"):
 		var shape := BoxShape3D.new()
-		shape.size = Vector3(1.65, 0.7, 2.45)
+		shape.size = Vector3(1.22, 0.72, 2.50)
 		var col := CollisionShape3D.new()
 		col.name = "CollisionShape3D"
 		col.shape = shape
-		col.position = Vector3(0, 0.46, 0)
+		col.position = Vector3(0, 0.40, 0)
 		add_child(col)
 	if has_node("Visual"):
 		VisualBuilder.build($Visual, paint)
-		for c in $Visual.get_children():
-			if str(c.name).begins_with("Wheel"):
-				_wheels.append(c)
+		_wheels = VisualBuilder.collect_wheels($Visual)
+		_boost_fx = $Visual.get_node_or_null("BoostFX") as Node3D
 	if has_node("SpringArm3D"):
 		var arm: SpringArm3D = $SpringArm3D
 		arm.rotation_degrees = Vector3(-14, 180, 0)
@@ -66,7 +75,9 @@ func _ready() -> void:
 		var cam := arm.get_node_or_null("Camera3D") as Camera3D
 		if cam:
 			cam.rotation_degrees = Vector3(-8, 180, 0)
-			cam.current = true
+			# Enemy scenes also carry a camera subtree; only the player's camera
+			# may become current or the last spawned AI would take over the view.
+			cam.current = human
 	body_entered.connect(_on_body_entered)
 	var hp := get_node_or_null("Health")
 	if hp and hp.has_signal("damaged"):
@@ -88,9 +99,39 @@ func boost_fill() -> float:
 		return clampf(1.0 - boost_cd / boost_cooldown, 0.0, 1.0)
 	return 1.0
 
+func apply_pickup(kind: StringName) -> bool:
+	var hp := get_node_or_null("Health") as VehicleHealth
+	var turret := get_node_or_null("Turret")
+	match String(kind):
+		"repair", "health":
+			if hp == null or hp.health >= hp.max_health - 0.5:
+				return false
+			hp.health = minf(hp.max_health, hp.health + 38.0)
+		"armor":
+			if hp == null or hp.armor >= hp.max_armor - 0.5:
+				return false
+			hp.armor = minf(hp.max_armor, hp.armor + 32.0)
+		"nitro":
+			boost_cd = 0.0
+			boost_left = 0.0
+		"weapon":
+			if turret == null:
+				return false
+			turret.overdrive_left = maxf(turret.overdrive_left, 10.0)
+		"ammo":
+			if turret == null:
+				return false
+			turret.bonus_shots = mini(turret.bonus_shots + 12, 36)
+		_:
+			return false
+	pickup_received.emit(kind)
+	return true
+
 func _physics_process(delta: float) -> void:
 	var hp := get_node_or_null("Health") as VehicleHealth
 	if hp != null and hp.dead:
+		if _boost_fx != null:
+			_boost_fx.visible = false
 		linear_damp = 6.0
 		angular_damp = 6.0
 		if has_node("Turret"):
@@ -100,6 +141,8 @@ func _physics_process(delta: float) -> void:
 		_pull_human()
 	external_drive = false
 	_tick_boost(delta)
+	if _boost_fx != null:
+		_boost_fx.visible = boosting and Settings.quality != "low"
 	_integrate(delta)
 	if has_node("Turret"):
 		$Turret.trigger = drive_fire
@@ -112,7 +155,7 @@ func _pull_human() -> void:
 	var touch := get_tree().get_first_node_in_group("touch_controls")
 	var touched := false
 	var aim := 0.0
-	if touch != null and touch.using_touch:
+	if touch != null and touch.has_method("uses_custom_controls") and touch.uses_custom_controls():
 		touched = true
 		var state: Dictionary = touch.state
 		drive_throttle = float(state.get("throttle", 0.0))
@@ -135,16 +178,18 @@ func _pull_human() -> void:
 func _tick_boost(delta: float) -> void:
 	if boost_cd > 0.0:
 		boost_cd = maxf(0.0, boost_cd - delta)
-	boosting = false
-	if drive_boost and boost_left <= 0.0 and boost_cd <= 0.0:
+	# Nitro is activated on button-down and completes its short burst even if
+	# the button is released. Holding the button cannot silently waste every
+	# cooldown cycle; the player must tap again when it is ready.
+	if drive_boost and not _boost_pressed_last and boost_left <= 0.0 and boost_cd <= 0.0:
 		boost_left = boost_time
-	if drive_boost and boost_left > 0.0:
-		boost_left -= delta
-		boosting = true
+	_boost_pressed_last = drive_boost
+	boosting = boost_left > 0.0
+	if boost_left > 0.0:
+		boost_left = maxf(0.0, boost_left - delta)
 		if boost_left <= 0.0:
 			boost_cd = boost_cooldown
-	elif boost_left > 0.0:
-		boost_left -= delta
+			boosting = false
 
 func _integrate(delta: float) -> void:
 	var forward := -global_transform.basis.z
@@ -175,11 +220,21 @@ func _integrate(delta: float) -> void:
 	var lateral := flat.dot(right)
 	var g := handbrake_grip if drive_handbrake else grip
 	apply_central_force(-right * lateral * g * mass)
-	var turn_scale := clampf(absf(speed) / 4.5, 0.28, 1.0)
-	apply_torque(Vector3.UP * drive_steer * turn_torque * turn_scale)
-	var spin := speed * delta / 0.34
+	# Smooth sudden thumb movement and reduce yaw authority at top speed. This
+	# keeps touch steering predictable without removing the handbrake drift.
+	var steer_rate := 5.2 if drive_handbrake else 4.4
+	_steer_smoothed = move_toward(_steer_smoothed, drive_steer, delta * steer_rate)
+	var turn_scale := clampf(absf(speed) / 5.0, 0.12, 1.0)
+	var speed_stability := lerpf(1.0, 0.62, clampf(absf(speed) / maxf(max_speed, 1.0), 0.0, 1.0))
+	# Positive steering input means right. Godot's positive Y rotation turns
+	# the car's -Z forward vector toward -X, so invert the torque sign here.
+	# Reverse steering is inverted again so the car behaves naturally backwards.
+	var reverse_sign := -1.0 if speed < -0.25 else 1.0
+	apply_torque(Vector3.UP * -_steer_smoothed * turn_torque * turn_scale * speed_stability * reverse_sign)
+	var spin := speed * delta / 0.24
 	for w in _wheels:
-		w.rotate_object_local(Vector3.UP, spin)
+		# GLB wheel pieces share Wheel_* names and pivots at the wheel centre.
+		w.rotate_object_local(Vector3.RIGHT, spin)
 
 func _on_damaged(amount: float, _source: Node) -> void:
 	shake = minf(0.28, amount * 0.012)
@@ -196,21 +251,33 @@ func _process(delta: float) -> void:
 		var vp := get_viewport().get_visible_rect().size
 		if vp.y > 1.0:
 			var aspect := vp.x / vp.y
-			cam.fov = clampf(58.0 + (aspect - 1.777) * 7.0, 52.0, 72.0)
+			var base_fov := clampf(58.0 + (aspect - 1.777) * 7.0, 52.0, 72.0)
+			var target_fov := base_fov + (4.5 if boosting else 0.0)
+			cam.fov = lerpf(cam.fov, target_fov, clampf(delta * 6.5, 0.0, 1.0))
 	if shake > 0.0:
-		shake = maxf(0.0, shake - delta)
-		arm.position = Vector3(randf_range(-1, 1), 1.55, 0) * shake
+		shake = maxf(0.0, shake - delta * 1.65)
+		_shake_phase += delta * 30.0
+		var impulse := shake
+		arm.position = Vector3(
+			sin(_shake_phase) * 0.30 * impulse,
+			1.55 + absf(cos(_shake_phase * 0.72)) * 0.16 * impulse,
+			sin(_shake_phase * 0.55) * 0.12 * impulse
+		)
 	else:
 		arm.position = Vector3(0, 1.55, 0)
 
 func _on_body_entered(body: Node) -> void:
-	if not body.is_in_group("vehicle"):
+	if not body.is_in_group("vehicle") or not (body is RigidBody3D):
 		return
 	if get_instance_id() > body.get_instance_id():
 		return
-	if not (body is RigidBody3D):
-		return
 	var other := body as RigidBody3D
+	var own_health := get_node_or_null("Health") as VehicleHealth
+	var other_health := other.get_node_or_null("Health") as VehicleHealth
+	# A destroyed car remains as a physical wreck, but cannot keep dealing
+	# invisible collision damage after the round has effectively ended.
+	if (own_health != null and own_health.dead) or (other_health != null and other_health.dead):
+		return
 	var rel := (linear_velocity - other.linear_velocity).length()
 	if rel < 7.0:
 		return
@@ -219,9 +286,10 @@ func _on_body_entered(body: Node) -> void:
 		return
 	_ram_cd[other.get_instance_id()] = now + 500
 	var dmg := clampf((rel - 7.0) * 1.7, 6.0, 24.0)
-	var ohp := other.get_node_or_null("Health") as VehicleHealth
-	var hp := get_node_or_null("Health") as VehicleHealth
-	if ohp:
-		ohp.apply_damage(dmg, self)
-	if hp:
-		hp.apply_damage(dmg * 0.65, other)
+	var scene_root := get_tree().current_scene
+	if scene_root != null:
+		CombatVFX.spawn_collision(scene_root, (global_position + other.global_position) * 0.5, rel)
+	if other_health:
+		other_health.apply_damage(dmg, self)
+	if own_health:
+		own_health.apply_damage(dmg, other)

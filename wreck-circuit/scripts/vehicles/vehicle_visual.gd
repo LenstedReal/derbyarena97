@@ -1,8 +1,115 @@
 extends RefCounted
 
+const PLAYER_MODEL: PackedScene = preload("res://assets/models/vehicles/player_muscle.glb")
+const ENEMY_A: PackedScene = preload("res://assets/models/vehicles/enemy_raider_a.glb")
+const ENEMY_B: PackedScene = preload("res://assets/models/vehicles/enemy_raider_b.glb")
+const ENEMY_C: PackedScene = preload("res://assets/models/vehicles/enemy_raider_c.glb")
+const BOSS_MODEL: PackedScene = preload("res://assets/models/vehicles/enemy_boss_warrig.glb")
+const BOOST_FLAME: PackedScene = preload("res://assets/models/vfx/fire.glb")
+
 static func build(root: Node3D, paint: Color) -> void:
 	if root.get_child_count() > 0:
 		return
+
+	# Import the authored GLB car models. The player garage selection persists in
+	# Settings; AI cars choose from distinct raider bodies for an actual derby field.
+	var parent := root.get_parent()
+	var scene: PackedScene = PLAYER_MODEL
+	var model_scale := 0.46
+	if parent != null and parent.is_in_group("enemy"):
+		var choice := randi() % 4
+		match choice:
+			0: scene = ENEMY_A
+			1: scene = ENEMY_B
+			2: scene = ENEMY_C
+			_:
+				scene = BOSS_MODEL
+				model_scale = 0.34
+	else:
+		match Settings.vehicle_skin:
+			"raider_a": scene = ENEMY_A
+			"raider_b": scene = ENEMY_B
+			"raider_c": scene = ENEMY_C
+			"boss":
+				scene = BOSS_MODEL
+				model_scale = 0.34
+			_: scene = PLAYER_MODEL
+
+	var instance := scene.instantiate() as Node3D
+	if instance != null:
+		instance.name = "ImportedVehicleModel"
+		instance.scale = Vector3.ONE * model_scale
+		instance.position = Vector3(0, 0.08, 0)
+		_hide_static_weapon_meshes(instance)
+		root.add_child(instance)
+		_add_lighting_accents(root)
+		_add_boost_fx(root)
+		return
+
+	_build_fallback(root, paint)
+	_add_boost_fx(root)
+
+
+static func _hide_static_weapon_meshes(root: Node) -> void:
+	# Vehicle GLBs include a static turret silhouette. Hide just those meshes so
+	# the separate gameplay turret is the single rotating, firing weapon.
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var key := str(node.name).to_lower()
+		if "turret" in key or "barrel" in key:
+			(node as MeshInstance3D).visible = false
+
+static func _add_boost_fx(root: Node3D) -> void:
+	var exhausts := Node3D.new()
+	exhausts.name = "BoostFX"
+	exhausts.visible = false
+	root.add_child(exhausts)
+	for x in [-0.39, 0.39]:
+		var flame := BOOST_FLAME.instantiate() as Node3D
+		if flame == null:
+			continue
+		flame.name = "ExhaustFlame"
+		flame.position = Vector3(x, 0.23, 1.17)
+		flame.scale = Vector3.ONE * 0.36
+		exhausts.add_child(flame)
+
+static func collect_wheels(root: Node) -> Array[Node3D]:
+	var wheels: Array[Node3D] = []
+	_collect_wheel_pivots(root, wheels)
+	return wheels
+
+static func _collect_wheel_pivots(node: Node, wheels: Array[Node3D]) -> void:
+	for child in node.get_children():
+		if child is Node3D:
+			var key := str(child.name).to_lower()
+			# Imported GLBs suffix wheel nodes with stable unique IDs, for example
+			# Wheel_RR_93ba52; exact-name checks missed every authored wheel.
+			if key.begins_with("wheel_") or key in ["wheelfl", "wheelfr", "wheelrl", "wheelrr"]:
+				wheels.append(child as Node3D)
+			else:
+				_collect_wheel_pivots(child, wheels)
+		else:
+			_collect_wheel_pivots(child, wheels)
+
+static func _add_lighting_accents(root: Node3D) -> void:
+	var lamps := Node3D.new()
+	lamps.name = "VehicleAccents"
+	root.add_child(lamps)
+	for x in [-0.42, 0.42]:
+		var lamp := MeshInstance3D.new()
+		lamp.name = "Headlamp"
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(0.18, 0.07, 0.05)
+		lamp.mesh = mesh
+		lamp.position = Vector3(x, 0.34, -1.15)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(1.0, 0.78, 0.36)
+		mat.emission_enabled = true
+		mat.emission = Color(1.0, 0.48, 0.12)
+		mat.emission_energy_multiplier = 1.8
+		lamp.material_override = mat
+		lamps.add_child(lamp)
+
+static func _build_fallback(root: Node3D, paint: Color) -> void:
 	var body_mat := _mat(paint, 0.55, 0.35)
 	var dark := _mat(paint.darkened(0.45), 0.4, 0.2)
 	var glass := _mat(Color(0.15, 0.2, 0.24), 0.15, 0.05)

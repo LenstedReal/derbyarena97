@@ -1,8 +1,13 @@
-# Varlıklar
+# Varlık kaynakları ve lisans durumu
 
-Bu MVP'de dış model, doku, ses veya font paketi yok.
+Bu proje, kullanıcı tarafından sağlanan ikinci `Derby-arena` arşivindeki aşağıdaki GLB varlıklarını kullanır:
 
-- Araç, arena, mermi ve menü Godot primitifleriyle bu depoda üretildi.
-- Arena düzeni halka bir stadyumdan esinlidir. Unity AI videosundaki modeller, dokular ve metinler kopyalanmadı.
-- Sesler `Sfx.beep` ile çalışma anında üretilen kısa dalgalardır.
-- Godot motoru kendi lisansı altındadır: https://godotengine.org/license
+- `assets/models/arena/arena01_colosseum.glb` — arena, tribün/duvar geometrisi ve dekoratif enkaz
+- `assets/models/crowd/crowd_tiers.glb` — tribün kalabalığı
+- `assets/models/vehicles/*.glb` — oyuncu, raider ve boss araçları
+- `assets/models/props/*.glb` — tamir, zırh, nitro, silah ve mühimmat pickup modelleri
+- `assets/models/vfx/*.glb` — mermi ve VFX referans modelleri
+
+Bu modeller kullanıcının ilettiği özel kaynak arşivinden projeye entegre edilmiştir. Arşivde model başına açık lisans/yeniden dağıtım metaverisi bulunmadığı için bu paket, varlık lisansları doğrulanmadan üçüncü taraf mağazalarda kamuya açık dağıtım için lisans garantisi vermez.
+
+Godot Engine kendi lisans koşullarına tabidir: https://godotengine.org/license

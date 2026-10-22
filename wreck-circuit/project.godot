@@ -1,12 +1,13 @@
 ; Engine configuration file.
-; Godot 4.7.2 Stable — Wreck Circuit MVP
+; Godot 4.7.2 Stable — Derby Arena 1.0.5
 
 config_version=5
 
 [application]
 
-config/name="Wreck Circuit"
-config/description="Offline arcade car combat arena."
+config/name="Derby Arena"
+config/description="Derby Arena 1.0.5 — 3D mobile car-combat arena with vehicles, weapons and powerups."
+config/version="1.0.5"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.svg"

@@ -1,4 +1,4 @@
-name: Wreck Circuit Android APK
+name: Derby Arena Android APK (wreck-circuit)
 
 on:
   workflow_dispatch:
@@ -10,68 +10,94 @@ permissions:
   contents: read
 
 jobs:
-  debug-apk:
+  android-debug-apk:
     runs-on: ubuntu-22.04
+    timeout-minutes: 35
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          SDK_PATH="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$SDK_PATH" ]; then
+            echo "Android SDK path was not provided by setup-android" >&2
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_PATH" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android -alias androiddebugkey -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
+          fi
 
       - name: Install Godot 4.7.2 and export templates
         shell: bash
         run: |
           set -euo pipefail
           VER="4.7.2-stable"
-
           curl -fL --retry 3 \
             "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v4.7.2-stable_linux.x86_64.zip" \
             -o godot.zip
-
           unzip -oq godot.zip
-          sudo install -m 0755 \
-            Godot_v4.7.2-stable_linux.x86_64 \
-            /usr/local/bin/godot
-
+          sudo install -m 0755 Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
           curl -fL --retry 3 \
             "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v4.7.2-stable_export_templates.tpz" \
             -o templates.tpz
-
-          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
-          mkdir -p /tmp/godot-templates
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable" /tmp/godot-templates
           unzip -oq templates.tpz -d /tmp/godot-templates
+          cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/4.7.2.stable/"
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EDITOR_SETTINGS
+          [gd_resource type="EditorSettings" format=3]
 
-          cp -a /tmp/godot-templates/templates/. \
-            "$HOME/.local/share/godot/export_templates/4.7.2.stable/"
-
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          EDITOR_SETTINGS
           godot --version
 
-      - name: Import project resources
+      - name: Import GLB and scene resources
         shell: bash
         run: |
           set -euo pipefail
-          godot --headless --path wreck-circuit --editor --import --quit
+          godot --headless --editor --path wreck-circuit --import --quit
 
-      - name: Run smoke test
+      - name: Run smoke tests
         shell: bash
         run: |
           set -euo pipefail
-          godot --headless --path wreck-circuit \
-            -s res://tests/smoke.gd
+          godot --headless --path wreck-circuit -s res://tests/smoke.gd
 
-      - name: Export Android debug APK
+      - name: Export Derby Arena 1.0.5 debug APK
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p wreck-circuit/build
-          godot --headless --path wreck-circuit \
-            --export-debug "Android" \
-            build/wreck-circuit-debug.apk
-          test -s wreck-circuit/build/wreck-circuit-debug.apk
-          ls -lh wreck-circuit/build/wreck-circuit-debug.apk
+          godot --headless --path wreck-circuit --export-debug "Android" build/derby-arena-1.0.5.apk
+          test -s wreck-circuit/build/derby-arena-1.0.5.apk
+          ls -lh wreck-circuit/build/derby-arena-1.0.5.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wreck-circuit-debug-apk
-          path: wreck-circuit/build/wreck-circuit-debug.apk
+          name: derby-arena-1.0.5-debug-apk
+          path: wreck-circuit/build/derby-arena-1.0.5.apk
           if-no-files-found: error
           retention-days: 14

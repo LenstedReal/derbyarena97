@@ -1,21 +1,37 @@
-# Wreck Circuit
+# Derby Arena 1.0.5
 
-Tek oyunculu, çevrimdışı, yatay tam ekran araba savaş MVP'si. Godot 4.7.2 Stable, Mobile renderer, GDScript.
+**Derby Arena**, Android yatay ekran için geliştirilen tek oyunculu 3D araç savaş oyunudur. Godot 4.7.2 Stable, GDScript ve Mobile renderer kullanır.
 
-Kolezyum düzeni yalnızca esindir. Unity videosundan mesh, doku veya kod kopyalanmadı. Geometri bu projede bloklarla kuruldu.
+## Bu sürümde
 
-## Telefonda dene
+- Gerçek kolezyum ve tribün GLB modelleri; görseldeki enkaz kümeleri için ayrı statik çarpışma meshleri ve arenayı çevreleyen mobil dostu segmentli bariyer.
+- Beş araçlık savaş alanı: oyuncu ve dört rakip AI; rakipler yakın dövüş, topçu ve çevresel manevra profillerine sahip.
+- Kalıcı garaj seçimi: Muscle, Raider A/B/C ve War Rig görünümleri.
+- Tamir, zırh, nitro, overdrive ve mühimmat güçlendiricileri; gerçek GLB pickup modelleri ve yeniden doğma süresi.
+- Arcade sürüş, hızlanırken kamera FOV tepkisi, animasyonlu teker pivotları, boost egzoz alevleri, çarpışma hasarı, yönlü taret, GLB iz mermileri, namlu parlaması ve hızlı çarpışma raycast’i.
+- Yükseltilmiş savaş HUD'u, otomatik gaz + sol direksiyon + otomatik nişanlı ateş akışı, duraklatma, sonuç ekranı ve ayarlar.
+- Düşük ekran karmaşası: ayrı gaz düğmesi kaldırıldı; fren/geri tek düğmede, nitro dokunma-başlatmalı ve fare test kontrolleri de oyun fiziğine bağlandı.
+- 16 atışlık mermi havuzu; yüksek hızlı mermilerde fizik adımı başına raycast kontrolüyle ıskalanan çarpışmalar azaltıldı.
+- Düşük/orta/yüksek grafik seçenekleri ve 2,4 saniyelik başlangıç koruması.
 
-1. Bilgisayarda Godot 4.7.2 aç, bu klasörü içe aktar.
-2. Export Templates 4.7.2 kur.
-3. Project > Export > Android > Export With Debug. Çıktı `build/wreck-circuit-debug.apk`.
-4. APK'yı telefona kur. Oyun sensör yatay ve tam ekran açılır. Çentik payı HUD'u içeri iter.
-5. Alternatif: bu klasörü GitHub'a push et, Actions'tan `wreck-circuit-debug-apk` indir. Bu ortamda APK üretilmedi.
+## Kontroller — mobil kullanım basitleştirildi
 
-Paket adı: `com.lenstedreal.wreckcircuit`. Yalnızca arm64-v8a. Gradle kapalı. İmza debug keystore. Keystore repoda yok.
+**Mobil:** Araç otomatik gaz verir; sol alttaki geniş direksiyon alanında parmağını sağa/sola sürükleyerek yön ver. Sağ alttaki **ATEŞ / OTO NİŞAN** düğmesini basılı tut: taret en yakın canlı rakibe nişan alır ve ateş eder. **NİTRO** kısa bir hız patlaması başlatır; düğmeyi basılı tutmak yerine hazır olduğunda tekrar dokun. **FREN / GERİ** basılı tutulduğunda aracı yavaşlatır ve durduktan sonra geri sürer. **DRİFT** el frenini uygular. Direksiyon parmağı bırakıldığında ortaya döner.
 
-## Kontroller
+Nişan yardımını Ayarlar'dan kapatırsan, ateş düğmesine ek olarak sağ orta alanda sürükleyerek taret açısını elle düzeltebilirsin. Duraklatma ve sonuç ekranları açıldığında sürüş/ateş girdileri otomatik temizlenir; uygulama arka plana geçtiğinde takılı kalan tuşlar bırakılır.
 
-Sol alt joystick direksiyon. GAZ, FREN, EL FREN, BOOST, ATEŞ. Sağ üst sürükleme nişan. DURAKLAT veya geri tuşu menüyü açar. Masaüstünde WASD, F ateş, Space boost, Shift el freni, Esc duraklat.
+**PC test:** WASD sürüş, F ateş, Space nitro (basıp bırak), Shift el freni, Esc duraklatma. Ekrandaki düğmeler fareyle de kullanılabilir.
 
-Kalite: Düşük 0.7 ölçek gölgesiz, Orta 0.85, Yüksek 1.0 ve 2x MSAA. Ayar `user://settings.cfg` içine yazılır.
+## Android paketi
+
+- Uygulama adı: `Derby Arena`
+- Sürüm: `1.0.5` (versionCode `105`)
+- Paket adı: `com.lenstedreal.derbyarena`
+- Hedef mimari: `arm64-v8a`
+- Çıktı: `build/derby-arena-1.0.5.apk`
+
+Godot 4.7.2 export templates ve Android SDK/JDK gerekir. GitHub Actions iş akışı kökteki `.github/workflows/android-build.yml` dosyasındadır. `workflow_dispatch` ile manuel başlatılır ve APK `derby-arena-1.0.5-debug-apk` artifact'i olarak yüklenir.
+
+## Kaynak ve varlık notu
+
+`assets/models/` içindeki arena, crowd, araç, pickup ve VFX GLB dosyaları kullanıcı tarafından sağlanan `Derby-arena` kaynak arşivinden alınmıştır. Bu dosyaların ayrı lisans bildirimi kaynak arşivinde bulunmadığından, kamuya açık mağaza dağıtımından önce varlık lisanslarının doğrulanması gerekir.

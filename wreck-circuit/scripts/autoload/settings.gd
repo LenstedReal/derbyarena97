@@ -11,6 +11,7 @@ var steer_sensitivity: float = 1.0
 var camera_sensitivity: float = 1.0
 var vibration: bool = true
 var auto_aim: bool = true
+var vehicle_skin: String = "muscle"
 
 
 func _ready() -> void:
@@ -65,6 +66,9 @@ func load_settings() -> void:
 	camera_sensitivity = clampf(float(cfg.get_value("controls", "camera", 1.0)), 0.4, 2.0)
 	vibration = bool(cfg.get_value("controls", "vibration", true))
 	auto_aim = bool(cfg.get_value("controls", "auto_aim", true))
+	vehicle_skin = str(cfg.get_value("garage", "vehicle_skin", "muscle"))
+	if vehicle_skin not in ["muscle", "raider_a", "raider_b", "raider_c", "boss"]:
+		vehicle_skin = "muscle"
 
 
 func save_settings() -> void:
@@ -76,6 +80,7 @@ func save_settings() -> void:
 	cfg.set_value("controls", "camera", camera_sensitivity)
 	cfg.set_value("controls", "vibration", vibration)
 	cfg.set_value("controls", "auto_aim", auto_aim)
+	cfg.set_value("garage", "vehicle_skin", vehicle_skin)
 	cfg.save(PATH)
 	apply()
 	changed.emit()

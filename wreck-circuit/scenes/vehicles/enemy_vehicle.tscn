@@ -7,7 +7,7 @@
 
 [node name="EnemyVehicle" type="RigidBody3D" groups=["enemy", "vehicle"]]
 collision_layer = 4
-collision_mask = 3
+collision_mask = 7
 mass = 1400.0
 continuous_cd = true
 contact_monitor = true
@@ -27,7 +27,7 @@ script = ExtResource("2_hp")
 [node name="Visual" type="Node3D" parent="."]
 
 [node name="Turret" parent="." instance=ExtResource("3_gun")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, -0.15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.88, -0.15)
 use_auto_aim = true
 shot_layer = 16
 shot_mask = 3

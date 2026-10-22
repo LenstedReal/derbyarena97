@@ -1,13 +1,14 @@
-[gd_scene load_steps=5 format=3 uid="uid://bwreckshot0001"]
+[gd_scene load_steps=6 format=3 uid="uid://bwreckshot0001"]
 
 [ext_resource type="Script" path="res://scripts/weapons/projectile.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://assets/models/vfx/tracer.glb" id="2_tracer"]
 
 [sub_resource type="SphereShape3D" id="Sphere_shape"]
-radius = 0.16
+radius = 0.12
 
 [sub_resource type="SphereMesh" id="Sphere_mesh"]
-radius = 0.12
-height = 0.24
+radius = 0.055
+height = 0.14
 
 [sub_resource type="StandardMaterial3D" id="Mat_shot"]
 albedo_color = Color(1, 0.55, 0.15, 1)
@@ -28,3 +29,6 @@ shape = SubResource("Sphere_shape")
 [node name="Mesh" type="MeshInstance3D" parent="."]
 mesh = SubResource("Sphere_mesh")
 surface_material_override/0 = SubResource("Mat_shot")
+
+[node name="TracerGLB" parent="." instance=ExtResource("2_tracer")]
+scale = Vector3(0.42, 0.42, 0.42)

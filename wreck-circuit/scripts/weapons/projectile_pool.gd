@@ -1,7 +1,7 @@
 extends Node3D
 
 const SCENE := preload("res://scenes/weapons/projectile.tscn")
-const SIZE := 8
+const SIZE := 16
 
 var _items: Array[Area3D] = []
 
