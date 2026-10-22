@@ -324,7 +324,7 @@ class FilamentWorld(private val context: Context) {
         lootPools.forEach { pool -> pool.forEach { sy.hideInstance(it) } }
         val vm = boundViewModel
         cameraController.reset(0f, 180f * WORLD_SCALE, vm?.player?.value?.angle ?: -90f)
-        Log.i(TAG, "World loaded: arena=${arena != null} crowd=${crowd != null} enemies=${enemyEntities.count { it != null }} particles/type=$perType")
+        Log.i(TAG, "World loaded: arena=${arena != null} crowdGroups=${crowdGroups.count { it != 0 }} enemies=${enemyEntities.count { it != null }} particles/type=$perType")
     }
 
     // ------------------------------------------------------------------ frame loop
