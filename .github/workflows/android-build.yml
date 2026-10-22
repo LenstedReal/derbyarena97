@@ -64,7 +64,7 @@ jobs:
           mkdir -p wreck-circuit/build
           godot --headless --path wreck-circuit \
             --export-debug "Android" \
-            wreck-circuit/build/wreck-circuit-debug.apk
+            build/wreck-circuit-debug.apk
           test -s wreck-circuit/build/wreck-circuit-debug.apk
           ls -lh wreck-circuit/build/wreck-circuit-debug.apk
 
