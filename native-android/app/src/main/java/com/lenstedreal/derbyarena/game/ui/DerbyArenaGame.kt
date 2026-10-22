@@ -179,6 +179,9 @@ fun DerbyArenaGame(
                         }
                     }
 
+                    if (gameState == GameViewModel.GameState.PLAYING || gameState == GameViewModel.GameState.PAUSED) {
+                        ExtractionMissionHud(viewModel = viewModel)
+                    }
                     if (gameState == GameViewModel.GameState.PAUSED) {
                         PauseOverlay(viewModel = viewModel)
                     }
@@ -1806,7 +1809,7 @@ fun DerbyMenuScreen(
                 )
 
                 Text(
-                    text = "450 BÖLÜM DEMOLITION ŞAMPİYONASI",
+                    text = "BLACKOUT PROTOCOL · EXTRACTION RUN",
                     color = Color(0xFFFF1744),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
@@ -1827,7 +1830,7 @@ fun DerbyMenuScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "BÖLÜM", color = Color(0xFF90A4AE), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                    Text(text = "$currentLevel / 450", color = Color(0xFFFFEA00), fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                    Text(text = "RUN $currentLevel", color = Color(0xFFFFEA00), fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "YILDIZ", color = Color(0xFF90A4AE), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
@@ -1855,7 +1858,7 @@ fun DerbyMenuScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "🏟️ ROMA KOLEZYUMU DERBY ARENASI",
+                        text = "BLACKOUT SPILLWAY · ENDÜSTRİYEL ÖLÜM BÖLGESİ",
                         color = Color(0xFF00FFCC),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
@@ -1863,7 +1866,7 @@ fun DerbyMenuScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "V8 RUSTY MUSCLE CAR · 5 DÜŞMAN HURDA AKINCI · CANLI PBR IŞIK & GÖLGE",
+                        text = "3 REAKTÖR HÜCRESİNİ TOPLA · DÜŞMAN ATEŞİNDEN SIYRIL · TAHLİYEYE ULAŞ",
                         color = Color(0xFFFFEA00),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -1898,7 +1901,7 @@ fun DerbyMenuScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "OYNA · BÖLÜM $currentLevel",
+                        text = "OPERASYONU BAŞLAT · RUN $currentLevel",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace
@@ -1909,7 +1912,7 @@ fun DerbyMenuScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 450 LEVELS BUTTON
+                    // MISSION SELECT BUTTON
                     Button(
                         onClick = { viewModel.openLevelSelect() },
                         colors = ButtonDefaults.buttonColors(
@@ -1923,7 +1926,7 @@ fun DerbyMenuScreen(
                             .testTag("level_select_button")
                     ) {
                         Text(
-                            text = "🏆 450 BÖLÜM",
+                            text = "🏁 OPERASYONLAR",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Monospace

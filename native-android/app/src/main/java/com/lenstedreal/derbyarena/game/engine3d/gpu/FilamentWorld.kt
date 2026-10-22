@@ -291,9 +291,9 @@ class FilamentWorld(private val context: Context) {
         val arena = loader.loadFromAssets("models/arena/arena01_colosseum.glb", sc)
         if (arena == null) Log.e(TAG, "ASSET MISSING: arena01_colosseum.glb (arena will be empty)")
 
-        val crowd = loader.loadFromAssets("models/crowd/crowd_tiers.glb", sc)
-        for (g in 0 until 24) crowdGroups[g] = crowd?.getFirstEntityByName("CrowdGroup_%02d".format(g)) ?: 0
-        crowdVisibleGroups = budget.crowdGroups
+        // BLACKOUT SPILLWAY is an abandoned industrial facility, not the old Roman colosseum.
+        // Deliberately omit the legacy crowd mesh so the new location reads as a deserted floodway.
+        crowdVisibleGroups = 0
 
         val playerAsset = loader.loadFromAssets("models/vehicles/player_muscle.glb", sc)
         playerEntities = sy.cacheVehicleEntities(playerAsset)

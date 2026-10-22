@@ -93,7 +93,7 @@ fun DerbyLevelSelectScreen(
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "450 BÖLÜM DERBY",
+                        text = "BLACKOUT OPERASYONLARI",
                         color = Color(0xFFFF1744),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black,

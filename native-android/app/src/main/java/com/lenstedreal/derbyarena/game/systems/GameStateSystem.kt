@@ -56,13 +56,13 @@ class GameStateSystem {
     fun aliveEnemies(enemies: List<EnemyCar>): Int = enemies.count { !it.isDead && !it.isWreckage }
 
     /** Evaluates win / loss. Returns the new phase if the match ended, else null. */
-    fun evaluate(player: PlayerCar, enemies: List<EnemyCar>): MatchPhase? {
+    fun evaluate(player: PlayerCar, enemies: List<EnemyCar>, allowEliminationWin: Boolean = true): MatchPhase? {
         if (phase != MatchPhase.PLAYING) return null
         if (player.isDead || player.health <= 0f) {
             phase = MatchPhase.ELIMINATED
             return phase
         }
-        if (aliveEnemies(enemies) == 0) {
+        if (allowEliminationWin && aliveEnemies(enemies) == 0) {
             phase = MatchPhase.WON
             return phase
         }

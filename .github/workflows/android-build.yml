@@ -1,4 +1,4 @@
-name: Derby Arena Native Android APK (Kotlin migration)
+name: Derby Arena Native Android APK
 
 on:
   workflow_dispatch:
@@ -7,7 +7,6 @@ on:
     paths:
       - 'native-android/**'
       - '.github/workflows/android-build.yml'
-      - 'README_NATIVE_MIGRATION_TR.md'
 
 permissions:
   contents: read
@@ -16,9 +15,6 @@ jobs:
   build-debug-apk:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    defaults:
-      run:
-        working-directory: native-android
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,54 +25,73 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+          cache-dependency-path: native-android/gradle/libs.versions.toml
 
       - name: Configure Android SDK
         shell: bash
         run: |
           set -euo pipefail
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          if [ ! -d "$SDK_ROOT" ]; then
-            echo "Android SDK directory not found: $SDK_ROOT" >&2
-            exit 1
-          fi
+          test -d "$SDK_ROOT" || { echo "Android SDK not found: $SDK_ROOT" >&2; exit 1; }
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
           SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n 1)"
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found under $SDK_ROOT/cmdline-tools" >&2
-            exit 1
-          fi
-          echo "Using sdkmanager: $SDKMANAGER"
+          test -n "$SDKMANAGER" || { echo "sdkmanager not found" >&2; exit 1; }
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           AVAILABLE="$("$SDKMANAGER" --list --include_obsolete --channel=3 2>/dev/null)"
           if grep -Fq 'platforms;android-37.0' <<<"$AVAILABLE"; then
-            PLATFORM_PACKAGE="platforms;android-37.0"
+            PLATFORM_PACKAGE='platforms;android-37.0'
           elif grep -Eq 'platforms;android-37[[:space:]]+\|' <<<"$AVAILABLE"; then
-            PLATFORM_PACKAGE="platforms;android-37"
+            PLATFORM_PACKAGE='platforms;android-37'
           else
-            echo "Android API 37 SDK platform was not listed by sdkmanager" >&2
+            echo 'Android API 37 package was not listed by sdkmanager' >&2
             echo "$AVAILABLE" | grep -E 'platforms;android-37|Available Packages' | tail -n 30 || true
             exit 1
           fi
-          "$SDKMANAGER" --channel=3 --install "$PLATFORM_PACKAGE" "build-tools;36.0.0" "platform-tools"
+          "$SDKMANAGER" --channel=3 --install "$PLATFORM_PACKAGE" 'build-tools;36.0.0' 'platform-tools'
 
-      - name: Verify app identity
+      - name: Verify app identity and JVM targets
         shell: bash
         run: |
           set -euo pipefail
+          cd native-android
           grep -q 'applicationId = "com.lenstedreal.derbyarena"' app/build.gradle.kts
           grep -q 'versionName = "1.0.5"' app/build.gradle.kts
           grep -q 'versionCode = 105' app/build.gradle.kts
+          grep -q 'VERSION_17' app/build.gradle.kts
+          grep -q 'JvmTarget.JVM_17' app/build.gradle.kts
+
+      - name: Validate generated GLB assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          root = Path('native-android/app/src/main/assets/models')
+          for rel in ('arena/arena01_colosseum.glb', 'vehicles/player_muscle.glb'):
+              data = (root / rel).read_bytes()
+              magic, version, length = struct.unpack_from('<III', data, 0)
+              assert magic == 0x46546C67 and version == 2 and length == len(data), rel
+              chunk_len, chunk_type = struct.unpack_from('<II', data, 12)
+              assert chunk_type == 0x4E4F534A, rel
+              gltf = json.loads(data[20:20+chunk_len].decode('utf-8').rstrip('\x00 '))
+              assert gltf.get('meshes') and gltf.get('nodes'), rel
+              print(f'{rel}: GLB2 OK, {len(gltf["meshes"])} meshes, {len(gltf["nodes"])} nodes')
+          layout = json.loads((root/'arena/arena01_layout.json').read_text())
+          assert layout.get('arena') == 'BLACKOUT_SPILLWAY'
+          PY
 
       - name: Build debug APK
+        working-directory: native-android
         run: ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Verify APK
         shell: bash
         run: |
           set -euo pipefail
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APK='native-android/app/build/outputs/apk/debug/app-debug.apk'
           test -s "$APK"
           ls -lh "$APK"
           sha256sum "$APK"
@@ -84,7 +99,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DerbyArena-1.0.5-native-debug-apk
+          name: DerbyArena-1.0.5-BlackoutRun-debug-apk
           path: native-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

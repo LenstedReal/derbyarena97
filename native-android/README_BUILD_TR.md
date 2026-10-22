@@ -19,11 +19,13 @@ Bu proje Godot export zincirinden ayrılmış **native Android / Kotlin + Jetpac
 ## GitHub Actions
 `.github/workflows/android-native.yml`, `setup-android` eylemini kullanmadan SDK Manager aracılığıyla gerekli bileşenleri kurmayı ve APK üretmeyi dener. GitHub'a push yaptıktan sonra **Actions → Derby Arena Native Android APK** sayfasında çalıştırma sonucuna ve `DerbyArena-1.0.5-native-debug-apk` artifact'ine bakabilirsin.
 
-## İçerik
-- Compose tabanlı oyun ekranı, menü/seviye seçimi, HUD, mobil kontroller ve sonuç ekranı
-- Araç hareketi, düşman AI, çarpışma/hasar, silahlar, ganimet, VFX ve kamera sistemleri için Kotlin kaynakları
-- Filament tabanlı GPU renderer ve yedek çizim yolu
-- Arena, kalabalık, oyuncu/düşman araçları, ganimet ve efektler için GLB modelleri
+## BLACKOUT RUN — yeniden tasarlanan prototip
+- Eski Roma kolezyumu görseli, terk edilmiş endüstriyel taşkın tüneli / BLACKOUT SPILLWAY arena modeliyle değiştirildi.
+- 3 reaktör hücresi fiziksel olarak arena GLB'sine yerleştirildi; oyuncu hücrelerin yanından geçince toplanır.
+- 4 dakikalık görev penceresi: 3 hücreyi güvenceye al, sonra kuzeydeki tahliye pedine ulaş. Yalnızca tüm düşmanları yok etmek artık zafer sağlamaz.
+- Filament GPU render, takip kamerası, araç sürüşü, düşman AI, çarpışma/hasar, silahlar, ganimet ve efektler korunup yeni görev döngüsüne bağlandı.
+- HUD, sıradaki hedefi, hücre ilerlemesini, tahliye kilidini, hedef mesafesini ve kalan süreyi gösterir.
+- Java/Kotlin bytecode hedefleri JVM 17'de eşitlendi (Kotlin compilerOptions açıkça JVM_17).
 
 ## Test durumu
-Kaynak ve kaynak varlık kontrolleri yapılmıştır; bu çalışma ortamında Android SDK/JDK olmadığı ve Gradle dağıtımı indirilemediği için **APK derlemesi ve gerçek cihaz testi tamamlanmış değildir**. APK'nın hazır olduğu ancak CI'da derleme başarılı olduktan sonra söylenebilir.
+Yeni arena ve araç GLB dosyaları GLB 2.0 başlık/JSON kontrollerinden geçti; asset pipeline doğrulaması 0 sorun raporladı. ExtractionRunSystem saf Kotlin harness testi geçti. Bu çalışma ortamında Gradle dağıtımı indirilemediği için **Android APK derlemesi ve gerçek cihaz testi tamamlanmış değildir**. APK'nın hazır olduğu ancak CI'da derleme başarılı olduktan sonra söylenebilir.

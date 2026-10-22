@@ -34,6 +34,36 @@ private val Red = Color(0xFFD32F2F)
 private val Text1 = Color(0xFFF5F5F5)
 private val Muted = Color(0xFF888888)
 
+
+/** Mission-first HUD for BLACKOUT RUN: cells are mandatory; kills alone do not win the run. */
+@Composable
+fun ExtractionMissionHud(viewModel: GameViewModel) {
+    val secured by viewModel.missionCellsSecured.collectAsStateWithLifecycle()
+    val time by viewModel.missionTimeRemaining.collectAsStateWithLifecycle()
+    val unlocked by viewModel.missionExtractionUnlocked.collectAsStateWithLifecycle()
+    val objective by viewModel.missionObjective.collectAsStateWithLifecycle()
+    val distance by viewModel.missionTargetDistance.collectAsStateWithLifecycle()
+    val notice by viewModel.missionNotice.collectAsStateWithLifecycle()
+    Column(
+        Modifier.padding(start = 12.dp, top = 166.dp).widthIn(max = 190.dp)
+            .background(Color(0xE60A1015))
+            .border(1.dp, if (unlocked) Color(0xFF36E0D0) else Color(0xFF59656B))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .testTag("blackout_mission_hud")
+    ) {
+        Text("BLACKOUT RUN", color = Color(0xFF40E0D0), fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(if (unlocked) "EXTRACTION UNLOCKED" else "REACTOR CELLS  $secured / 3", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(4.dp))
+        Text(if (unlocked) "TARGET · NORTH PAD" else "TARGET · $objective", color = Color(0xFFFFC857), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("DIST ${(distance * 0.04f).toInt()} m  ·  ${time.toInt() / 60}:${(time.toInt() % 60).toString().padStart(2, '0')}", color = if (time < 45f) Color(0xFFFF554F) else Color(0xFFB8C6CC), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        if (notice.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(notice, color = Color(0xFFB5F5EE), fontSize = 9.sp, fontWeight = FontWeight.Bold, lineHeight = 12.sp)
+        }
+    }
+}
+
 /** BattleHud: HP / armor / nitro / ammo / weapon / minimap / zone timer / kills / speed / crosshair / damage indicator / kill feed. */
 @Composable
 fun BattleHud(viewModel: GameViewModel, modifier: Modifier = Modifier) {

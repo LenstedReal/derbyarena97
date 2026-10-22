@@ -104,6 +104,12 @@ class GameViewModel(
     val waveActiveEnemies = MutableStateFlow(5)
     val screenShake = MutableStateFlow(0f)
     val crowdExcitement = MutableStateFlow(25f)
+    val missionCellsSecured = MutableStateFlow(0)
+    val missionTimeRemaining = MutableStateFlow(240f)
+    val missionExtractionUnlocked = MutableStateFlow(false)
+    val missionObjective = MutableStateFlow("PUMP STATION")
+    val missionTargetDistance = MutableStateFlow(0f)
+    val missionNotice = MutableStateFlow("SECURE 3 REACTOR CELLS")
 
     data class DamageEvent(val source: String, val amount: Float, val attacker: String, val collisionType: String, val hpAfter: Float, val frame: Long)
     private val damageLog = ArrayDeque<DamageEvent>(8)
@@ -124,6 +130,7 @@ class GameViewModel(
     private val battleRoyale = BattleRoyaleSystem()
     private val enemyAISystem = EnemyAISystem(combatSystem, lootSystem, battleRoyale)
     private val arenaSystem = ArenaSystem(assetReader)
+    private val extractionRun = ExtractionRunSystem()
     private val vfxSystem = VfxSystem()
     private val matchState = GameStateSystem()
     val audioSystem = AudioSystem()
@@ -230,6 +237,13 @@ class GameViewModel(
         viewModelScope.launch { dbGamesPlayed++; saveToDatabase() }
 
         wave.value = lvl
+        extractionRun.reset()
+        missionCellsSecured.value = 0
+        missionTimeRemaining.value = 240f
+        missionExtractionUnlocked.value = false
+        missionObjective.value = extractionRun.objectiveName
+        missionTargetDistance.value = hypot(player.value.x - extractionRun.targetX, player.value.y - extractionRun.targetY)
+        missionNotice.value = "SECURE 3 REACTOR CELLS"
         waveActiveEnemies.value = config.enemyCount
         screenShake.value = 0f
         crowdExcitement.value = 25f
@@ -328,21 +342,29 @@ class GameViewModel(
         lootSystem.collectForPlayer(p, events)
         for (e in enemyList) lootSystem.collectForEnemy(e, events)
 
-        // 6. Battle royale zone
-        if (battleRoyale.update(dt)) {
-            zoneAnnouncement.value = if (battleRoyale.zone.finalCircle) "FINAL CIRCLE" else if (battleRoyale.zone.shrinking) "ZONE SHRINKING" else "ZONE LOCKED"
-            audioSystem.play(AudioSystem.Sfx.ZONE_WARNING, gameFrame, 30)
+        // 5b. BLACKOUT RUN objective: secure reactor cells, then reach the extraction pad.
+        val missionTick = extractionRun.update(dt, p.x, p.y, !p.isDead && p.health > 0f)
+        missionCellsSecured.value = extractionRun.securedCells
+        missionTimeRemaining.value = extractionRun.secondsRemaining
+        missionExtractionUnlocked.value = extractionRun.extractionUnlocked
+        missionObjective.value = extractionRun.objectiveName
+        missionTargetDistance.value = hypot(p.x - extractionRun.targetX, p.y - extractionRun.targetY)
+        missionTick.securedNow?.let {
+            p.score += 400
+            p.scrap += 20
+            vfxSystem.addFloatingText(p.x, p.y, "CELL SECURED +400", Color(0xFF40E0D0))
+            audioSystem.play(AudioSystem.Sfx.PICKUP, gameFrame, 4)
+            missionNotice.value = if (extractionRun.extractionUnlocked) "EXTRACTION UNLOCKED · GO NORTH" else "$it SECURED · FIND NEXT CELL"
         }
-        val zd = battleRoyale.zoneDamage(p.x, p.y, dt)
-        if (zd > 0f) {
-            damageSystem.damagePlayer(p, zd, battleRoyale.zone.centerX, battleRoyale.zone.centerY, gameFrame, events, ignoreProtection = true)
-            if (gameFrame % 30 == 0L) events.add(CombatEvent.ZoneDamage(p.x, p.y, zd))
-            if (p.health <= 0f) lastDeathCause.value = "DEATH: outside safe zone"
-        }
-        for (e in enemyList) {
-            val ezd = battleRoyale.zoneDamage(e.x, e.y, dt)
-            if (ezd > 0f) damageSystem.damageEnemy(e, ezd, "zone", events)
-        }
+
+        // 6. BLACKOUT RUN is an extraction mission, not a shrinking-circle battle royale.
+        // Keep the perimeter readable while players route between industrial objectives.
+        battleRoyale.zone.radius = 700f
+        battleRoyale.zone.targetRadius = 700f
+        battleRoyale.zone.phaseTimer = extractionRun.secondsRemaining
+        battleRoyale.zone.shrinking = false
+        battleRoyale.zone.finalCircle = false
+        battleRoyale.zone.damagePerSecond = 0f
 
         // 7. Translate combat events into VFX / audio / HUD
         for (ev in events) handleEvent(ev, p, preset)
@@ -356,10 +378,16 @@ class GameViewModel(
         }
 
         // 9. Win / loss
-        when (matchState.evaluate(p, enemyList)) {
+        when (matchState.evaluate(p, enemyList, allowEliminationWin = false)) {
             GameStateSystem.MatchPhase.ELIMINATED -> finishMatch(false, p, enemyList, config)
-            GameStateSystem.MatchPhase.WON -> finishMatch(true, p, enemyList, config)
             else -> Unit
+        }
+        if (missionTick.extracted && _gameState.value == GameState.PLAYING) {
+            missionNotice.value = "EXTRACTION SUCCESSFUL"
+            finishMatch(true, p, enemyList, config)
+        } else if (missionTick.timedOut && _gameState.value == GameState.PLAYING) {
+            missionNotice.value = "BLACKOUT WINDOW EXPIRED"
+            finishMatch(false, p, enemyList, config)
         }
 
         // 10. Publish reactive state + GPU snapshot

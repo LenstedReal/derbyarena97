@@ -1,0 +1,91 @@
+name: Derby Arena Native Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'tools/**'
+      - '*.md'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'settings.gradle.kts'
+      - '.github/workflows/android-native.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_ROOT" ]; then
+            echo "Android SDK directory not found: $SDK_ROOT" >&2
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK_ROOT/cmdline-tools" >&2
+            exit 1
+          fi
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          AVAILABLE="$("$SDKMANAGER" --list --include_obsolete --channel=3 2>/dev/null)"
+          if grep -Fq 'platforms;android-37.0' <<<"$AVAILABLE"; then
+            PLATFORM_PACKAGE="platforms;android-37.0"
+          elif grep -Eq 'platforms;android-37[[:space:]]+\|' <<<"$AVAILABLE"; then
+            PLATFORM_PACKAGE="platforms;android-37"
+          else
+            echo "Android API 37 SDK platform was not listed by sdkmanager" >&2
+            echo "$AVAILABLE" | grep -E 'platforms;android-37|Available Packages' | tail -n 30 || true
+            exit 1
+          fi
+          "$SDKMANAGER" --channel=3 --install "$PLATFORM_PACKAGE" "build-tools;36.0.0" "platform-tools"
+
+      - name: Verify app identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'applicationId = "com.lenstedreal.derbyarena"' app/build.gradle.kts
+          grep -q 'versionName = "1.0.5"' app/build.gradle.kts
+          grep -q 'versionCode = 105' app/build.gradle.kts
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DerbyArena-1.0.5-BlackoutRun-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

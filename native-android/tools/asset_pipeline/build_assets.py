@@ -551,7 +551,7 @@ def validate():
         "vehicles/enemy_raider_b.glb": ["Hood", "Wheel_FL", "Turret"],
         "vehicles/enemy_raider_c.glb": ["Hood", "Wheel_FL", "Turret"],
         "vehicles/enemy_boss_warrig.glb": ["Hood", "Wheel_FL", "Turret"],
-        "arena/arena01_colosseum.glb": ["Ground", "BarrierRing", "Tribunes", "Colonnade", "OuterWall", "Props", "DistantWorld"],
+        "arena/arena01_colosseum.glb": ["Ground", "Floodwall", "GantryAndPipes", "WreckageAndExtractionPad", "IndustrialHorizon"],
         "crowd/crowd_tiers.glb": [f"CrowdGroup_{g:02d}" for g in range(24)],
     }
     for rel, names in required.items():
@@ -605,12 +605,16 @@ def validate():
 
 if __name__ == "__main__":
     print("Baking Derby Arena GLB assets ...")
-    export_vehicle("player_muscle.glb", "player", (0.55, 0.16, 0.08), 0.42, seed=1)
+    player_doc = GlbDocument()
+    build_vehicle(player_doc, "breakline_interceptor", (0.055, 0.22, 0.26), rust=0.16, boss=True, seed=101, glass_alpha=0.28)
+    player_doc.write(out("vehicles", "player_muscle.glb"))
+    print("  vehicles/player_muscle.glb: BREAKLINE INTERCEPTOR (armored twin-barrel variant)")
     export_vehicle("enemy_raider_a.glb", "raiderA", (0.55, 0.55, 0.12), 0.55, seed=2)
     export_vehicle("enemy_raider_b.glb", "raiderB", (0.12, 0.45, 0.25), 0.55, seed=3)
     export_vehicle("enemy_raider_c.glb", "raiderC", (0.22, 0.24, 0.30), 0.6, seed=4)
     export_vehicle("enemy_boss_warrig.glb", "boss", (0.32, 0.05, 0.05), 0.35, boss=True, seed=5)
-    build_arena()
+    import subprocess
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "build_blackout_arena.py")], check=True)
     build_crowd()
     build_loot()
     build_vfx()
