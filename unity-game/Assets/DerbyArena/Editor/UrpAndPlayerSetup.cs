@@ -2,6 +2,7 @@
 using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -60,6 +61,25 @@ namespace DerbyArena.EditorTools
             var scenes = new[] { new EditorBuildSettingsScene("Assets/DerbyArena/Scenes/BlackoutSpillway.unity", true) };
             EditorBuildSettings.scenes = scenes;
             AssetDatabase.SaveAssets();
+        }
+    }
+
+    public sealed class DerbyBuildSettingsEnforcer : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => -1000;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            // Build callback'i sırasında Setup() erken dönebilir.
+            // Bu nedenle build kimliğini burada doğrudan uygula.
+            PlayerSettings.companyName = "LenstedReal";
+            PlayerSettings.productName = "DERBY ARENA";
+            PlayerSettings.bundleVersion = "1.0.6";
+            PlayerSettings.SetApplicationIdentifier(
+                NamedBuildTarget.Android, "com.lenstedreal.derbyarena");
+            PlayerSettings.Android.bundleVersionCode = 106;
+            AssetDatabase.SaveAssets();
+            Debug.Log("DERBY BUILD SETTINGS APPLIED: DERBY ARENA / 1.0.6 / 106");
         }
     }
 

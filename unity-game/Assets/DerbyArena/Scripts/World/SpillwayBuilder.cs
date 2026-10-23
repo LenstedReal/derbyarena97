@@ -12,7 +12,12 @@ namespace DerbyArena.World
             if (shader == null)
                 shader = Shader.Find("Standard");
             if (shader == null)
-                shader = Shader.Find("Universal Render Pipeline/Unlit");
+                shader = Shader.Find("Unlit/Color");
+            if (shader == null)
+                shader = Shader.Find("Hidden/InternalErrorShader");
+            if (shader == null)
+                throw new System.InvalidOperationException(
+                    "Derby Arena startup: no compatible shader found. Check URP/build settings.");
             var mat = new Material(shader);
             if (mat.HasProperty("_BaseColor"))
                 mat.SetColor("_BaseColor", albedo);
