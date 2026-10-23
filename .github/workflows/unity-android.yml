@@ -1,0 +1,68 @@
+name: unity-android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'unity/**'
+    paths:
+      - 'unity-game/**'
+      - '.github/workflows/unity-android.yml'
+      - 'validate_derby.py'
+
+jobs:
+  static-validation:
+    name: Unity-independent asset validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Unity assets and project metadata
+        shell: bash
+        run: set -o pipefail; python validate_derby.py | tee STATIC_VALIDATION_TR.txt
+      - name: Upload static validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: derby-static-validation
+          path: STATIC_VALIDATION_TR.txt
+          if-no-files-found: ignore
+
+  apk:
+    name: Android APK (requires Unity license)
+    runs-on: ubuntu-latest
+    needs: static-validation
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required Unity secrets
+        shell: bash
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [[ -z "$UNITY_LICENSE" || -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]]; then
+            echo "::error::Unity license secrets are missing. Static validation may pass, but no APK can be built."
+            exit 1
+          fi
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.27f1
+          targetPlatform: Android
+          projectPath: unity-game
+          buildsPath: build
+          androidAppBundle: false
+          androidExportType: apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: derby-arena-apk
+          path: build/**/*.apk
+          if-no-files-found: error
