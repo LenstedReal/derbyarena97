@@ -1,3 +1,4 @@
+using System;
 using DerbyArena.AI;
 using DerbyArena.Audio;
 using DerbyArena.CameraRig;
@@ -16,73 +17,227 @@ namespace DerbyArena.Core
         MissionDirector mission;
         HudController hud;
         int spawnedCells;
+        ChaseCamera chase;
 
         void Awake()
         {
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 60;
             QualitySettings.shadowDistance = SystemInfo.systemMemorySize >= 3500 ? 42f : 0f;
+
+            // Critical: establish a working camera before creating materials, geometry,
+            // mission markers or vehicles. Any later failure can no longer leave a
+            // camera-less black screen.
+            EnsurePrimaryCamera();
+
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Exponential;
             RenderSettings.fogDensity = 0.012f;
             RenderSettings.fogColor = new Color(0.07f, 0.075f, 0.08f);
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.16f, 0.16f, 0.18f);
+
             var world = new GameObject("BlackoutSpillway").transform;
-            SpillwayBuilder.Build(world);
-            mission = gameObject.AddComponent<MissionDirector>();
-            mission.BuildWorldMarkers(world);
-            var player = Spawn(VehicleSpec.Interceptor(), new Vector3(0f, 1.1f, -24f), Quaternion.identity, true);
-            mission.PlayerHealth = player.GetComponent<VehicleHealth>();
-            var camGo = new GameObject("ChaseCamera");
-            var cam = camGo.AddComponent<Camera>();
-            cam.tag = "MainCamera";
-            var chase = camGo.AddComponent<ChaseCamera>();
-            chase.Target = player.transform;
-            chase.Drive = player.GetComponent<WheelDrive>();
-            var touch = gameObject.AddComponent<TouchControls>();
-            var playerDrive = player.AddComponent<PlayerDrive>();
-            playerDrive.Drive = player.GetComponent<WheelDrive>();
-            playerDrive.Weapons = player.GetComponent<WeaponRig>();
-            playerDrive.Controls = touch;
-            hud = gameObject.AddComponent<HudController>();
-            hud.Mission = mission;
-            hud.Health = mission.PlayerHealth;
-            hud.Drive = chase.Drive;
-            hud.Controls = touch;
-            hud.Restart = () => SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-            hud.Build();
-            SpawnEnemy(VehicleSpec.Drifter(), new Vector3(-12f, 1.1f, 6f), player.transform);
-            var engine = player.AddComponent<AudioSource>();
-            engine.clip = SynthAudio.EngineLoop();
-            engine.loop = true;
-            engine.spatialBlend = 0.4f;
-            engine.volume = 0.35f;
-            engine.Play();
-            player.AddComponent<EngineAudio>().Source = engine;
+            try
+            {
+                SpillwayBuilder.Build(world);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("DERBY: arena generation failed; creating emergency arena. " + ex);
+                BuildEmergencyArena(world);
+            }
+
+            try
+            {
+                mission = gameObject.AddComponent<MissionDirector>();
+                mission.BuildWorldMarkers(world);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("DERBY: mission marker setup failed; core arena will remain playable. " + ex);
+                if (mission == null) mission = GetComponent<MissionDirector>();
+            }
+
+            GameObject player = null;
+            try
+            {
+                player = Spawn(VehicleSpec.Interceptor(), new Vector3(0f, 1.1f, -24f), Quaternion.identity, true);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("DERBY: interceptor setup failed; creating emergency player vehicle. " + ex);
+            }
+
+            if (player == null)
+                player = SpawnEmergencyVehicle();
+
+            if (player != null)
+            {
+                if (mission != null) mission.PlayerHealth = player.GetComponent<VehicleHealth>();
+                if (chase != null)
+                {
+                    chase.Target = player.transform;
+                    chase.Drive = player.GetComponent<WheelDrive>();
+                }
+            }
+
+            TouchControls touch = null;
+            try
+            {
+                touch = gameObject.AddComponent<TouchControls>();
+                if (player != null && player.GetComponent<WheelDrive>() != null)
+                {
+                    var playerDrive = player.AddComponent<PlayerDrive>();
+                    playerDrive.Drive = player.GetComponent<WheelDrive>();
+                    playerDrive.Weapons = player.GetComponent<WeaponRig>();
+                    playerDrive.Controls = touch;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("DERBY: touch-control setup failed. " + ex);
+            }
+
+            try
+            {
+                hud = gameObject.AddComponent<HudController>();
+                hud.Mission = mission;
+                hud.Health = mission != null ? mission.PlayerHealth : null;
+                hud.Drive = chase != null ? chase.Drive : null;
+                hud.Controls = touch;
+                hud.Restart = () => SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                hud.Build();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("DERBY: HUD setup failed; 3D camera/world remain active. " + ex);
+            }
+
+            if (player != null && mission != null)
+            {
+                try { SpawnEnemy(VehicleSpec.Drifter(), new Vector3(-12f, 1.1f, 6f), player.transform); }
+                catch (Exception ex) { Debug.LogError("DERBY: first enemy could not spawn. " + ex); }
+            }
+
+            if (player != null)
+            {
+                try
+                {
+                    var engine = player.AddComponent<AudioSource>();
+                    engine.clip = SynthAudio.EngineLoop();
+                    engine.loop = true;
+                    engine.spatialBlend = 0.4f;
+                    engine.volume = 0.35f;
+                    engine.Play();
+                    player.AddComponent<EngineAudio>().Source = engine;
+                }
+                catch (Exception ex) { Debug.LogWarning("DERBY: engine audio unavailable. " + ex.Message); }
+            }
+        }
+
+        void EnsurePrimaryCamera()
+        {
+            var camera = Camera.main;
+            if (camera == null) camera = FindAnyObjectByType<Camera>();
+            GameObject camGo;
+            if (camera == null)
+            {
+                camGo = new GameObject("ChaseCamera");
+                camera = camGo.AddComponent<Camera>();
+            }
+            else camGo = camera.gameObject;
+
+            camGo.tag = "MainCamera";
+            camera.enabled = true;
+            camera.targetDisplay = 0;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.025f, 0.03f, 0.04f, 1f);
+            camera.cullingMask = ~0;
+            camera.depth = 0f;
+            camera.nearClipPlane = 0.1f;
+            camera.farClipPlane = 500f;
+            camera.fieldOfView = 60f;
+            Vector3 initialLookPoint = new Vector3(0f, 1.0f, -18f);
+            Vector3 initialPosition = new Vector3(0f, 5.5f, -35f);
+            camGo.transform.SetPositionAndRotation(initialPosition,
+                Quaternion.LookRotation(initialLookPoint - initialPosition, Vector3.up));
+
+            chase = camGo.GetComponent<ChaseCamera>();
+            if (chase == null) chase = camGo.AddComponent<ChaseCamera>();
+            if (camGo.GetComponent<AudioListener>() == null)
+                camGo.AddComponent<AudioListener>();
+        }
+
+        static void BuildEmergencyArena(Transform parent)
+        {
+            // Primitive renderers retain Unity's default material if no custom shader
+            // is available; this deliberately avoids another Shader.Find failure.
+            var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.name = "EmergencyFloor";
+            floor.transform.SetParent(parent, false);
+            floor.transform.position = new Vector3(0f, -0.45f, 4f);
+            floor.transform.localScale = new Vector3(78f, 0.9f, 92f);
+
+            var wallL = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wallL.name = "EmergencyWallL";
+            wallL.transform.SetParent(parent, false);
+            wallL.transform.position = new Vector3(-38f, 3f, 4f);
+            wallL.transform.localScale = new Vector3(2f, 6f, 92f);
+
+            var wallR = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wallR.name = "EmergencyWallR";
+            wallR.transform.SetParent(parent, false);
+            wallR.transform.position = new Vector3(38f, 3f, 4f);
+            wallR.transform.localScale = new Vector3(2f, 6f, 92f);
+
+            var lightGo = new GameObject("EmergencyDirectionalLight");
+            lightGo.transform.SetParent(parent, false);
+            lightGo.transform.rotation = Quaternion.Euler(48f, -30f, 0f);
+            var light = lightGo.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = 1.2f;
+            light.shadows = LightShadows.None;
+        }
+
+        static GameObject SpawnEmergencyVehicle()
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = "Emergency Player Vehicle";
+            go.tag = "Player";
+            go.transform.position = new Vector3(0f, 1.1f, -24f);
+            go.transform.localScale = new Vector3(1.8f, 0.75f, 3.4f);
+            var rb = go.AddComponent<Rigidbody>();
+            rb.mass = 1250f;
+            rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+            return go;
         }
 
         void Update()
         {
-            if (mission == null)
-                return;
+            if (mission == null) return;
             int cells = mission.Rules.Cells;
             if (cells != spawnedCells)
             {
                 var player = GameObject.FindGameObjectWithTag("Player");
-                if (cells == 1)
-                    SpawnEnemy(VehicleSpec.Rammer(), new Vector3(16f, 1.1f, -12f), player.transform);
-                else if (cells == 2)
-                    SpawnEnemy(VehicleSpec.Hunter(), new Vector3(-20f, 1.1f, 20f), player.transform);
-                else if (cells >= 3)
-                    SpawnEnemy(VehicleSpec.WarRig(), new Vector3(0f, 1.4f, 30f), player.transform);
+                if (player != null)
+                {
+                    if (cells == 1) SpawnEnemySafely(VehicleSpec.Rammer(), new Vector3(16f, 1.1f, -12f), player.transform);
+                    else if (cells == 2) SpawnEnemySafely(VehicleSpec.Hunter(), new Vector3(-20f, 1.1f, 20f), player.transform);
+                    else if (cells >= 3) SpawnEnemySafely(VehicleSpec.WarRig(), new Vector3(0f, 1.4f, 30f), player.transform);
+                }
                 spawnedCells = cells;
             }
             if (mission.Rules.Phase == MissionPhase.Won || mission.Rules.Phase == MissionPhase.Lost)
             {
-                if (KeyboardRestart())
-                    SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                if (KeyboardRestart()) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
             }
+        }
+
+        void SpawnEnemySafely(VehicleSpec spec, Vector3 pos, Transform player)
+        {
+            try { SpawnEnemy(spec, pos, player); }
+            catch (Exception ex) { Debug.LogError("DERBY: enemy spawn failed for " + spec.DisplayName + ". " + ex); }
         }
 
         static bool KeyboardRestart()
@@ -103,13 +258,15 @@ namespace DerbyArena.Core
             return go;
         }
 
-        GameObject Spawn(VehicleSpec spec, Vector3 pos, Quaternion rot, bool player)
+        GameObject Spawn(VehicleSpec spec, Vector3 pos, Quaternion rot, bool isPlayer)
         {
             var go = new GameObject(spec.DisplayName);
             go.transform.SetPositionAndRotation(pos, rot);
-            if (player)
-                go.tag = "Player";
+            if (isPlayer) go.tag = "Player";
             var rb = go.AddComponent<Rigidbody>();
+            rb.mass = 1250f;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             var box = go.AddComponent<BoxCollider>();
             box.center = new Vector3(0f, 0.7f * spec.Scale, 0f);
             box.size = new Vector3(1.8f, 0.7f, 3.3f) * spec.Scale;
@@ -135,8 +292,7 @@ namespace DerbyArena.Core
 
         void Update()
         {
-            if (Drive == null || Controls == null)
-                return;
+            if (Drive == null || Controls == null) return;
             var hp = GetComponent<VehicleHealth>();
             if (hp != null && hp.Dead)
             {
@@ -149,8 +305,7 @@ namespace DerbyArena.Core
             Drive.Brake = Controls.Brake;
             Drive.Handbrake = Controls.Handbrake;
             Drive.NitroHeld = Controls.Nitro;
-            if (Weapons == null)
-                return;
+            if (Weapons == null) return;
             Vector3 aim = transform.position + Quaternion.Euler(0f, Controls.AimYaw, 0f) * transform.forward * 30f;
             if (Weapons.Muzzle != null)
                 Weapons.Muzzle.rotation = Quaternion.LookRotation(aim - Weapons.Muzzle.position, Vector3.up);
@@ -162,19 +317,12 @@ namespace DerbyArena.Core
     {
         public AudioSource Source;
         WheelDrive drive;
-
-        void Awake()
-        {
-            drive = GetComponent<WheelDrive>();
-        }
-
+        void Awake() { drive = GetComponent<WheelDrive>(); }
         void Update()
         {
-            if (Source == null || drive == null)
-                return;
+            if (Source == null || drive == null) return;
             Source.pitch = Mathf.Lerp(0.7f, 1.7f, Mathf.Clamp01(drive.PlanarSpeed() / 22f));
-            if (drive.NitroActive)
-                Source.pitch += 0.25f;
+            if (drive.NitroActive) Source.pitch += 0.25f;
         }
     }
 }

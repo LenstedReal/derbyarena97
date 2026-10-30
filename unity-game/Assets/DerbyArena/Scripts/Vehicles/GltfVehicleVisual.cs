@@ -219,9 +219,11 @@ namespace DerbyArena.Vehicles
             body.transform.localScale =
                 new Vector3(1.7f, 0.5f, 3.4f) * spec.Scale;
             body.transform.localPosition = new Vector3(0f, 0.7f, 0f);
-            body.GetComponent<Renderer>().sharedMaterial =
-                DerbyArena.World.SpillwayBuilder.Lit(
-                    spec.Accent, 0.45f, 0.4f, Color.black, 0f);
+            var fallbackMaterial = DerbyArena.World.SpillwayBuilder.Lit(
+                spec.Accent, 0.45f, 0.4f, Color.black, 0f);
+            var bodyRenderer = body.GetComponent<Renderer>();
+            if (bodyRenderer != null && fallbackMaterial != null)
+                bodyRenderer.sharedMaterial = fallbackMaterial;
 
             if (Drive != null)
                 Drive.PlaceColliders(spec.WheelLocal, spec.WheelRadius);

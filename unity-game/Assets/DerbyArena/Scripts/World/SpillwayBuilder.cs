@@ -4,43 +4,44 @@ namespace DerbyArena.World
 {
     public static class SpillwayBuilder
     {
+        static Material CreateMaterial(Color albedo, float rough, float metal, Color emission, float energy)
+        {
+            string resource = energy > 0f
+                ? "Derby/Materials/RuntimeLitEmissive"
+                : "Derby/Materials/RuntimeLit";
+            var template = Resources.Load<Material>(resource);
+            if (template == null)
+                template = Resources.Load<Material>("Derby/Materials/RuntimeUnlit");
+
+            Material mat = template != null ? new Material(template) : null;
+            if (mat == null)
+            {
+                bool usingUrp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
+                Shader shader = Shader.Find(usingUrp ? "Universal Render Pipeline/Lit" : "Standard");
+                if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null) shader = Shader.Find("Unlit/Color");
+                if (shader != null) mat = new Material(shader);
+            }
+
+            if (mat == null)
+            {
+                Debug.LogError("DERBY: runtime material Resources are missing and no fallback shader is available.");
+                return null; // primitive renderers keep their Unity default material
+            }
+
+            mat.enableInstancing = true;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", albedo);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", albedo);
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 1f - rough);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", metal);
+            if (energy > 0f && mat.HasProperty("_EmissionColor"))
+                mat.SetColor("_EmissionColor", emission * energy);
+            return mat;
+        }
+
         public static Material Lit(Color albedo, float rough, float metal, Color emission, float energy)
         {
-            // Select a shader that matches the active pipeline. Do not use
-            // Unity error shaders render bright magenta and must never be selected.
-            bool usingUrp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
-            var shader = usingUrp
-                ? Shader.Find("Universal Render Pipeline/Lit")
-                : Shader.Find("Standard");
-
-            if (shader == null && usingUrp)
-                shader = Shader.Find("Universal Render Pipeline/Unlit");
-
-            if (shader == null)
-                shader = Shader.Find("Unlit/Color");
-
-            if (shader == null)
-                throw new System.InvalidOperationException(
-                    "Derby Arena: no supported runtime shader found. " +
-                    "Verify that URP is assigned and its shaders are included.");
-            var mat = new Material(shader)
-            {
-                enableInstancing = true
-            };
-            if (mat.HasProperty("_BaseColor"))
-                mat.SetColor("_BaseColor", albedo);
-            mat.color = albedo;
-            if (mat.HasProperty("_Smoothness"))
-                mat.SetFloat("_Smoothness", 1f - rough);
-            if (mat.HasProperty("_Metallic"))
-                mat.SetFloat("_Metallic", metal);
-            if (energy > 0f && mat.HasProperty("_EmissionColor"))
-            {
-                mat.EnableKeyword("_EMISSION");
-                mat.SetColor("_EmissionColor", emission * energy);
-                mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
-            }
-            return mat;
+            return CreateMaterial(albedo, rough, metal, emission, energy);
         }
 
         public static void Build(Transform parent)
@@ -69,10 +70,8 @@ namespace DerbyArena.World
             Box(parent, "BridgeDeck", new Vector3(0f, 4.2f, 2f), new Vector3(28f, 0.35f, 4.2f), steel, true);
             Box(parent, "BridgePierL", new Vector3(-8f, 2f, 2f), new Vector3(1.2f, 4f, 1.2f), concrete, true);
             Box(parent, "BridgePierR", new Vector3(8f, 2f, 2f), new Vector3(1.2f, 4f, 1.2f), concrete, true);
-
             Box(parent, "PipeHall", new Vector3(28f, 1.6f, 18f), new Vector3(10f, 3.2f, 22f), dark, true);
             Box(parent, "PipeMouth", new Vector3(22f, 1.3f, 18f), new Vector3(2f, 2.4f, 6f), steel, false);
-
             Box(parent, "BarrierA", new Vector3(-10f, 0.6f, -8f), new Vector3(6f, 1.2f, 1.2f), hazard, true);
             Box(parent, "BarrierB", new Vector3(12f, 0.6f, 14f), new Vector3(1.2f, 1.2f, 7f), hazard, true);
             Box(parent, "BarrierC", new Vector3(-6f, 0.6f, 22f), new Vector3(8f, 1.2f, 1.1f), concrete, true);
@@ -100,7 +99,9 @@ namespace DerbyArena.World
             go.transform.SetParent(parent, false);
             go.transform.position = pos;
             go.transform.localScale = scale;
-            go.GetComponent<Renderer>().sharedMaterial = Lit(color, 0.4f, 0.2f, color, 1.2f);
+            var renderer = go.GetComponent<Renderer>();
+            var material = Lit(color, 0.4f, 0.2f, color, 1.2f);
+            if (renderer != null && material != null) renderer.sharedMaterial = material;
             return go;
         }
 
@@ -111,10 +112,10 @@ namespace DerbyArena.World
             go.transform.SetParent(parent, false);
             go.transform.position = pos;
             go.transform.localScale = scale;
-            go.GetComponent<Renderer>().sharedMaterial = mat;
+            var renderer = go.GetComponent<Renderer>();
+            if (renderer != null && mat != null) renderer.sharedMaterial = mat;
             go.isStatic = true;
-            if (!solid)
-                Object.Destroy(go.GetComponent<Collider>());
+            if (!solid) Object.Destroy(go.GetComponent<Collider>());
         }
 
         static void Pipe(Transform parent, Vector3 pos, Material mat)
@@ -125,7 +126,8 @@ namespace DerbyArena.World
             go.transform.position = pos;
             go.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
             go.transform.localScale = new Vector3(1.4f, 4.2f, 1.4f);
-            go.GetComponent<Renderer>().sharedMaterial = mat;
+            var renderer = go.GetComponent<Renderer>();
+            if (renderer != null && mat != null) renderer.sharedMaterial = mat;
             go.isStatic = true;
         }
 

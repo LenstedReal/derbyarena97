@@ -4,17 +4,27 @@
 **Render Pipeline:** Universal Render Pipeline 17.3.0  
 **glTFast:** 6.19.0  
 **Android kimliği:** `com.lenstedreal.derbyarena`  
-**Hedef sürüm:** `1.0.8` / `versionCode 108` / ARM64 / IL2CPP
+**Hedef sürüm:** `1.0.9` / `versionCode 109` / ARM64 / IL2CPP
 
-> Bu paket kaynak kod ve statik doğrulama içerir. Unity Editor/Android SDK bu çalışma ortamında bulunmadığı için C# derlemesi, Play Mode, APK üretimi ve gerçek cihaz testi burada yapılamadı. APK'nın hazır olduğu iddia edilmez.
+> Bu paket tam repo arşivini korur ve Unity Android açılış/render sorunlarına yönelik kaynak düzeltmeleri içerir. Bu ortamda Unity Editor/Android SDK olmadığı için APK üretildiği veya cihazda çalıştığı iddia edilmez.
+
+## Önemli açılış ve ekran düzeltmeleri
+
+1. `DerbyStartupDiagnostics` sahne yüklenmeden önce `Resources/Derby/BlackoutURP.asset` dosyasını yükleyip Graphics + mevcut Quality override ayarına atar. Böylece GLTFast başlamadan önce Built-in Pipeline ile açılma ihtimali kapatılmaya çalışılır.
+2. URP pipeline ve Universal Renderer artık `Assets/Resources/Derby/` altında oluşturulur; build içinde Resources üzerinden bulunabilir.
+3. URP Lit, emissive Lit ve URP Unlit materyalleri `Assets/Resources/Derby/Materials/` altında üretilir. Runtime `Shader.Find` tek bağımlılık olmaktan çıkar; shader/material referansları build içerik toplamasına girer.
+4. Ana kamera arena, materyal, görev ve araç kurulumundan önce oluşturulur. Sonraki bir kurulum aşaması hata verse bile sahnede aktif kamera bulunur.
+5. Arena oluşturma, görev işaretleri, araç, HUD, düşman ve ses hazırlığı ayrı hata sınırlarına alındı. Kritik aşama başarısız olursa basit acil arena ve görünür acil oyuncu aracı devreye girer.
+6. Runtime materyal bulunamazsa `SpillwayBuilder` artık sadece bu nedenle exception fırlatmaz; primitive renderer'ın varsayılan materyali korunur.
+7. glTFast 6.19.0 kullanılır. 6.20.0 sürümünde `GLTFast.*` kök ad alanı `Unity.Cloud.Gltfast.*` olarak değiştiği için mevcut kaynak kodu uyumsuz yükseltmeden korur.
 
 ## Projeyi açma
 
 1. Unity Hub ile **6000.3.27f1** sürümünü kur.
 2. Unity Hub > Open ile `unity-game` klasörünü aç.
 3. Package Manager bağımlılıklarının tamamlanmasını bekle.
-4. `Derby > Repair Project And Android Settings` menüsünü çalıştır. Otomatik kurulum da açılışta denenir.
-5. Console'da `DERBY BUILD SETTINGS APPLIED: URP / DERBY ARENA / 1.0.8 / 108 / ARM64` kaydını doğrula.
+4. `Derby > Repair Project And Android Settings` menüsünü çalıştır.
+5. Console'da `DERBY BUILD SETTINGS APPLIED: URP + RESOURCE SHADERS / DERBY ARENA / 1.0.9 / 109 / ARM64` kaydını doğrula.
 6. `Assets/DerbyArena/Scenes/BlackoutSpillway.unity` sahnesini açıp Play'e bas.
 
 ## Kontroller
@@ -30,32 +40,16 @@
 
 ## Android derlemesi
 
-1. File > Build Profiles (veya Build Settings) > Android.
-2. Build Settings menüsü URP, kalite seviyeleri ve Android kimliğini derleme öncesi tekrar uygular.
-3. Package: `com.lenstedreal.derbyarena`
-4. Version: `1.0.8`, versionCode `108`
-5. Scripting backend: IL2CPP; Architecture: ARM64; minimum SDK: API 25.
-6. Build al; APK'yı Android'e yüklemeden önce dosya boyutunu ve imzasını doğrula.
+- Package: `com.lenstedreal.derbyarena`
+- Version: `1.0.9`, versionCode `109`
+- Scripting backend: IL2CPP; Architecture: ARM64; minimum SDK: API 25
+- Build öncesi callback URP, kalite override'ları, sahne listesi ve Android kimliğini yeniden uygular.
+- APK'yı kurmadan önce package/version metadata ve imza doğrulanmalıdır.
 
-## Batch doğrulama (Unity Editor gerekir)
+## Statik doğrulama
 
-```bash
-Unity -batchmode -nographics -projectPath unity-game -executeMethod DerbyArena.EditorTools.BatchValidate.Run -quit
-```
+Kökteki `validate_derby.py` Unity dışı kontrolleri çalıştırır: paket sürümü, sahne/boot dosyaları, açılış sırası, runtime pipeline bootstrap'i, Resources shader materyalleri, 10 OBJ, 9 PNG ve 5 GLB. Bu kontrol C# compile, Play Mode, APK build veya fiziksel cihaz testi yerine geçmez.
 
-## Varlıklar ve render
+## Diğer proje alanları
 
-- Araç GLB dosyaları `Assets/StreamingAssets/Models/vehicles/` içindedir.
-- GLB isteği, import veya sahneye yerleştirme başarısız olursa oyun artık araç gövdesi fallback'i oluşturur.
-- `StreamingAssets/Models/spillway/` altındaki 10 OBJ ve 9 PNG mevcut; mevcut `SpillwayBuilder` bunları sahneye yüklemiyor, arena geometrisini kodla primitive objelerden oluşturuyor. Bu nedenle bu varlıklar şimdilik arşivde korunuyor; sahneye entegre edilmiş sayılmaz.
-- Runtime shader seçiminde URP Lit/URP Unlit tercih edilir; Unity'nin pembe `Hidden/InternalErrorShader` shader'ı fallback olarak kullanılmaz.
-- glTFast'ın runtime shader variant'ları ayrıca build'e dahil edilmelidir. Bu pakette Unity Editor'de GLB'ler yüklenerek üretilmiş bir `ShaderVariantCollection` yok; Android build öncesi beş GLB'nin tamamını Editor'de yükleyip Graphics > Shader Preloading koleksiyonunu kaydetmek ve Preloaded Shaders listesine eklemek gerekir.
-
-## CI
-
-Kökteki `.github/workflows/unity-android.yml` GameCI akışıdır. GitHub repository secrets:
-- `UNITY_LICENSE`
-- `UNITY_EMAIL`
-- `UNITY_PASSWORD`
-
-CI veya Unity Build Automation başarılı sonuç vermeden APK'nın çalıştığı kabul edilmemelidir.
+Bu teslim, yüklediğin orijinal repo ağacını korur. `native-android/`, `wreck-circuit/`, web/PWA kaynakları, `.github/`, `.grok/`, migration ve screenshot klasörleri silinmemiştir. Unity Android hedefi yalnızca `unity-game/` altındadır.
