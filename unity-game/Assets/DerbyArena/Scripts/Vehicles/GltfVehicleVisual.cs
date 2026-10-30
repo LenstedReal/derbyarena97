@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -31,13 +32,33 @@ namespace DerbyArena.Vehicles
                 BuildFallback(spec);
                 yield break;
             }
-            import = new GltfImport();
-            var task = import.LoadGltfBinary(req.downloadHandler.data);
+            System.Threading.Tasks.Task<bool> task;
+            try
+            {
+                // GLTFast chooses its material generator from the active render
+                // pipeline. The build hook guarantees URP is assigned; this
+                // guard keeps a failed importer from aborting the whole game.
+                import = new GltfImport();
+                task = import.Load(req.downloadHandler.data);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError(
+                    "GLB importer initialization failed for " + spec.GlbFile +
+                    ": " + ex);
+                BuildFallback(spec);
+                yield break;
+            }
+
             while (!task.IsCompleted)
                 yield return null;
-            if (task.IsFaulted || !task.Result)
+
+            if (task.IsFaulted || task.IsCanceled || !task.Result)
             {
-                Debug.LogWarning("GLB parse failed: " + spec.GlbFile);
+                string detail = task.Exception != null
+                    ? task.Exception.GetBaseException().ToString()
+                    : "Import task returned false or was cancelled.";
+                Debug.LogError("GLB import failed for " + spec.GlbFile + ": " + detail);
                 BuildFallback(spec);
                 yield break;
             }

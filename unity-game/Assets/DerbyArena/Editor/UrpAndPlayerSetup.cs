@@ -12,6 +12,11 @@ namespace DerbyArena.EditorTools
     [InitializeOnLoad]
     public static class UrpAndPlayerSetup
     {
+        const string SettingsFolder = "Assets/DerbyArena/Settings";
+        const string RendererPath = SettingsFolder + "/BlackoutRenderer.asset";
+        const string PipelinePath = SettingsFolder + "/BlackoutURP.asset";
+        const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
+
         static UrpAndPlayerSetup()
         {
             EditorApplication.delayCall += Setup;
@@ -22,45 +27,81 @@ namespace DerbyArena.EditorTools
         {
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
                 return;
-            Directory.CreateDirectory("Assets/DerbyArena/Settings");
-            var pipelinePath = "Assets/DerbyArena/Settings/BlackoutURP.asset";
-            var existing = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(pipelinePath);
-            if (existing == null)
+
+            ApplyBuildSettings();
+            AssetDatabase.SaveAssets();
+        }
+
+        // Called again from the build callback so cloud builds do not depend
+        // on InitializeOnLoad/delayCall having run in the editor session.
+        public static void ApplyBuildSettings()
+        {
+            Directory.CreateDirectory(SettingsFolder);
+
+            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
+            if (renderer == null)
             {
-                var renderer = ScriptableObject.CreateInstance<UniversalRendererData>();
-                AssetDatabase.CreateAsset(renderer, "Assets/DerbyArena/Settings/BlackoutRenderer.asset");
-                var pipeline = ScriptableObject.CreateInstance<UniversalRenderPipelineAsset>();
-                AssetDatabase.CreateAsset(pipeline, pipelinePath);
-                var so = new SerializedObject(pipeline);
-                var list = so.FindProperty("m_RendererDataList");
-                if (list != null)
-                {
-                    list.arraySize = 1;
-                    list.GetArrayElementAtIndex(0).objectReferenceValue = renderer;
-                    so.ApplyModifiedPropertiesWithoutUndo();
-                }
-                existing = pipeline;
+                renderer = ScriptableObject.CreateInstance<UniversalRendererData>();
+                renderer.name = "BlackoutRenderer";
+                AssetDatabase.CreateAsset(renderer, RendererPath);
             }
-            GraphicsSettings.defaultRenderPipeline = existing;
-            QualitySettings.renderPipeline = existing;
+
+            var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(PipelinePath);
+            if (pipeline == null)
+            {
+                pipeline = ScriptableObject.CreateInstance<UniversalRenderPipelineAsset>();
+                pipeline.name = "BlackoutURP";
+                AssetDatabase.CreateAsset(pipeline, PipelinePath);
+            }
+
+            var serializedPipeline = new SerializedObject(pipeline);
+            var rendererList = serializedPipeline.FindProperty("m_RendererDataList");
+            if (rendererList != null)
+            {
+                if (rendererList.arraySize != 1)
+                    rendererList.arraySize = 1;
+
+                var rendererElement = rendererList.GetArrayElementAtIndex(0);
+                if (rendererElement.objectReferenceValue != renderer)
+                    rendererElement.objectReferenceValue = renderer;
+
+                serializedPipeline.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            GraphicsSettings.defaultRenderPipeline = pipeline;
+            QualitySettings.renderPipeline = pipeline;
+
             PlayerSettings.companyName = "LenstedReal";
             PlayerSettings.productName = "DERBY ARENA";
-            PlayerSettings.bundleVersion = "1.0.5";
-            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.lenstedreal.derbyarena");
-            PlayerSettings.Android.bundleVersionCode = 105;
+            PlayerSettings.bundleVersion = "1.0.7";
+            PlayerSettings.SetApplicationIdentifier(
+                NamedBuildTarget.Android, "com.lenstedreal.derbyarena");
+            PlayerSettings.Android.bundleVersionCode = 107;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.allowedAutorotateToLandscapeLeft = true;
             PlayerSettings.allowedAutorotateToLandscapeRight = true;
-            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetScriptingBackend(
+                NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.Android.renderOutsideSafeArea = true;
-            var scenes = new[] { new EditorBuildSettingsScene("Assets/DerbyArena/Scenes/BlackoutSpillway.unity", true) };
-            EditorBuildSettings.scenes = scenes;
+
+            EditorBuildSettings.scenes = new[]
+            {
+                new EditorBuildSettingsScene(ScenePath, true)
+            };
+
             AssetDatabase.SaveAssets();
+
+            if (GraphicsSettings.defaultRenderPipeline != pipeline)
+                throw new BuildFailedException("DERBY: URP pipeline was not assigned.");
+            if (!File.Exists(ScenePath))
+                throw new BuildFailedException("DERBY: startup scene is missing: " + ScenePath);
+
+            Debug.Log("DERBY BUILD SETTINGS APPLIED: URP / DERBY ARENA / 1.0.7 / 107");
         }
     }
 
@@ -70,16 +111,7 @@ namespace DerbyArena.EditorTools
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            // Build callback'i sırasında Setup() erken dönebilir.
-            // Bu nedenle build kimliğini burada doğrudan uygula.
-            PlayerSettings.companyName = "LenstedReal";
-            PlayerSettings.productName = "DERBY ARENA";
-            PlayerSettings.bundleVersion = "1.0.6";
-            PlayerSettings.SetApplicationIdentifier(
-                NamedBuildTarget.Android, "com.lenstedreal.derbyarena");
-            PlayerSettings.Android.bundleVersionCode = 106;
-            AssetDatabase.SaveAssets();
-            Debug.Log("DERBY BUILD SETTINGS APPLIED: DERBY ARENA / 1.0.6 / 106");
+            UrpAndPlayerSetup.ApplyBuildSettings();
         }
     }
 
@@ -87,8 +119,9 @@ namespace DerbyArena.EditorTools
     {
         public static void Run()
         {
-            UrpAndPlayerSetup.Setup();
-            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/DerbyArena/Scenes/BlackoutSpillway.unity");
+            UrpAndPlayerSetup.ApplyBuildSettings();
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(
+                "Assets/DerbyArena/Scenes/BlackoutSpillway.unity");
             var boot = Object.FindAnyObjectByType<DerbyArena.Core.DerbyBootstrap>();
             EditorApplication.Exit(boot == null || string.IsNullOrEmpty(scene.path) ? 2 : 0);
         }

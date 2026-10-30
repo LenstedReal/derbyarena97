@@ -8,16 +8,20 @@ namespace DerbyArena.World
 
         public static Material Lit(Color albedo, float rough, float metal, Color emission, float energy)
         {
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
-                shader = Shader.Find("Standard");
+            // Select a shader that matches the active pipeline. Do not use
+            // Hidden/InternalErrorShader: Unity renders it bright magenta.
+            bool usingUrp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
+            var shader = usingUrp
+                ? Shader.Find("Universal Render Pipeline/Lit")
+                : Shader.Find("Standard");
+
             if (shader == null)
                 shader = Shader.Find("Unlit/Color");
-            if (shader == null)
-                shader = Shader.Find("Hidden/InternalErrorShader");
+
             if (shader == null)
                 throw new System.InvalidOperationException(
-                    "Derby Arena startup: no compatible shader found. Check URP/build settings.");
+                    "Derby Arena: no supported runtime shader found. " +
+                    "Verify that URP is assigned and its shaders are included.");
             var mat = new Material(shader);
             if (mat.HasProperty("_BaseColor"))
                 mat.SetColor("_BaseColor", albedo);
