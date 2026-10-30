@@ -16,7 +16,7 @@ try:
       ('com.unity.inputsystem','1.11.2','Input System dependency'),
       ('com.unity.render-pipelines.universal','17.3.0','URP dependency'),
       ('com.unity.ugui','2.0.0','uGUI dependency'),
-      ('com.atteneder.gltfast','6.20.0','glTFast dependency')]:
+      ('com.atteneder.gltfast','6.19.0','glTFast dependency')]:
         check(deps.get(key)==expected,label,deps.get(key,'missing'))
 except Exception as e: check(False,'Package manifest JSON',repr(e))
 objdir=ROOT/'Assets/StreamingAssets/Models/spillway'; objs=sorted(objdir.glob('*.obj'))
@@ -48,9 +48,56 @@ vdir=ROOT/'Assets/StreamingAssets/Models/vehicles'; glbs=sorted(vdir.glob('*.glb
 check(len(glbs)==5,'Vehicle GLB count',f'{len(glbs)} found')
 for p in glbs:
     try:
-        b=p.read_bytes(); ok=len(b)>=20 and b[:4]==b'glTF' and struct.unpack('<I',b[4:8])[0]==2 and struct.unpack('<I',b[8:12])[0]==len(b)
-        check(ok,f'GLB header: {p.name}',f'{len(b)} bytes')
+        b=p.read_bytes()
+        header_ok=(len(b)>=20 and b[:4]==b'glTF' and
+                   struct.unpack('<I',b[4:8])[0]==2 and
+                   struct.unpack('<I',b[8:12])[0]==len(b))
+        json_ok=False; meshes=nodes=0
+        if header_ok:
+            chunk_len=struct.unpack('<I',b[12:16])[0]
+            chunk_type=struct.unpack('<I',b[16:20])[0]
+            if chunk_type==0x4E4F534A and 20+chunk_len<=len(b):
+                doc=json.loads(b[20:20+chunk_len].decode('utf-8').rstrip(' \\t\\r\\n\\0'))
+                json_ok=doc.get('asset',{}).get('version')=='2.0'
+                meshes=len(doc.get('meshes',[])); nodes=len(doc.get('nodes',[]))
+        check(header_ok and json_ok and meshes>0 and nodes>0,
+              f'GLB structure: {p.name}',
+              f'{len(b)} bytes, meshes={meshes}, nodes={nodes}, json={json_ok}')
     except Exception as e: check(False,f'GLB readable: {p.name}',repr(e))
+editor=ROOT/'Assets/DerbyArena/Editor/UrpAndPlayerSetup.cs'
+gltf=ROOT/'Assets/DerbyArena/Scripts/Vehicles/GltfVehicleVisual.cs'
+diag=ROOT/'Assets/DerbyArena/Scripts/Core/DerbyStartupDiagnostics.cs'
+try:
+    e=editor.read_text(errors='ignore')
+    check('UniversalRenderPipelineAsset.Create(renderer)' in e,
+          'URP asset uses supported factory',
+          'avoids an uninitialized ScriptableObject-only pipeline asset')
+    check('IPreprocessBuildWithReport' in e and 'ApplyBuildSettings();' in e,
+          'Build-time settings enforcement',
+          'URP and Android settings are applied before build')
+    check('QualitySettings.SetQualityLevel' in e and 'QualitySettings.renderPipeline = pipeline' in e,
+          'Quality-level pipeline overrides',
+          'all quality levels are assigned the same URP asset')
+except Exception as ex: check(False,'Editor setup source readable',repr(ex))
+try:
+    g=gltf.read_text(errors='ignore')
+    check('loadTask.IsFaulted' in g and 'loadTask.IsCanceled' in g and 'BuildFallback(spec)' in g,
+          'GLB import failure recovery',
+          'failed/cancelled imports use fallback vehicle')
+    check('InstantiateMainSceneAsync' in g and 'DisposeImport()' in g,
+          'GLB instantiation/lifetime handling')
+except Exception as ex: check(False,'GLB loader source readable',repr(ex))
+try:
+    s=(ROOT/'Assets/DerbyArena/Scripts/World/SpillwayBuilder.cs').read_text(errors='ignore')
+    check('Shader.Find("Hidden/InternalErrorShader")' not in s,
+          'No magenta internal error shader fallback')
+except Exception as ex: check(False,'World builder source readable',repr(ex))
+try:
+    d=diag.read_text(errors='ignore')
+    check('#if DEVELOPMENT_BUILD || UNITY_EDITOR' in d,
+          'Startup diagnostics restricted to development builds',
+          'release builds do not get a full-screen error overlay')
+except Exception as ex: check(False,'Startup diagnostics source readable',repr(ex))
 scene=ROOT/'Assets/DerbyArena/Scenes/BlackoutSpillway.unity'; boot=ROOT/'Assets/DerbyArena/Scripts/Core/DerbyBootstrap.cs'; spill=ROOT/'Assets/DerbyArena/Scripts/World/SpillwayBuilder.cs'
 check(scene.exists(),'Main scene exists',str(scene.relative_to(ROOT)))
 check(boot.exists() and 'class DerbyBootstrap' in boot.read_text(errors='ignore'),'Bootstrap script exists')

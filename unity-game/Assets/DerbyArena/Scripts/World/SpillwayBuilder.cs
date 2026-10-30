@@ -4,16 +4,17 @@ namespace DerbyArena.World
 {
     public static class SpillwayBuilder
     {
-        static Material litCache;
-
         public static Material Lit(Color albedo, float rough, float metal, Color emission, float energy)
         {
             // Select a shader that matches the active pipeline. Do not use
-            // Hidden/InternalErrorShader: Unity renders it bright magenta.
+            // Unity error shaders render bright magenta and must never be selected.
             bool usingUrp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
             var shader = usingUrp
                 ? Shader.Find("Universal Render Pipeline/Lit")
                 : Shader.Find("Standard");
+
+            if (shader == null && usingUrp)
+                shader = Shader.Find("Universal Render Pipeline/Unlit");
 
             if (shader == null)
                 shader = Shader.Find("Unlit/Color");
@@ -22,7 +23,10 @@ namespace DerbyArena.World
                 throw new System.InvalidOperationException(
                     "Derby Arena: no supported runtime shader found. " +
                     "Verify that URP is assigned and its shaders are included.");
-            var mat = new Material(shader);
+            var mat = new Material(shader)
+            {
+                enableInstancing = true
+            };
             if (mat.HasProperty("_BaseColor"))
                 mat.SetColor("_BaseColor", albedo);
             mat.color = albedo;

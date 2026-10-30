@@ -40,17 +40,22 @@ namespace DerbyArena.Core
 
         private void OnGUI()
         {
-            if (string.IsNullOrEmpty(lastError)) return;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (string.IsNullOrEmpty(lastError))
+                return;
 
             GUI.depth = -1000;
-
+            float width = Mathf.Max(240f, Screen.width - 24f);
+            float height = Mathf.Min(Screen.height - 24f, 360f);
+            GUI.color = new Color(1f, 1f, 1f, 1f);
             GUI.Box(
-                new Rect(12, 12, Screen.width - 24, Screen.height - 24),
-                "DERBY ARENA - STARTUP ERROR");
+                new Rect(12f, 12f, width, height),
+                "DERBY ARENA - DEVELOPMENT ERROR");
 
             GUI.Label(
-                new Rect(24, 48, Screen.width - 48, Screen.height - 72),
+                new Rect(24f, 48f, width - 24f, height - 60f),
                 lastError);
+#endif
         }
     }
 }
