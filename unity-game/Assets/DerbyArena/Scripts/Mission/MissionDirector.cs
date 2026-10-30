@@ -17,24 +17,61 @@ namespace DerbyArena.Mission
 
         public void BuildWorldMarkers(Transform parent)
         {
+            if (parent == null)
+                throw new System.ArgumentNullException(nameof(parent),
+                    "MissionDirector: world parent is null.");
+
             PlaceCell(parent, new Vector3(-22f, 0.6f, 8f));
             PlaceCell(parent, new Vector3(24f, 0.6f, -6f));
             PlaceCell(parent, new Vector3(-4f, 0.6f, 28f));
-            extractVisual = SpillwayBuilder.Marker(parent, "Extract", ExtractPoint, new Color(0.15f, 0.85f, 0.45f), new Vector3(8f, 0.08f, 8f));
+
+            extractVisual = SpillwayBuilder.Marker(
+                parent, "Extract", ExtractPoint,
+                new Color(0.15f, 0.85f, 0.45f),
+                new Vector3(8f, 0.08f, 8f));
+
+            if (extractVisual == null)
+                throw new System.InvalidOperationException(
+                    "MissionDirector: Extract marker could not be created.");
+
             extractVisual.SetActive(false);
             var zone = extractVisual.AddComponent<ExtractZone>();
             zone.Director = this;
+
             PlacePower(parent, new Vector3(-14f, 0.5f, -18f), PowerKind.Nitro);
             PlacePower(parent, new Vector3(8f, 0.5f, 6f), PowerKind.Repair);
             PlacePower(parent, new Vector3(-18f, 0.5f, 16f), PowerKind.Armor);
             PlacePower(parent, new Vector3(18f, 0.5f, 24f), PowerKind.Ammo);
         }
 
+        static Collider EnsureTriggerCollider(GameObject go)
+        {
+            if (go == null)
+                throw new System.InvalidOperationException(
+                    "MissionDirector: marker GameObject is null.");
+
+            var col = go.GetComponent<Collider>();
+
+            if (col == null)
+                col = go.AddComponent<BoxCollider>();
+
+            if (col == null)
+                throw new System.InvalidOperationException(
+                    "MissionDirector: could not create marker collider for " + go.name);
+
+            col.isTrigger = true;
+            return col;
+        }
+
         void PlaceCell(Transform parent, Vector3 pos)
         {
-            var go = SpillwayBuilder.Marker(parent, "ReactorCell", pos, new Color(0.2f, 0.75f, 1f), new Vector3(1.1f, 1.4f, 1.1f));
-            var col = go.GetComponent<Collider>();
-            col.isTrigger = true;
+            var go = SpillwayBuilder.Marker(
+                parent, "ReactorCell", pos,
+                new Color(0.2f, 0.75f, 1f),
+                new Vector3(1.1f, 1.4f, 1.1f));
+
+            EnsureTriggerCollider(go);
+
             var pickup = go.AddComponent<PowerPickup>();
             pickup.Kind = PowerKind.Cell;
             pickup.Director = this;
@@ -46,8 +83,13 @@ namespace DerbyArena.Mission
                 : kind == PowerKind.Repair ? new Color(0.3f, 0.9f, 0.35f)
                 : kind == PowerKind.Armor ? new Color(0.75f, 0.75f, 0.8f)
                 : new Color(1f, 0.55f, 0.15f);
-            var go = SpillwayBuilder.Marker(parent, kind.ToString(), pos, color, new Vector3(0.8f, 0.8f, 0.8f));
-            go.GetComponent<Collider>().isTrigger = true;
+
+            var go = SpillwayBuilder.Marker(
+                parent, kind.ToString(), pos, color,
+                new Vector3(0.8f, 0.8f, 0.8f));
+
+            EnsureTriggerCollider(go);
+
             var pickup = go.AddComponent<PowerPickup>();
             pickup.Kind = kind;
             pickup.Director = this;
