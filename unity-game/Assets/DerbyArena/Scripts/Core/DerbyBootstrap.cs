@@ -21,9 +21,18 @@ namespace DerbyArena.Core
 
         void Awake()
         {
+            Time.timeScale = 1f;
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 60;
-            QualitySettings.shadowDistance = SystemInfo.systemMemorySize >= 3500 ? 42f : 0f;
+            bool shadowsOk = SystemInfo.systemMemorySize >= 3500;
+            QualitySettings.shadowDistance = shadowsOk ? 42f : 0f;
+            QualitySettings.shadows = shadowsOk ? ShadowQuality.HardOnly : ShadowQuality.Disable;
+            QualitySettings.shadowResolution = ShadowResolution.Medium;
+            QualitySettings.shadowCascades = 2;
+            QualitySettings.pixelLightCount = 4;
+            QualitySettings.antiAliasing = 0;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
 
             // Critical: establish a working camera before creating materials, geometry,
             // mission markers or vehicles. Any later failure can no longer leave a
@@ -35,7 +44,8 @@ namespace DerbyArena.Core
             RenderSettings.fogDensity = 0.012f;
             RenderSettings.fogColor = new Color(0.07f, 0.075f, 0.08f);
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.16f, 0.16f, 0.18f);
+            RenderSettings.ambientLight = new Color(0.12f, 0.125f, 0.14f);
+            RenderSettings.skybox = null;
 
             var world = new GameObject("BlackoutSpillway").transform;
             try
@@ -106,6 +116,7 @@ namespace DerbyArena.Core
                 hud.Health = mission != null ? mission.PlayerHealth : null;
                 hud.Drive = chase != null ? chase.Drive : null;
                 hud.Controls = touch;
+                hud.Weapons = player != null ? player.GetComponent<WeaponRig>() : null;
                 hud.Restart = () => SceneManager.LoadScene(SceneManager.GetActiveScene().name);
                 hud.Build();
             }
@@ -113,6 +124,10 @@ namespace DerbyArena.Core
             {
                 Debug.LogError("DERBY: HUD setup failed; 3D camera/world remain active. " + ex);
             }
+
+            DerbyStartupDiagnostics.Report("Başlangıç",
+                "kamera=" + (Camera.main != null) + " oyuncu=" + (player != null) +
+                " görev=" + (mission != null) + " hud=" + (hud != null));
 
             if (player != null && mission != null)
             {
@@ -152,7 +167,10 @@ namespace DerbyArena.Core
             camera.enabled = true;
             camera.targetDisplay = 0;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.025f, 0.03f, 0.04f, 1f);
+            camera.backgroundColor = new Color(0.07f, 0.075f, 0.08f, 1f);
+            camera.allowHDR = false;
+            camera.allowMSAA = false;
+            camera.useOcclusionCulling = false;
             camera.cullingMask = ~0;
             camera.depth = 0f;
             camera.nearClipPlane = 0.1f;

@@ -1,21 +1,23 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
 using DerbyArena.Combat;
-using GLTFast;
+using DerbyArena.Core;
 using UnityEngine;
 using UnityEngine.Networking;
 
 namespace DerbyArena.Vehicles
 {
+    /// <summary>
+    /// Loads a vehicle model (GLB) from StreamingAssets with the built-in MiniGlb importer and binds
+    /// wheels / turret to the physics vehicle. If anything fails a visible fallback body is built
+    /// and the reason is reported on screen (DerbyStartupDiagnostics).
+    /// </summary>
     public sealed class GltfVehicleVisual : MonoBehaviour
     {
         public WheelDrive Drive;
         public WeaponRig Weapons;
 
-        GltfImport import;
         bool visualCreated;
 
         public void Begin(VehicleSpec spec)
@@ -29,130 +31,65 @@ namespace DerbyArena.Vehicles
             StartCoroutine(Load(spec));
         }
 
+        static string UrlOf(string file)
+        {
+            string path = Application.streamingAssetsPath + "/Models/vehicles/" + file;
+            return path.Contains("://") ? path : "file://" + path;
+        }
+
         IEnumerator Load(VehicleSpec spec)
         {
-            string rel = Path.Combine("Models", "vehicles", spec.GlbFile);
-            string path = Path.Combine(Application.streamingAssetsPath, rel);
             byte[] glbBytes = null;
+            string requestError = null;
 
-            using (var req = UnityWebRequest.Get(path))
+            using (var req = UnityWebRequest.Get(UrlOf(spec.GlbFile)))
             {
                 yield return req.SendWebRequest();
-
-                if (req.result != UnityWebRequest.Result.Success)
-                {
-                    Debug.LogWarning(
-                        "DERBY: GLB request failed; using fallback vehicle. " +
-                        spec.GlbFile + " | " + req.error);
-                    BuildFallback(spec);
-                    yield break;
-                }
-
-                glbBytes = req.downloadHandler != null ? req.downloadHandler.data : null;
+                if (req.result == UnityWebRequest.Result.Success && req.downloadHandler != null)
+                    glbBytes = req.downloadHandler.data;
+                else
+                    requestError = req.error;
             }
 
             if (glbBytes == null || glbBytes.Length < 20)
             {
-                Debug.LogWarning(
-                    "DERBY: GLB is empty or truncated; using fallback vehicle: " +
-                    spec.GlbFile);
+                Debug.LogError("DERBY: GLB could not be read: " + spec.GlbFile + " | " + requestError);
+                DerbyStartupDiagnostics.Report("Araç " + spec.DisplayName, "GLB okunamadı → yedek gövde");
                 BuildFallback(spec);
                 yield break;
             }
 
-            // Validate the GLB container before passing it to glTFast.
-            if (glbBytes[0] != (byte)'g' || glbBytes[1] != (byte)'l' ||
-                glbBytes[2] != (byte)'T' || glbBytes[3] != (byte)'F')
-            {
-                Debug.LogError(
-                    "DERBY: invalid GLB magic header; using fallback vehicle: " +
-                    spec.GlbFile);
-                BuildFallback(spec);
-                yield break;
-            }
-
-            Task<bool> loadTask;
-            try
-            {
-                import = new GltfImport();
-                loadTask = import.Load(glbBytes);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError(
-                    "DERBY: glTFast could not initialize " + spec.GlbFile +
-                    "; using fallback vehicle. " + ex);
-                BuildFallback(spec);
-                yield break;
-            }
-
-            while (!loadTask.IsCompleted)
-                yield return null;
-
-            if (loadTask.IsFaulted || loadTask.IsCanceled ||
-                !loadTask.IsCompletedSuccessfully || !loadTask.Result)
-            {
-                string detail = loadTask.Exception != null
-                    ? loadTask.Exception.GetBaseException().ToString()
-                    : "GLB load task failed or was cancelled.";
-                Debug.LogError(
-                    "DERBY: GLB import failed for " + spec.GlbFile +
-                    "; using fallback vehicle. " + detail);
-                DisposeImport();
-                BuildFallback(spec);
-                yield break;
-            }
+            // Let one frame pass so the (heavier) import does not stack on top of other startup work.
+            yield return null;
 
             var root = new GameObject("Visual");
             root.transform.SetParent(transform, false);
             root.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             root.transform.localScale = Vector3.one * spec.Scale;
 
-            Task<bool> instantiateTask;
+            bool ok = false;
+            string failure = null;
             try
             {
-                instantiateTask = import.InstantiateMainSceneAsync(root.transform);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError(
-                    "DERBY: GLB scene instantiation failed for " +
-                    spec.GlbFile + "; using fallback vehicle. " + ex);
-                Destroy(root);
-                DisposeImport();
-                BuildFallback(spec);
-                yield break;
-            }
-
-            while (!instantiateTask.IsCompleted)
-                yield return null;
-
-            if (instantiateTask.IsFaulted || instantiateTask.IsCanceled ||
-                !instantiateTask.IsCompletedSuccessfully || !instantiateTask.Result)
-            {
-                string detail = instantiateTask.Exception != null
-                    ? instantiateTask.Exception.GetBaseException().ToString()
-                    : "GLB scene instantiation returned false or was cancelled.";
-                Debug.LogError(
-                    "DERBY: GLB scene could not be instantiated for " +
-                    spec.GlbFile + "; using fallback vehicle. " + detail);
-                Destroy(root);
-                DisposeImport();
-                BuildFallback(spec);
-                yield break;
-            }
-
-            try
-            {
+                MiniGlb.Build(glbBytes, root.transform);
                 Bind(root.transform, spec);
-                visualCreated = true;
+                ok = true;
             }
             catch (Exception ex)
             {
-                Debug.LogError(
-                    "DERBY: GLB visual binding failed for " + spec.GlbFile +
-                    "; using fallback vehicle. " + ex);
+                failure = ex.Message;
+                Debug.LogError("DERBY: GLB import failed for " + spec.GlbFile + "; using fallback vehicle. " + ex);
+            }
+
+            if (ok)
+            {
+                visualCreated = true;
+                DerbyStartupDiagnostics.Report("Araç " + spec.DisplayName, "GLB tamam");
+            }
+            else
+            {
                 Destroy(root);
+                DerbyStartupDiagnostics.Report("Araç " + spec.DisplayName, "GLB hata (" + failure + ") → yedek gövde");
                 BuildFallback(spec);
             }
         }
@@ -204,44 +141,35 @@ namespace DerbyArena.Vehicles
             if (visualCreated)
                 return;
 
-            // Do not create multiple fallback bodies if more than one import
-            // failure path is reached.
+            // Do not create multiple fallback bodies if more than one failure path is reached.
             if (transform.Find("FallbackVisual") != null)
                 return;
 
             var root = new GameObject("FallbackVisual");
             root.transform.SetParent(transform, false);
 
-            var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            body.name = "FallbackHull";
-            Destroy(body.GetComponent<Collider>());
-            body.transform.SetParent(root.transform, false);
-            body.transform.localScale =
-                new Vector3(1.7f, 0.5f, 3.4f) * spec.Scale;
-            body.transform.localPosition = new Vector3(0f, 0.7f, 0f);
-            var fallbackMaterial = DerbyArena.World.SpillwayBuilder.Lit(
-                spec.Accent, 0.45f, 0.4f, Color.black, 0f);
-            var bodyRenderer = body.GetComponent<Renderer>();
-            if (bodyRenderer != null && fallbackMaterial != null)
-                bodyRenderer.sharedMaterial = fallbackMaterial;
+            var paint = DerbyArena.World.SpillwayBuilder.Lit(spec.Accent, 0.45f, 0.3f, Color.black, 0f);
+            var dark = DerbyArena.World.SpillwayBuilder.Lit(new Color(0.06f, 0.06f, 0.07f), 0.6f, 0.2f, Color.black, 0f);
+
+            Part(root.transform, "FallbackHull", new Vector3(0f, 0.7f, 0f),
+                new Vector3(1.9f, 0.55f, 4.2f) * spec.Scale, paint);
+            Part(root.transform, "FallbackCabin", new Vector3(0f, 1.2f, -0.2f),
+                new Vector3(1.6f, 0.5f, 1.9f) * spec.Scale, dark);
 
             if (Drive != null)
                 Drive.PlaceColliders(spec.WheelLocal, spec.WheelRadius);
         }
 
-        void DisposeImport()
+        static void Part(Transform parent, string name, Vector3 localPos, Vector3 scale, Material mat)
         {
-            if (import == null)
-                return;
-
-            import.Dispose();
-            import = null;
-        }
-
-        void OnDestroy()
-        {
-            StopAllCoroutines();
-            DisposeImport();
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            Destroy(go.GetComponent<Collider>());
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = scale;
+            var r = go.GetComponent<Renderer>();
+            if (r != null && mat != null) r.sharedMaterial = mat;
         }
     }
 }

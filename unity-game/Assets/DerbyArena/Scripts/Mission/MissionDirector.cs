@@ -34,6 +34,16 @@ namespace DerbyArena.Mission
                 throw new System.InvalidOperationException(
                     "MissionDirector: Extract marker could not be created.");
 
+            // The cylinder primitive ships with a solid capsule collider; the extract zone must be a
+            // trigger box, otherwise OnTriggerStay never fires and the mission can never be completed.
+            var solid = extractVisual.GetComponent<Collider>();
+            if (solid != null)
+                Destroy(solid);
+            var zoneBox = extractVisual.AddComponent<BoxCollider>();
+            zoneBox.isTrigger = true;
+            zoneBox.size = new Vector3(1f, 40f, 1f);
+            SpillwayBuilder.Beacon(extractVisual.transform, new Color(0.15f, 0.85f, 0.45f), 16f);
+
             extractVisual.SetActive(false);
             var zone = extractVisual.AddComponent<ExtractZone>();
             zone.Director = this;
@@ -71,6 +81,8 @@ namespace DerbyArena.Mission
                 new Vector3(1.1f, 1.4f, 1.1f));
 
             EnsureTriggerCollider(go);
+            go.AddComponent<PickupSpin>();
+            SpillwayBuilder.Beacon(go.transform, new Color(0.2f, 0.75f, 1f), 16f);
 
             var pickup = go.AddComponent<PowerPickup>();
             pickup.Kind = PowerKind.Cell;
@@ -89,6 +101,8 @@ namespace DerbyArena.Mission
                 new Vector3(0.8f, 0.8f, 0.8f));
 
             EnsureTriggerCollider(go);
+            go.AddComponent<PickupSpin>();
+            SpillwayBuilder.Beacon(go.transform, color, 6f);
 
             var pickup = go.AddComponent<PowerPickup>();
             pickup.Kind = kind;

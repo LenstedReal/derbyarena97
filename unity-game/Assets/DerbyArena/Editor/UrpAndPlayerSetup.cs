@@ -1,24 +1,29 @@
 #if UNITY_EDITOR
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 namespace DerbyArena.EditorTools
 {
+    /// <summary>
+    /// Build setup. The class keeps its historical name (UrpAndPlayerSetup) so existing build
+    /// automation entry points keep working, but the project now uses the Built-in render pipeline:
+    /// no generated SRP assets are needed for the camera to render in a player build.
+    /// </summary>
     [InitializeOnLoad]
     public static class UrpAndPlayerSetup
     {
         const string RuntimeFolder = "Assets/Resources/Derby";
         const string MaterialsFolder = RuntimeFolder + "/Materials";
-        const string RendererPath = RuntimeFolder + "/BlackoutRenderer.asset";
-        const string PipelinePath = RuntimeFolder + "/BlackoutURP.asset";
         const string LitMaterialPath = MaterialsFolder + "/RuntimeLit.mat";
+        const string NormalMaterialPath = MaterialsFolder + "/RuntimeLitNormal.mat";
         const string EmissiveMaterialPath = MaterialsFolder + "/RuntimeLitEmissive.mat";
-        const string UnlitMaterialPath = MaterialsFolder + "/RuntimeUnlit.mat";
+        const string GlassMaterialPath = MaterialsFolder + "/RuntimeLitGlass.mat";
+        const string FxMaterialPath = MaterialsFolder + "/RuntimeFx.mat";
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
@@ -31,7 +36,7 @@ namespace DerbyArena.EditorTools
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
                 return;
             try { ApplyBuildSettings(); }
-            catch (System.Exception ex) { Debug.LogError("DERBY editor setup failed: " + ex); }
+            catch (Exception ex) { Debug.LogError("DERBY editor setup failed: " + ex); }
         }
 
         [MenuItem("Derby/Repair Project And Android Settings")]
@@ -42,62 +47,9 @@ namespace DerbyArena.EditorTools
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
-        static UniversalRendererData EnsureRenderer()
+        static Material EnsureMaterial(string path, string shaderName, Action<Material> configure)
         {
-            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
-            if (renderer == null)
-            {
-                renderer = ScriptableObject.CreateInstance<UniversalRendererData>();
-                renderer.name = "BlackoutRenderer";
-                AssetDatabase.CreateAsset(renderer, RendererPath);
-            }
-            return renderer;
-        }
-
-        static UniversalRenderPipelineAsset EnsurePipeline(UniversalRendererData renderer)
-        {
-            var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(PipelinePath);
-            if (pipeline != null)
-            {
-                var so = new SerializedObject(pipeline);
-                var list = so.FindProperty("m_RendererDataList");
-                if (list == null || list.arraySize == 0 ||
-                    list.GetArrayElementAtIndex(0).objectReferenceValue == null)
-                {
-                    AssetDatabase.DeleteAsset(PipelinePath);
-                    pipeline = null;
-                }
-            }
-
-            if (pipeline == null)
-            {
-                // URP factory initializes required pipeline resources and defaults.
-                pipeline = UniversalRenderPipelineAsset.Create(renderer);
-                if (pipeline == null)
-                    throw new BuildFailedException("DERBY: URP factory returned null.");
-                pipeline.name = "BlackoutURP";
-                AssetDatabase.CreateAsset(pipeline, PipelinePath);
-            }
-
-            var serialized = new SerializedObject(pipeline);
-            var rendererList = serialized.FindProperty("m_RendererDataList");
-            if (rendererList == null)
-                throw new BuildFailedException("DERBY: URP asset has no renderer data list.");
-            if (rendererList.arraySize != 1)
-                rendererList.arraySize = 1;
-            rendererList.GetArrayElementAtIndex(0).objectReferenceValue = renderer;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-
-            // Conservative mobile defaults: no HDR/MSAA surprises and no render graph features.
-            pipeline.supportsHDR = false;
-            pipeline.msaaSampleCount = 1;
-            pipeline.renderScale = 1f;
-            return pipeline;
-        }
-
-        static Material EnsureMaterial(string path, string shaderName, bool emissive)
-        {
-            var shader = Shader.Find(shaderName);
+            Shader shader = Shader.Find(shaderName);
             if (shader == null)
                 throw new BuildFailedException("DERBY: required shader not found in Editor: " + shaderName);
 
@@ -111,14 +63,67 @@ namespace DerbyArena.EditorTools
             }
 
             material.enableInstancing = true;
-            if (emissive)
-            {
-                material.EnableKeyword("_EMISSION");
-                if (material.HasProperty("_EmissionColor"))
-                    material.SetColor("_EmissionColor", Color.white);
-            }
+            if (configure != null)
+                configure(material);
             EditorUtility.SetDirty(material);
             return material;
+        }
+
+        // Shader keywords are only compiled into a player build when a material that is part of
+        // the build enables them. These template materials live in Resources and therefore make
+        // sure the normal-map, emission and transparent variants exist on the device.
+        static void CreateRuntimeMaterials()
+        {
+            EnsureMaterial(LitMaterialPath, "Standard", null);
+
+            EnsureMaterial(NormalMaterialPath, "Standard", m =>
+            {
+                m.EnableKeyword("_NORMALMAP");
+            });
+
+            EnsureMaterial(EmissiveMaterialPath, "Standard", m =>
+            {
+                m.EnableKeyword("_EMISSION");
+                m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+                if (m.HasProperty("_EmissionColor"))
+                    m.SetColor("_EmissionColor", Color.white);
+            });
+
+            EnsureMaterial(GlassMaterialPath, "Standard", m =>
+            {
+                m.SetOverrideTag("RenderType", "Transparent");
+                if (m.HasProperty("_Mode")) m.SetFloat("_Mode", 3f);
+                if (m.HasProperty("_SrcBlend")) m.SetInt("_SrcBlend", (int)BlendMode.One);
+                if (m.HasProperty("_DstBlend")) m.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+                if (m.HasProperty("_ZWrite")) m.SetInt("_ZWrite", 0);
+                m.DisableKeyword("_ALPHATEST_ON");
+                m.DisableKeyword("_ALPHABLEND_ON");
+                m.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+                m.renderQueue = 3000;
+            });
+
+            EnsureMaterial(FxMaterialPath, "Sprites/Default", null);
+        }
+
+        static void EnableBothInputBackends()
+        {
+            try
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+                if (assets == null || assets.Length == 0)
+                    return;
+                var so = new SerializedObject(assets[0]);
+                var prop = so.FindProperty("activeInputHandler");
+                if (prop != null && prop.intValue != 2)
+                {
+                    prop.intValue = 2; // Both: legacy Input + Input System
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("DERBY: could not set active input handler: " + ex.Message);
+            }
         }
 
         public static void ApplyBuildSettings()
@@ -130,10 +135,8 @@ namespace DerbyArena.EditorTools
             Directory.CreateDirectory(MaterialsFolder);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
-            var renderer = EnsureRenderer();
-            var pipeline = EnsurePipeline(renderer);
-
-            GraphicsSettings.defaultRenderPipeline = pipeline;
+            // Built-in render pipeline: no SRP asset anywhere.
+            GraphicsSettings.defaultRenderPipeline = null;
             string[] qualityNames = QualitySettings.names;
             int previousQuality = QualitySettings.GetQualityLevel();
             if (qualityNames != null && qualityNames.Length > 0)
@@ -141,26 +144,22 @@ namespace DerbyArena.EditorTools
                 for (int i = 0; i < qualityNames.Length; i++)
                 {
                     QualitySettings.SetQualityLevel(i, false);
-                    QualitySettings.renderPipeline = pipeline;
+                    QualitySettings.renderPipeline = null;
                 }
                 QualitySettings.SetQualityLevel(Mathf.Clamp(previousQuality, 0, qualityNames.Length - 1), false);
             }
             else
             {
-                QualitySettings.renderPipeline = pipeline;
+                QualitySettings.renderPipeline = null;
             }
 
-            // Shader.Find alone is not a build dependency. Keeping actual materials in
-            // Resources forces the required URP shaders into the Android player.
-            EnsureMaterial(LitMaterialPath, "Universal Render Pipeline/Lit", false);
-            EnsureMaterial(EmissiveMaterialPath, "Universal Render Pipeline/Lit", true);
-            EnsureMaterial(UnlitMaterialPath, "Universal Render Pipeline/Unlit", false);
+            CreateRuntimeMaterials();
 
             PlayerSettings.companyName = "LenstedReal";
             PlayerSettings.productName = "DERBY ARENA";
-            PlayerSettings.bundleVersion = "1.0.9";
+            PlayerSettings.bundleVersion = "1.1.0";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.lenstedreal.derbyarena");
-            PlayerSettings.Android.bundleVersionCode = 109;
+            PlayerSettings.Android.bundleVersionCode = 110;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
@@ -172,21 +171,34 @@ namespace DerbyArena.EditorTools
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.Android.renderOutsideSafeArea = true;
 
+            try
+            {
+                PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
+                PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,
+                    new[] { GraphicsDeviceType.OpenGLES3, GraphicsDeviceType.Vulkan });
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("DERBY: could not set Android graphics APIs: " + ex.Message);
+            }
+
+            EnableBothInputBackends();
+
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
-            EditorUtility.SetDirty(renderer);
-            EditorUtility.SetDirty(pipeline);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
-            if (GraphicsSettings.defaultRenderPipeline != pipeline)
-                throw new BuildFailedException("DERBY: default URP pipeline was not assigned.");
+            if (GraphicsSettings.defaultRenderPipeline != null)
+                throw new BuildFailedException("DERBY: a render pipeline asset is still assigned; expected Built-in.");
             if (AssetDatabase.LoadAssetAtPath<Material>(LitMaterialPath) == null ||
+                AssetDatabase.LoadAssetAtPath<Material>(NormalMaterialPath) == null ||
                 AssetDatabase.LoadAssetAtPath<Material>(EmissiveMaterialPath) == null ||
-                AssetDatabase.LoadAssetAtPath<Material>(UnlitMaterialPath) == null)
+                AssetDatabase.LoadAssetAtPath<Material>(GlassMaterialPath) == null ||
+                AssetDatabase.LoadAssetAtPath<Material>(FxMaterialPath) == null)
                 throw new BuildFailedException("DERBY: runtime Resources materials were not generated.");
 
-            Debug.Log("DERBY BUILD SETTINGS APPLIED: URP + RESOURCE SHADERS / DERBY ARENA / 1.0.9 / 109 / ARM64");
+            Debug.Log("DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / 1.1.0 / 110 / ARM64");
         }
     }
 
@@ -202,7 +214,7 @@ namespace DerbyArena.EditorTools
         {
             UrpAndPlayerSetup.ApplyBuildSettings();
             var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(UrpAndPlayerSetup.ScenePath);
-            var boot = Object.FindAnyObjectByType<DerbyArena.Core.DerbyBootstrap>();
+            var boot = UnityEngine.Object.FindAnyObjectByType<DerbyArena.Core.DerbyBootstrap>();
             EditorApplication.Exit(boot == null || string.IsNullOrEmpty(scene.path) ? 2 : 0);
         }
     }

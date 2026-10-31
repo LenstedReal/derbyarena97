@@ -97,7 +97,11 @@ namespace DerbyArena.Vehicles
             go.transform.SetParent(transform, false);
             go.transform.localPosition = new Vector3(0f, 1.1f, -0.4f);
             smoke = go.AddComponent<ParticleSystem>();
+            var smokeRenderer = go.GetComponent<ParticleSystemRenderer>();
+            if (smokeRenderer != null)
+                smokeRenderer.sharedMaterial = DerbyArena.World.SpillwayBuilder.Fx(new Color(0.22f, 0.22f, 0.22f, 0.6f));
             var main = smoke.main;
+            main.startColor = new Color(0.25f, 0.25f, 0.25f, 0.6f);
             main.startLifetime = 1.1f;
             main.startSpeed = 1.4f;
             main.startSize = 0.45f;
