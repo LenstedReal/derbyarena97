@@ -68,7 +68,7 @@ namespace DerbyArena.Core
             var sb = new StringBuilder(512);
             sb.Append("DERBY ARENA v").Append(Version).Append("  |  ");
             sb.Append(GraphicsSettings.currentRenderPipeline == null ? "Built-in" : GraphicsSettings.currentRenderPipeline.name);
-            sb.Append("  |  kamera: ").Append(Camera.allCamera.Length);
+            sb.Append("  |  kamera: ").Append(Camera.allCameras.Length);
             sb.Append("  |  ").Append(SystemInfo.graphicsDeviceType);
             foreach (var kv in status)
                 sb.Append('\n').Append(kv.Key).Append(": ").Append(kv.Value);
