@@ -19,7 +19,7 @@ namespace DerbyArena.EditorTools
         const string LitMaterialPath = MaterialsFolder + "/RuntimeLit.mat";
         const string EmissiveMaterialPath = MaterialsFolder + "/RuntimeLitEmissive.mat";
         const string UnlitMaterialPath = MaterialsFolder + "/RuntimeUnlit.mat";
-        const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
+        internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
         {
@@ -201,7 +201,7 @@ namespace DerbyArena.EditorTools
         public static void Run()
         {
             UrpAndPlayerSetup.ApplyBuildSettings();
-            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(ScenePath);
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(UrpAndPlayerSetup.ScenePath);
             var boot = Object.FindAnyObjectByType<DerbyArena.Core.DerbyBootstrap>();
             EditorApplication.Exit(boot == null || string.IsNullOrEmpty(scene.path) ? 2 : 0);
         }
