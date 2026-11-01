@@ -152,8 +152,8 @@ namespace DerbyArena.Vehicles
                 if (Physics.Raycast(origin, -up, out hit, maxLen, ~0, QueryTriggerInteraction.Ignore) && hit.rigidbody != Body)
                 {
                     float comp = maxLen - hit.distance;
-                    float vel = (comp - lastComp[i]) / dt;
-                    float force = Mathf.Clamp(k * comp + c * vel, 0f, k * maxLen * 2.5f);
+                    float compVel = (comp - lastComp[i]) / dt;
+                    float force = Mathf.Clamp(k * comp + c * compVel, 0f, k * maxLen * 2.5f);
                     Body.AddForceAtPosition(up * force, origin);
                     lastComp[i] = comp;
                     hitDist[i] = hit.distance;
