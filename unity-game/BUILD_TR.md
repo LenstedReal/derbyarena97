@@ -1,16 +1,25 @@
-# DERBY ARENA — Build (v1.1.0)
+# DERBY ARENA — Build (v1.2.0)
 
-- Unity: **6000.3.27f1**, Android **ARM64 / IL2CPP**, Graphics API: GLES3 → Vulkan
-- Render pipeline: **Built-in** (URP ve glTFast kaldırıldı; bkz. CHANGES_TR.md)
-- Paket kimliği: `com.lenstedreal.derbyarena` — versionName `1.1.0`, versionCode `110`
-- Paketler: Input System 1.11.2, uGUI 2.0.0 + çekirdek modüller (harici registry yok)
+| | |
+|---|---|
+| Unity | 6000.3.27f1 |
+| Pipeline | Built-in |
+| Paketler | Input System 1.11.2, uGUI 2.0.0, çekirdek modüller (harici registry yok) |
+| Android | `com.lenstedreal.derbyarena`, 1.2.0 / 120, ARM64, IL2CPP, min API 25, GLES3 → Vulkan |
+| iOS | `com.lenstedreal.derbyarena`, 1.2.0 / build 120, iOS 13+, IL2CPP |
 
-## Cloud Build / yerel build
-1. Projeyi `unity-game/` klasöründen aç. `DerbyBuildSettingsEnforcer` build öncesi ayarları ve
-   `Assets/Resources/Derby/Materials/*.mat` şablonlarını üretir.
-2. Konsolda şunu ara: `DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS ...`
-3. Sahne: `Assets/DerbyArena/Scenes/BlackoutSpillway.unity` (tek sahne, her şey `DerbyBootstrap` ile kurulur).
-4. Varlıklar `StreamingAssets/Models` altında (OBJ, PNG, GLB); çalışma anında yüklenir.
+## Unity Build Automation
+1. Dal: `unity/blackout-run`, proje yolu `unity-game`, Unity 6000.3.27f1.
+2. Android hedefi mevcut ("Blackout Run Android"). Build öncesi `DerbyBuildSettingsEnforcer` tüm ayarları ve
+   `Assets/Resources/Derby/Materials/*.mat` şablonlarını üretir. Logda şunu ara:
+   `DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / 1.2.0 / 120 / ARM64 + iOS`
+3. iOS: Build Automation'da yeni hedef → iOS, aynı dal. Apple Developer hesabı (yıllık ücretli) + sertifika/provisioning
+   profili gerekir; bunlar olmadan iOS derlemesi imzalanamaz.
+4. Google Play için AAB: Android hedefinde "Build App Bundle" seç + keystore'u Build Automation'a yükle.
+
+## Kontroller
+Dokunmatik: sol alt direksiyon simidi (veya ayarlardan oklar), sağda GAZ / FREN / NİTRO / DRİFT / ATEŞ / ROKET.
+Klavye: WASD/oklar, Space drift, Shift nitro, J/F ateş, K/R roket, Esc duraklat. Gamepad: sol çubuk, tetikler, A ateş, B roket.
 
 ## Statik kontrol
-`python validate_derby.py` (Unity gerektirmez; derleme veya oynanış kanıtı DEĞİLdir).
+`python validate_derby.py` (Unity gerektirmez). Derleme, oynanış ve cihaz kanıtı **değildir**.

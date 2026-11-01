@@ -3,55 +3,129 @@ using UnityEngine;
 
 namespace DerbyArena.CameraRig
 {
+    /// <summary>
+    /// Third-person chase camera: speed-based distance and FOV, smoothed yaw, look-ahead, wall
+    /// collision that ignores the target car, trauma-based shake, death orbit and menu orbit.
+    /// </summary>
     public sealed class ChaseCamera : MonoBehaviour
     {
+        public static ChaseCamera Main;
+
         public Transform Target;
-        public WheelDrive Drive;
-        public float Distance = 8.2f;
-        public float Height = 2.7f;
-        float shake;
+        public ArcadeCar Car;
+        public bool Orbit;
+        public Vector3 OrbitCenter;
+        public float OrbitRadius = 11f;
+        public float OrbitHeight = 3.5f;
+
         Camera cam;
+        float yaw;
+        float trauma;
+        float orbitAngle;
+        Vector3 vel;
+        readonly RaycastHit[] hits = new RaycastHit[8];
 
         void Awake()
         {
+            Main = this;
             cam = GetComponent<Camera>();
-            if (cam == null)
-                cam = gameObject.AddComponent<Camera>();
-            cam.nearClipPlane = 0.2f;
-            cam.farClipPlane = 180f;
-            if (GetComponent<AudioListener>() == null)
-                gameObject.AddComponent<AudioListener>();
         }
 
-        public void Shake(float amount)
+        void OnDestroy() { if (Main == this) Main = null; }
+
+        public static void Kick(float amount)
         {
-            shake = Mathf.Max(shake, amount);
+            if (Main != null) Main.trauma = Mathf.Clamp01(Main.trauma + amount);
+        }
+
+        public static void KickAt(Vector3 point, float amount)
+        {
+            if (Main == null) return;
+            float d = Vector3.Distance(point, Main.transform.position);
+            Kick(amount * Mathf.Clamp01(1f - d / 30f));
+        }
+
+        public void SnapBehind()
+        {
+            if (Target == null) return;
+            yaw = Target.eulerAngles.y;
+            Vector3 fwd = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+            transform.position = Target.position - fwd * 8f + Vector3.up * 3.4f;
+            transform.rotation = Quaternion.LookRotation(Target.position + Vector3.up * 1.2f - transform.position);
         }
 
         void LateUpdate()
         {
-            if (Target == null)
-                return;
-            float fov = 58f;
-            if (Drive != null && Drive.NitroActive)
-                fov = 68f;
-            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, 1f - Mathf.Exp(-4f * Time.deltaTime));
-            Vector3 look = Target.position + Vector3.up * 1.2f + Target.forward * 3.2f;
-            Vector3 desired = Target.position - Target.forward * Distance + Vector3.up * Height;
-            Vector3 dir = desired - look;
+            float dt = Time.unscaledDeltaTime;
+            if (dt <= 0f) return;
+            if (Orbit) { DoOrbit(dt); ApplyShake(dt); return; }
+            if (Target == null) return;
+
+            float speed = Car != null ? Car.PlanarSpeed() : 0f;
+            float top = Car != null && Car.Spec != null ? Car.Spec.TopSpeed : 27f;
+            float s01 = Mathf.Clamp01(speed / top);
+
+            float targetYaw = Target.eulerAngles.y;
+            if (Car != null && Car.Body != null && speed > 4f)
+            {
+                Vector3 v = Car.Body.linearVelocity;
+                float velYaw = Mathf.Atan2(v.x, v.z) * Mathf.Rad2Deg;
+                if (Car.ForwardSpeed > 0f) targetYaw = Mathf.LerpAngle(targetYaw, velYaw, 0.35f);
+            }
+            yaw = Mathf.LerpAngle(yaw, targetYaw, 1f - Mathf.Exp(-4.2f * dt));
+            Vector3 fwd = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+
+            float dist = Mathf.Lerp(7.4f, 9.6f, s01);
+            float height = Mathf.Lerp(3.3f, 3.0f, s01);
+            Vector3 look = Target.position + Vector3.up * 1.3f + fwd * Mathf.Lerp(2.5f, 6f, s01);
+            Vector3 desired = Target.position - fwd * dist + Vector3.up * height;
+
+            Vector3 pivot = Target.position + Vector3.up * 1.6f;
+            Vector3 dir = desired - pivot;
             float len = dir.magnitude;
-            if (len > 0.1f && Physics.SphereCast(look, 0.35f, dir.normalized, out var hit, len, ~0, QueryTriggerInteraction.Ignore))
+            if (len > 0.1f)
             {
-                if (hit.transform != Target && hit.transform.root != Target)
-                    desired = look + dir.normalized * Mathf.Max(1.2f, hit.distance - 0.4f);
+                dir /= len;
+                int n = Physics.SphereCastNonAlloc(pivot, 0.4f, dir, hits, len, ~0, QueryTriggerInteraction.Ignore);
+                float best = len;
+                for (int i = 0; i < n; i++)
+                {
+                    if (hits[i].collider == null) continue;
+                    if (Car != null && hits[i].rigidbody == Car.Body) continue;
+                    if (hits[i].rigidbody != null && !hits[i].rigidbody.isKinematic) continue;
+                    if (hits[i].distance > 0f && hits[i].distance < best) best = hits[i].distance;
+                }
+                if (best < len) desired = pivot + dir * Mathf.Max(1.6f, best - 0.3f);
             }
-            transform.position = Vector3.Lerp(transform.position, desired, 1f - Mathf.Exp(-6f * Time.deltaTime));
-            if (shake > 0f)
-            {
-                shake = Mathf.Max(0f, shake - Time.deltaTime);
-                transform.position += Random.insideUnitSphere * shake;
-            }
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look - transform.position, Vector3.up), 1f - Mathf.Exp(-8f * Time.deltaTime));
+
+            transform.position = Vector3.SmoothDamp(transform.position, desired, ref vel, 0.09f, Mathf.Infinity, dt);
+            Quaternion rot = Quaternion.LookRotation(look - transform.position, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, rot, 1f - Mathf.Exp(-10f * dt));
+
+            float fov = Mathf.Lerp(60f, 68f, s01) + (Car != null && Car.NitroActive ? 7f : 0f);
+            if (cam != null) cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, 1f - Mathf.Exp(-5f * dt));
+            ApplyShake(dt);
+        }
+
+        void DoOrbit(float dt)
+        {
+            orbitAngle += dt * 9f;
+            Vector3 c = Target != null ? Target.position : OrbitCenter;
+            Vector3 p = c + Quaternion.Euler(0f, orbitAngle, 0f) * new Vector3(0f, OrbitHeight, -OrbitRadius);
+            transform.position = Vector3.Lerp(transform.position, p, 1f - Mathf.Exp(-3f * dt));
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(c + Vector3.up * 1.1f - transform.position), 1f - Mathf.Exp(-4f * dt));
+            if (cam != null) cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 50f, 1f - Mathf.Exp(-3f * dt));
+        }
+
+        void ApplyShake(float dt)
+        {
+            if (trauma <= 0f) return;
+            float s = trauma * trauma;
+            float t = Time.unscaledTime * 28f;
+            transform.position += transform.right * (Mathf.PerlinNoise(t, 0.1f) - 0.5f) * s * 0.8f
+                                + transform.up * (Mathf.PerlinNoise(0.3f, t) - 0.5f) * s * 0.6f;
+            transform.rotation *= Quaternion.Euler(0f, 0f, (Mathf.PerlinNoise(t, t) - 0.5f) * s * 6f);
+            trauma = Mathf.Max(0f, trauma - dt * 1.6f);
         }
     }
 }

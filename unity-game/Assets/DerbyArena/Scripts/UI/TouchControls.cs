@@ -1,17 +1,12 @@
-using System;
-using System.Collections.Generic;
+using DerbyArena.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.EnhancedTouch;
-using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 namespace DerbyArena.UI
 {
     /// <summary>
-    /// Touch / mouse / keyboard input. Pointers are read from the new Input System first and fall back
-    /// to the legacy Input class, so touch works whichever input backend the build ends up with.
-    /// Button hit-testing uses the real on-screen rectangles registered by the HUD, so what you see is
-    /// exactly what you touch (also with notches / safe areas).
+    /// Driving input: on-screen steering wheel (rotate with a finger) or arrow buttons, pedals and
+    /// action buttons hit-tested against their real on-screen rectangles, plus keyboard / gamepad.
     /// </summary>
     public sealed class TouchControls : MonoBehaviour
     {
@@ -22,232 +17,145 @@ namespace DerbyArena.UI
         public bool Handbrake;
         public bool Fire;
         public bool Rocket;
-        public float AimYaw;
+        public bool RocketPressed;
         public bool PausePressed;
+        public float WheelAngle;      // degrees, for the HUD
 
-        // HUD feedback
-        public Vector2 StickVector;
-        public bool AnyTap;
-        public Vector2 TapPosition;
+        public RectTransform WheelRect, LeftRect, RightRect;
+        public RectTransform GasRect, BrakeRect, NitroRect, DriftRect, FireRect, RocketRect, PauseRect;
 
-        // Registered by the HUD (screen-space rectangles).
-        public RectTransform StickRect;
-        public RectTransform GasRect;
-        public RectTransform BrakeRect;
-        public RectTransform NitroRect;
-        public RectTransform HandRect;
-        public RectTransform FireRect;
-        public RectTransform RocketRect;
-        public RectTransform PauseRect;
-        public float StickRadiusFactor = 0.56f;
-
-        struct Ptr
-        {
-            public int Id;
-            public Vector2 Pos;
-            public bool Began;
-        }
-
-        readonly List<Ptr> ptrs = new List<Ptr>(8);
-        static readonly Vector3[] corners = new Vector3[4];
-        int steerId = -1;
-        int aimId = -1;
-        Vector2 aimLast;
-
-        void OnEnable()
-        {
-            try { EnhancedTouchSupport.Enable(); }
-            catch (Exception ex) { Debug.LogWarning("DERBY: EnhancedTouch unavailable: " + ex.Message); }
-        }
-
-        public static bool Hit(RectTransform rt, Vector2 p, float pad)
-        {
-            if (rt == null || !rt.gameObject.activeInHierarchy) return false;
-            rt.GetWorldCorners(corners);
-            return p.x >= corners[0].x - pad && p.x <= corners[2].x + pad &&
-                   p.y >= corners[0].y - pad && p.y <= corners[2].y + pad;
-        }
-
-        void Gather()
-        {
-            ptrs.Clear();
-            bool gotTouch = false;
-            try
-            {
-                if (Touchscreen.current != null)
-                {
-                    gotTouch = true;
-                    foreach (var t in Touch.activeTouches)
-                    {
-                        var q = new Ptr();
-                        q.Id = t.touchId;
-                        q.Pos = t.screenPosition;
-                        q.Began = t.phase == UnityEngine.InputSystem.TouchPhase.Began;
-                        ptrs.Add(q);
-                    }
-                }
-            }
-            catch (Exception) { gotTouch = false; }
-
-            if (!gotTouch)
-            {
-                try
-                {
-                    for (int i = 0; i < Input.touchCount; i++)
-                    {
-                        var t = Input.GetTouch(i);
-                        var q = new Ptr();
-                        q.Id = t.fingerId;
-                        q.Pos = t.position;
-                        q.Began = t.phase == UnityEngine.TouchPhase.Began;
-                        ptrs.Add(q);
-                    }
-                }
-                catch (Exception) { }
-            }
-
-            if (ptrs.Count == 0)
-            {
-                // Mouse (editor / desktop testing).
-                try
-                {
-                    var mouse = Mouse.current;
-                    if (mouse != null && mouse.leftButton.isPressed)
-                    {
-                        var q = new Ptr();
-                        q.Id = -100;
-                        q.Pos = mouse.position.ReadValue();
-                        q.Began = mouse.leftButton.wasPressedThisFrame;
-                        ptrs.Add(q);
-                    }
-                }
-                catch (Exception)
-                {
-                    try
-                    {
-                        if (Input.GetMouseButton(0))
-                        {
-                            var q = new Ptr();
-                            q.Id = -100;
-                            q.Pos = Input.mousePosition;
-                            q.Began = Input.GetMouseButtonDown(0);
-                            ptrs.Add(q);
-                        }
-                    }
-                    catch (Exception) { }
-                }
-            }
-        }
-
-        void GetStick(out Vector2 center, out float radius)
-        {
-            if (StickRect != null && StickRect.gameObject.activeInHierarchy)
-            {
-                StickRect.GetWorldCorners(corners);
-                center = new Vector2((corners[0].x + corners[2].x) * 0.5f, (corners[0].y + corners[2].y) * 0.5f);
-                radius = Mathf.Max(20f, (corners[2].x - corners[0].x) * 0.5f * StickRadiusFactor);
-            }
-            else
-            {
-                center = new Vector2(Screen.width * 0.125f, Screen.height * 0.23f);
-                radius = Screen.height * 0.12f;
-            }
-        }
+        const float MaxWheel = 135f;
+        int wheelId = -1;
+        float lastAngle;
+        bool rocketHeldLast;
 
         void Update()
         {
-            Throttle = 0f;
-            Brake = 0f;
-            Nitro = false;
-            Handbrake = false;
-            Fire = false;
-            Rocket = false;
-            PausePressed = false;
-            AnyTap = false;
+            Throttle = 0f; Brake = 0f; Nitro = false; Handbrake = false; Fire = false; Rocket = false;
+            PausePressed = false; RocketPressed = false;
+            float keySteer = 0f;
+            bool keySteering = false;
 
-            bool keyboardSteer = false;
             var kb = Keyboard.current;
             if (kb != null)
             {
-                if (kb.aKey.isPressed) { Steer = -1f; keyboardSteer = true; }
-                else if (kb.dKey.isPressed) { Steer = 1f; keyboardSteer = true; }
-                if (kb.wKey.isPressed) Throttle = 1f;
-                if (kb.sKey.isPressed) Brake = 1f;
-                if (kb.leftShiftKey.isPressed) Handbrake = true;
-                if (kb.spaceKey.isPressed) Nitro = true;
-                if (kb.fKey.isPressed) Fire = true;
-                if (kb.rKey.isPressed) Rocket = true;
-                if (kb.escapeKey.wasPressedThisFrame) PausePressed = true;
+                if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) { keySteer -= 1f; keySteering = true; }
+                if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) { keySteer += 1f; keySteering = true; }
+                if (kb.wKey.isPressed || kb.upArrowKey.isPressed) Throttle = 1f;
+                if (kb.sKey.isPressed || kb.downArrowKey.isPressed) Brake = 1f;
+                if (kb.spaceKey.isPressed) Handbrake = true;
+                if (kb.leftShiftKey.isPressed) Nitro = true;
+                if (kb.jKey.isPressed || kb.fKey.isPressed) Fire = true;
+                if (kb.kKey.isPressed || kb.rKey.isPressed) Rocket = true;
+                if (kb.escapeKey.wasPressedThisFrame || kb.pKey.wasPressedThisFrame) PausePressed = true;
+            }
+            var pad = Gamepad.current;
+            if (pad != null)
+            {
+                float lx = pad.leftStick.ReadValue().x;
+                if (Mathf.Abs(lx) > 0.12f) { keySteer = lx; keySteering = true; }
+                Throttle = Mathf.Max(Throttle, pad.rightTrigger.ReadValue());
+                Brake = Mathf.Max(Brake, pad.leftTrigger.ReadValue());
+                if (pad.buttonSouth.isPressed) Fire = true;
+                if (pad.buttonEast.isPressed) Rocket = true;
+                if (pad.buttonWest.isPressed) Handbrake = true;
+                if (pad.rightShoulder.isPressed) Nitro = true;
+                if (pad.startButton.wasPressedThisFrame) PausePressed = true;
             }
 
-            Gather();
-
-            bool steerHeld = false;
-            bool aimHeld = false;
-            Vector2 stickCenter;
-            float stickRadius;
-            GetStick(out stickCenter, out stickRadius);
-
+            bool wheelMode = Save.Data.ControlMode == 0;
+            bool wheelHeld = false;
+            float buttonSteer = 0f;
+            var ptrs = PointerInput.Get();
             for (int i = 0; i < ptrs.Count; i++)
             {
-                var q = ptrs[i];
-                if (q.Began)
-                {
-                    AnyTap = true;
-                    TapPosition = q.Pos;
-                }
+                var p = ptrs[i];
+                if (UiButton.Hit(PauseRect, p.Pos, 12f)) { if (p.Began) PausePressed = true; continue; }
 
-                if (Hit(PauseRect, q.Pos, 10f))
-                {
-                    if (q.Began) PausePressed = true;
-                    continue;
-                }
+                bool used = false;
+                if (UiButton.Hit(GasRect, p.Pos, 8f)) { Throttle = 1f; used = true; }
+                if (UiButton.Hit(BrakeRect, p.Pos, 8f)) { Brake = 1f; used = true; }
+                if (UiButton.Hit(NitroRect, p.Pos, 8f)) { Nitro = true; used = true; }
+                if (UiButton.Hit(DriftRect, p.Pos, 8f)) { Handbrake = true; used = true; }
+                if (UiButton.Hit(FireRect, p.Pos, 10f)) { Fire = true; used = true; }
+                if (UiButton.Hit(RocketRect, p.Pos, 8f)) { Rocket = true; used = true; }
+                if (used) continue;
 
-                bool onButton = false;
-                if (Hit(GasRect, q.Pos, 6f)) { Throttle = 1f; onButton = true; }
-                if (Hit(BrakeRect, q.Pos, 6f)) { Brake = 1f; onButton = true; }
-                if (Hit(NitroRect, q.Pos, 6f)) { Nitro = true; onButton = true; }
-                if (Hit(HandRect, q.Pos, 6f)) { Handbrake = true; onButton = true; }
-                if (Hit(FireRect, q.Pos, 6f)) { Fire = true; onButton = true; }
-                if (Hit(RocketRect, q.Pos, 6f)) { Rocket = true; onButton = true; }
-                if (onButton) continue;
-
-                bool inStickZone = q.Pos.x < Screen.width * 0.42f && q.Pos.y < Screen.height * 0.80f;
-                if (inStickZone && (steerId < 0 || q.Id == steerId))
+                if (wheelMode)
                 {
-                    steerId = q.Id;
-                    steerHeld = true;
-                    Vector2 d = (q.Pos - stickCenter) / stickRadius;
-                    if (d.magnitude > 1f) d.Normalize();
-                    StickVector = d;
-                    Steer = Mathf.Abs(d.x) < 0.08f ? 0f : d.x;
-                }
-                else if (q.Pos.x > Screen.width * 0.5f)
-                {
-                    if (q.Began)
+                    if (p.Id == wheelId || (wheelId < 0 && p.Began && NearWheel(p.Pos)))
                     {
-                        aimId = q.Id;
-                        aimLast = q.Pos;
+                        Vector2 c = Center(WheelRect);
+                        Vector2 d = p.Pos - c;
+                        float ang = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;   // 0 = up, clockwise positive
+                        if (wheelId != p.Id)
+                        {
+                            wheelId = p.Id;
+                            lastAngle = ang;
+                        }
+                        if (d.magnitude > Radius(WheelRect) * 0.18f)
+                        {
+                            WheelAngle = Mathf.Clamp(WheelAngle + Mathf.DeltaAngle(lastAngle, ang), -MaxWheel, MaxWheel);
+                            lastAngle = ang;
+                        }
+                        wheelHeld = true;
                     }
-                    if (q.Id == aimId)
-                    {
-                        aimHeld = true;
-                        AimYaw += (q.Pos.x - aimLast.x) * 0.15f;
-                        aimLast = q.Pos;
-                    }
+                }
+                else
+                {
+                    if (UiButton.Hit(LeftRect, p.Pos, 10f)) buttonSteer -= 1f;
+                    if (UiButton.Hit(RightRect, p.Pos, 10f)) buttonSteer += 1f;
                 }
             }
 
-            if (!steerHeld)
+            float dt = Time.unscaledDeltaTime;
+            if (!wheelHeld)
             {
-                steerId = -1;
-                StickVector = Vector2.Lerp(StickVector, Vector2.zero, 1f - Mathf.Exp(-16f * Time.unscaledDeltaTime));
-                if (!keyboardSteer)
-                    Steer = Mathf.MoveTowards(Steer, 0f, Time.unscaledDeltaTime * 6f);
+                wheelId = -1;
+                WheelAngle = Mathf.MoveTowards(WheelAngle, 0f, dt * 540f);
             }
-            if (!aimHeld)
-                aimId = -1;
-            AimYaw = Mathf.Clamp(AimYaw, -50f, 50f);
+
+            float sens = Save.Data.Sensitivity;
+            float touchSteer;
+            if (wheelMode)
+            {
+                touchSteer = Mathf.Clamp(WheelAngle / (95f / sens), -1f, 1f);
+            }
+            else
+            {
+                Steer = Mathf.MoveTowards(Steer, buttonSteer, dt * 4.5f * sens);
+                touchSteer = Steer;
+                WheelAngle = Steer * 90f;
+            }
+            Steer = keySteering ? Mathf.Clamp(keySteer, -1f, 1f) : touchSteer;
+
+            if (Save.Data.AutoGas && Brake < 0.5f) Throttle = Mathf.Max(Throttle, 1f);
+
+            RocketPressed = Rocket && !rocketHeldLast;
+            rocketHeldLast = Rocket;
+        }
+
+        static readonly Vector3[] corners = new Vector3[4];
+
+        static Vector2 Center(RectTransform rt)
+        {
+            if (rt == null) return new Vector2(Screen.width * 0.13f, Screen.height * 0.25f);
+            rt.GetWorldCorners(corners);
+            return new Vector2((corners[0].x + corners[2].x) * 0.5f, (corners[0].y + corners[2].y) * 0.5f);
+        }
+
+        static float Radius(RectTransform rt)
+        {
+            if (rt == null) return Screen.height * 0.15f;
+            rt.GetWorldCorners(corners);
+            return (corners[2].x - corners[0].x) * 0.5f;
+        }
+
+        bool NearWheel(Vector2 p)
+        {
+            if (WheelRect == null || !WheelRect.gameObject.activeInHierarchy) return false;
+            if ((p - Center(WheelRect)).magnitude < Radius(WheelRect) * 1.45f) return true;
+            return p.x < Screen.width * 0.4f && p.y < Screen.height * 0.75f;
         }
     }
 }

@@ -184,7 +184,7 @@ namespace DerbyArena.Vehicles
                 int matIndex = (int)Num(p, "material", -1);
                 Material mat = matIndex >= 0 && matIndex < materials.Count ? materials[matIndex] : null;
                 if (mat == null)
-                    mat = SpillwayBuilder.Lit(new Color(0.5f, 0.5f, 0.5f), 0.6f, 0.2f, Color.black, 0f);
+                    mat = Mats.Lit(new Color(0.5f, 0.5f, 0.5f), 0.6f, 0.2f, Color.black, 0f);
                 mats.Add(mat);
             }
             if (subTris.Count == 0) return null;
@@ -292,11 +292,12 @@ namespace DerbyArena.Vehicles
         }
 
         // ------------------------------------------------------------------ materials / textures
-        static Texture2D GetTexture(Ctx ctx, int textureIndex)
+        static Texture2D GetTexture(Ctx ctx, int textureIndex, bool linear)
         {
             if (textureIndex < 0 || ctx.Textures == null || textureIndex >= ctx.Textures.Count) return null;
+            int cacheKey = textureIndex * 2 + (linear ? 1 : 0);
             Texture2D cached;
-            if (ctx.TextureCache.TryGetValue(textureIndex, out cached)) return cached;
+            if (ctx.TextureCache.TryGetValue(cacheKey, out cached)) return cached;
 
             Texture2D result = null;
             var tex = Obj(ctx.Textures[textureIndex]);
@@ -312,7 +313,7 @@ namespace DerbyArena.Vehicles
                     int len = (int)Num(view, "byteLength", 0);
                     var bytes = new byte[len];
                     Buffer.BlockCopy(ctx.Glb, start, bytes, 0, len);
-                    var t = new Texture2D(2, 2, TextureFormat.RGBA32, true, false);
+                    var t = new Texture2D(2, 2, TextureFormat.RGBA32, true, linear);
                     if (t.LoadImage(bytes, true))
                     {
                         t.wrapMode = TextureWrapMode.Repeat;
@@ -326,7 +327,7 @@ namespace DerbyArena.Vehicles
                     }
                 }
             }
-            ctx.TextureCache[textureIndex] = result;
+            ctx.TextureCache[cacheKey] = result;
             return result;
         }
 
@@ -344,8 +345,12 @@ namespace DerbyArena.Vehicles
                 metallic = (float)Num(pbr, "metallicFactor", 1.0);
                 roughness = (float)Num(pbr, "roughnessFactor", 1.0);
                 var bt = Obj(pbr, "baseColorTexture");
-                if (bt != null) tex = GetTexture(ctx, (int)Num(bt, "index", -1));
+                if (bt != null) tex = GetTexture(ctx, (int)Num(bt, "index", -1), false);
             }
+
+            Texture2D normal = null;
+            var nt = Obj(m, "normalTexture");
+            if (nt != null) normal = GetTexture(ctx, (int)Num(nt, "index", -1), true);
 
             string alpha = Str(m, "alphaMode");
             float[] em = Floats(m, "emissiveFactor");
@@ -355,18 +360,18 @@ namespace DerbyArena.Vehicles
 
             // The built-in pipeline has no environment reflections here, so fully metallic surfaces
             // would render almost black. Metalness is toned down on purpose.
-            float smooth = (tex != null && roughness > 0.95f) ? 0.5f : 1f - roughness;
+            float smooth = (tex != null && roughness > 0.95f) ? 0.32f : 1f - roughness;
             float metal = tex != null ? 0.2f : Mathf.Clamp(metallic * 0.55f, 0f, 0.5f);
 
             Material mat;
             if (alpha == "BLEND")
-                mat = SpillwayBuilder.Glass(color);
+                mat = Mats.Glass(color);
             else if (em != null && em.Length >= 3 && em[0] + em[1] + em[2] > 0.01f)
-                mat = SpillwayBuilder.Lit(color, 1f - smooth, metal, new Color(em[0], em[1], em[2]), Mathf.Clamp(strength, 1f, 2.5f));
+                mat = Mats.Lit(color, 1f - smooth, metal, new Color(em[0], em[1], em[2]), Mathf.Clamp(strength, 1f, 2.5f));
             else if (tex != null)
-                mat = SpillwayBuilder.Textured(tex, color, smooth, metal);
+                mat = Mats.TexturedNormal(tex, normal, color, smooth, metal);
             else
-                mat = SpillwayBuilder.Lit(color, 1f - smooth, metal, Color.black, 0f);
+                mat = Mats.Lit(color, 1f - smooth, metal, Color.black, 0f);
 
             if (mat != null)
             {

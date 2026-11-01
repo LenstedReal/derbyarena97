@@ -1,117 +1,185 @@
 using System;
+using System.Collections.Generic;
 using DerbyArena.Audio;
+using DerbyArena.Combat;
 using UnityEngine;
 
 namespace DerbyArena.Vehicles
 {
+    /// <summary>
+    /// Central damage API. Every source (guns, rockets, rams, shockwaves) goes through Apply, which
+    /// handles shield, spawn protection, single death event, wreck state and damage effects.
+    /// </summary>
     public sealed class VehicleHealth : MonoBehaviour
     {
+        public int Team;                 // 0 player, 1 enemies
         public float Max = 100f;
         public float Current = 100f;
-        public bool Dead;
-        public event Action<VehicleHealth> Died;
+        public float Shield;
+        public float ShieldMax = 60f;
+        public bool Dead { get; private set; }
+        public float InvulnerableUntil;
+        public VehicleHealth LastAttacker { get; private set; }
+        public float LastHitTime { get; private set; } = -10f;
+        public Vector3 LastHitFrom { get; private set; }
 
-        float lastRam;
-        ParticleSystem smoke;
-        AudioSource audioSource;
+        public event Action<VehicleHealth, VehicleHealth> Died;          // victim, killer
+        public event Action<VehicleHealth, float> Damaged;               // victim, amount
 
-        public void Configure(float max)
+        ArcadeCar car;
+        readonly Dictionary<int, float> ramCooldown = new Dictionary<int, float>();
+        float smokeTimer;
+        float fireUntil;
+        float hitSoundCd;
+
+        public float Fraction { get { return Mathf.Clamp01(Current / Mathf.Max(1f, Max)); } }
+
+        public void Configure(float max, int team)
         {
             Max = max;
             Current = max;
-            audioSource = gameObject.AddComponent<AudioSource>();
-            audioSource.playOnAwake = false;
-            audioSource.spatialBlend = 1f;
-            audioSource.minDistance = 4f;
-            audioSource.maxDistance = 40f;
+            Team = team;
+            car = GetComponent<ArcadeCar>();
         }
 
-        public void Apply(float amount, UnityEngine.Object source)
+        public void Apply(float amount, VehicleHealth attacker, Vector3 from)
         {
-            if (Dead || amount <= 0f)
-                return;
+            if (Dead || amount <= 0f) return;
+            if (Time.time < InvulnerableUntil) return;
+            if (attacker == this) return;
+            if (attacker != null && attacker.Team == Team && Team != 0 && amount < 30f) amount *= 0.25f;
+
+            if (Shield > 0f)
+            {
+                float absorbed = Mathf.Min(Shield, amount * 0.8f);
+                Shield -= absorbed;
+                amount -= absorbed;
+            }
             Current = Mathf.Max(0f, Current - amount);
-            if (audioSource != null)
+            LastAttacker = attacker;
+            LastHitTime = Time.time;
+            LastHitFrom = from;
+
+            if (hitSoundCd <= 0f)
             {
-                audioSource.pitch = UnityEngine.Random.Range(0.85f, 1.1f);
-                audioSource.PlayOneShot(SynthAudio.Hit(), 0.7f);
+                hitSoundCd = 0.08f;
+                AudioHub.PlayAt(SynthAudio.Hit(), transform.position, Team == 0 ? 0.75f : 0.5f, UnityEngine.Random.Range(0.85f, 1.15f));
             }
-            if (Current <= Max * 0.35f)
-                EnsureSmoke();
-            if (Current <= 0f)
-            {
-                Dead = true;
-                if (smoke != null)
-                    smoke.Play();
-                Died?.Invoke(this);
-            }
+            if (Damaged != null) Damaged(this, amount);
+            if (Current <= 0f) Die(attacker);
         }
 
-        public void Repair(float amount)
+        public void Heal(float amount)
         {
-            if (Dead)
-                return;
+            if (Dead) return;
             Current = Mathf.Min(Max, Current + amount);
         }
 
-        public void AddArmor(float amount)
+        public void AddShield(float amount)
         {
+            if (Dead) return;
+            Shield = Mathf.Min(ShieldMax, Shield + amount);
+        }
+
+        void Die(VehicleHealth killer)
+        {
+            if (Dead) return;
+            Dead = true;
+            fireUntil = Time.time + 7f;
+            if (car != null)
+            {
+                car.Locked = true;
+                car.NitroHeld = false;
+                if (car.Body != null)
+                    car.Body.AddForce(Vector3.up * car.Body.mass * 5f + UnityEngine.Random.insideUnitSphere * car.Body.mass * 2f, ForceMode.Impulse);
+            }
+            Fx.Explosion(transform.position + Vector3.up, 1.4f);
+            AudioHub.PlayAt(SynthAudio.Explosion(), transform.position, 1f, UnityEngine.Random.Range(0.85f, 1.05f));
+            Char();
+            if (Died != null) Died(this, killer);
+        }
+
+        void Char()
+        {
+            foreach (var r in GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
+                var mats = r.materials;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    if (mats[i] == null) continue;
+                    if (mats[i].HasProperty("_Color"))
+                    {
+                        var col = mats[i].GetColor("_Color");
+                        mats[i].SetColor("_Color", new Color(col.r * 0.18f + 0.03f, col.g * 0.16f + 0.02f, col.b * 0.15f + 0.02f, col.a));
+                    }
+                    if (mats[i].HasProperty("_EmissionColor")) mats[i].SetColor("_EmissionColor", Color.black);
+                }
+                r.materials = mats;
+            }
+        }
+
+        void Update()
+        {
+            if (hitSoundCd > 0f) hitSoundCd -= Time.deltaTime;
+            smokeTimer -= Time.deltaTime;
+            if (smokeTimer > 0f) return;
+            Vector3 p = transform.position + transform.up * 1.3f + transform.forward * 1.2f;
             if (Dead)
-                return;
-            Max += amount;
-            Current += amount;
+            {
+                smokeTimer = 0.09f;
+                if (Time.time < fireUntil) Fx.Fire(p, 1f);
+                Fx.Smoke(p, Time.time < fireUntil ? 1.4f : 0.8f);
+            }
+            else if (Fraction < 0.4f)
+            {
+                smokeTimer = Mathf.Lerp(0.05f, 0.22f, Fraction / 0.4f);
+                Fx.Smoke(p, 0.8f);
+                if (Fraction < 0.15f) Fx.Fire(p, 0.5f);
+            }
+            else smokeTimer = 0.25f;
         }
 
         void OnCollisionEnter(Collision collision)
         {
-            if (Time.time < lastRam)
-                return;
+            if (Dead) return;
             var other = collision.collider.GetComponentInParent<VehicleHealth>();
-            if (other == null || other == this)
-                return;
-            if (GetInstanceID() > other.GetInstanceID())
-                return;
-            float rel = collision.relativeVelocity.magnitude;
-            if (rel < 7f)
-                return;
-            lastRam = Time.time + 0.45f;
-            float dmg = Mathf.Clamp((rel - 7f) * 3.2f, 8f, 42f);
-            var mine = GetComponent<WheelDrive>();
-            var theirs = other.GetComponent<WheelDrive>();
-            if (mine != null && mine.Spec.Role == DriverRole.Rammer)
-                dmg *= 1.45f;
-            if (theirs != null && theirs.Spec.Role == DriverRole.Rammer)
-                other.Apply(dmg * 0.35f, this);
-            other.Apply(dmg, this);
-            Apply(dmg * 0.55f, other);
-            var cam = Camera.main != null ? Camera.main.GetComponent<DerbyArena.CameraRig.ChaseCamera>() : null;
-            if (cam != null && (CompareTag("Player") || other.CompareTag("Player")))
-                cam.Shake(Mathf.Clamp(rel * 0.012f, 0.05f, 0.28f));
-        }
+            if (other == null || other == this) return;
+            if (GetInstanceID() > other.GetInstanceID()) return;   // one side resolves the pair
 
-        void EnsureSmoke()
-        {
-            if (smoke != null)
-                return;
-            var go = new GameObject("DamageSmoke");
-            go.transform.SetParent(transform, false);
-            go.transform.localPosition = new Vector3(0f, 1.1f, -0.4f);
-            smoke = go.AddComponent<ParticleSystem>();
-            var smokeRenderer = go.GetComponent<ParticleSystemRenderer>();
-            if (smokeRenderer != null)
-                smokeRenderer.sharedMaterial = DerbyArena.World.SpillwayBuilder.Fx(new Color(0.22f, 0.22f, 0.22f, 0.6f));
-            var main = smoke.main;
-            main.startColor = new Color(0.25f, 0.25f, 0.25f, 0.6f);
-            main.startLifetime = 1.1f;
-            main.startSpeed = 1.4f;
-            main.startSize = 0.45f;
-            main.maxParticles = 40;
-            main.loop = true;
-            var emission = smoke.emission;
-            emission.rateOverTime = 12f;
-            var shape = smoke.shape;
-            shape.shapeType = ParticleSystemShapeType.Cone;
-            smoke.Play();
+            float cd;
+            int key = other.GetInstanceID();
+            if (ramCooldown.TryGetValue(key, out cd) && Time.time < cd) return;
+
+            var myCar = car;
+            var theirCar = other.GetComponent<ArcadeCar>();
+            if (myCar == null || theirCar == null || myCar.Body == null || theirCar.Body == null) return;
+
+            Vector3 dir = other.transform.position - transform.position;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.001f) return;
+            dir.Normalize();
+            float mine = Mathf.Max(0f, Vector3.Dot(myCar.Body.linearVelocity, dir));
+            float theirs = Mathf.Max(0f, Vector3.Dot(theirCar.Body.linearVelocity, -dir));
+            float impact = mine + theirs;
+            if (impact < 6f) return;
+
+            ramCooldown[key] = Time.time + 0.5f;
+            float baseDmg = Mathf.Clamp((impact - 6f) * 3.2f, 6f, 48f);
+            bool iAmRammer = mine >= theirs;
+            var rammer = iAmRammer ? this : other;
+            var victim = iAmRammer ? other : this;
+            var rammerCar = iAmRammer ? myCar : theirCar;
+            float mul = rammerCar.Spec != null ? rammerCar.Spec.RamMul : 1f;
+            if (rammer.Team == 0) mul *= 1.25f;
+
+            Vector3 contact = collision.contactCount > 0 ? collision.GetContact(0).point : (transform.position + other.transform.position) * 0.5f;
+            victim.Apply(baseDmg * mul, rammer, contact);
+            rammer.Apply(baseDmg * 0.3f, victim, contact);
+            Fx.Sparks(contact, -dir, 18);
+            AudioHub.PlayAt(SynthAudio.Crash(), contact, Mathf.Clamp01(impact / 25f) + 0.3f, UnityEngine.Random.Range(0.85f, 1.1f));
+            if (rammer.Team == 0 || victim.Team == 0)
+                DerbyArena.CameraRig.ChaseCamera.Kick(Mathf.Clamp(impact * 0.02f, 0.15f, 0.6f));
         }
     }
 }

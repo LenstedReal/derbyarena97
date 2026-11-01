@@ -1,4 +1,6 @@
-using System;
+using System.Collections.Generic;
+using DerbyArena.Audio;
+using DerbyArena.Core;
 using DerbyArena.Mission;
 using DerbyArena.Vehicles;
 using UnityEngine;
@@ -6,370 +8,661 @@ using UnityEngine.UI;
 
 namespace DerbyArena.UI
 {
-    /// <summary>
-    /// Mobile HUD built entirely in code: health / nitro bars, timer, cell counter, objective,
-    /// a real analog joystick (base + moving knob), pedal buttons with pressed feedback, safe-area
-    /// layout, pause menu and a result screen. All taps are handled by TouchControls (no EventSystem
-    /// needed), so the HUD works whichever input backend is active.
-    /// </summary>
+    /// <summary>In-match HUD, pause menu and result screen. Built in code, safe-area aware.</summary>
     public sealed class HudController : MonoBehaviour
     {
-        public MissionDirector Mission;
-        public VehicleHealth Health;
-        public WheelDrive Drive;
-        public TouchControls Controls;
-        public DerbyArena.Combat.WeaponRig Weapons;
-        public Action Restart;
-        public bool Paused;
+        static HudController inst;
 
-        const float KnobTravel = 84f; // canvas reference pixels (base radius 150 * StickRadiusFactor 0.56)
+        MatchDirector match;
+        TouchControls controls;
+        RectTransform canvasRt, safe;
 
-        Font font;
-        Sprite square;
-        Sprite round;
-        Sprite circle;
-        RectTransform safe;
-        Rect lastSafe;
+        Image hpFill, shieldFill, nitroFill, heatFill, bossFill, damageVignette, reticle, hitMark, wheelImg, loadingBg;
+        Text hpText, timeText, objText, progText, countText, rocketText, heatText, bossText, loadingText, distText;
+        GameObject bossBar, pausePage, resultPage, loadingPage, wheelGroup, arrowsGroup;
+        RectTransform radar, radarSweep;
+        readonly List<Image> radarDots = new List<Image>();
+        Image gasImg, brakeImg, nitroImg, driftImg, fireImg, rocketImg, leftImg, rightImg;
 
-        Text hpText, nitroText, timeText, cellText, objText, resultTitle, resultSub;
-        Image hpFill, nitroFill, knob, stickBase;
-        Image gasImg, brakeImg, nitroImg, handImg, fireImg, rocketImg;
-        Text rocketText;
-        GameObject pausePanel, resultPanel;
-        RectTransform resumeRect, againRect, resultAgainRect;
-        float lastToggle = -10f;
-        float resultShownAt = -1f;
-        bool resultVisible;
+        readonly List<Text> feed = new List<Text>();
+        readonly List<float> feedTime = new List<float>();
+        float hitTimer, damageFlash;
+        bool paused;
+        static Sprite star;
 
-        // ------------------------------------------------------------------ sprites
-        static Sprite MakeSquare()
+        public static void HitMarker() { if (inst != null) inst.hitTimer = 0.12f; }
+
+        public static void ShowResults(MatchDirector m) { if (inst != null) inst.BuildResults(m); }
+
+        public static HudController Create(MatchDirector m, TouchControls c)
         {
-            var tex = new Texture2D(4, 4, TextureFormat.RGBA32, false);
-            var px = new Color32[16];
-            for (int i = 0; i < px.Length; i++) px[i] = new Color32(255, 255, 255, 255);
-            tex.SetPixels32(px);
-            tex.Apply(false, true);
-            return Sprite.Create(tex, new Rect(0f, 0f, 4f, 4f), new Vector2(0.5f, 0.5f), 100f);
+            var go = new GameObject("HudController");
+            var h = go.AddComponent<HudController>();
+            inst = h;
+            h.match = m;
+            h.controls = c;
+            h.Build();
+            m.Message += h.OnMessage;
+            return h;
         }
 
-        static Sprite MakeRound(int size, int radius)
+        void OnDestroy() { if (inst == this) inst = null; }
+
+        // ================================================================== build
+        void Build()
         {
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            tex.wrapMode = TextureWrapMode.Clamp;
-            tex.filterMode = FilterMode.Bilinear;
-            var px = new Color32[size * size];
-            for (int y = 0; y < size; y++)
+            canvasRt = UiKit.Canvas("HUD", 10, out safe);
+            canvasRt.SetParent(transform, false);
+
+            var vig = UiKit.Image("Vignette", canvasRt, UiKit.VignetteSprite, new Color(0f, 0f, 0f, 0.55f));
+            UiKit.Stretch(vig.rectTransform, 0f, 0f, 1f, 1f);
+            vig.transform.SetAsFirstSibling();
+            damageVignette = UiKit.Image("DamageVignette", canvasRt, UiKit.VignetteSprite, new Color(1f, 0.05f, 0.02f, 0f));
+            UiKit.Stretch(damageVignette.rectTransform, 0f, 0f, 1f, 1f);
+
+            BuildTopLeft();
+            BuildTopCenter();
+            BuildControls();
+
+            // pause button (top right)
+            var pause = UiKit.Image("Pause", safe, UiKit.Rounded, UiKit.Panel);
+            UiKit.Place(pause.rectTransform, 1f, 1f, 110f, 90f, 1f, 1f);
+            UiKit.Label("Icon", pause.transform, "II", 40, Color.white, TextAnchor.MiddleCenter, true);
+            controls.PauseRect = pause.rectTransform;
+
+            // reticle + hit marker
+            reticle = UiKit.Image("Reticle", canvasRt, UiKit.RingSprite, new Color(1f, 0.3f, 0.2f, 0.9f));
+            reticle.rectTransform.sizeDelta = new Vector2(110f, 110f);
+            reticle.enabled = false;
+            hitMark = UiKit.Image("Hit", reticle.transform, UiKit.Circle, new Color(1f, 1f, 1f, 0f));
+            UiKit.Place(hitMark.rectTransform, 0.5f, 0.5f, 22f, 22f, 0.5f, 0.5f);
+
+            // countdown + message feed
+            var cd = UiKit.Rect("Countdown", canvasRt);
+            UiKit.Stretch(cd, 0.3f, 0.45f, 0.7f, 0.75f);
+            countText = UiKit.Label("Text", cd, "", 190, Color.white, TextAnchor.MiddleCenter, true);
+            for (int i = 0; i < 3; i++)
             {
-                for (int x = 0; x < size; x++)
-                {
-                    float fx = x + 0.5f;
-                    float fy = y + 0.5f;
-                    float cx = Mathf.Clamp(fx, radius, size - radius);
-                    float cy = Mathf.Clamp(fy, radius, size - radius);
-                    float d = Mathf.Sqrt((fx - cx) * (fx - cx) + (fy - cy) * (fy - cy));
-                    float a = Mathf.Clamp01(radius - d + 0.5f);
-                    px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255f));
-                }
+                var r = UiKit.Rect("Feed" + i, safe);
+                UiKit.Place(r, 0.5f, 0.71f - i * 0.055f, 1100f, 56f, 0.5f, 0.5f);
+                var t = UiKit.Label("Text", r, "", 40, Color.white, TextAnchor.MiddleCenter, true);
+                t.color = new Color(1f, 1f, 1f, 0f);
+                feed.Add(t);
+                feedTime.Add(0f);
             }
-            tex.SetPixels32(px);
-            tex.Apply(false, true);
-            return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
-                SpriteMeshType.FullRect, new Vector4(radius, radius, radius, radius));
+
+            // loading overlay
+            var lb = UiKit.Image("Loading", canvasRt, UiKit.Square, new Color(0.03f, 0.035f, 0.045f, 1f));
+            UiKit.Stretch(lb.rectTransform, 0f, 0f, 1f, 1f);
+            loadingBg = lb;
+            loadingPage = lb.gameObject;
+            var lt = UiKit.Rect("Title", lb.transform);
+            UiKit.Stretch(lt, 0.1f, 0.5f, 0.9f, 0.7f);
+            UiKit.Label("Text", lt, match.Config.Title, 72, UiKit.Amber, TextAnchor.MiddleCenter, true);
+            var ls = UiKit.Rect("Sub", lb.transform);
+            UiKit.Stretch(ls, 0.1f, 0.42f, 0.9f, 0.5f);
+            UiKit.Label("Text", ls, "BÖLÜM " + match.Config.Number + "  ·  " + match.Config.Subtitle, 34, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+            var lo = UiKit.Rect("Objective", lb.transform);
+            UiKit.Stretch(lo, 0.15f, 0.3f, 0.85f, 0.4f);
+            UiKit.Label("Text", lo, match.Config.ObjectiveLine, 34, Color.white, TextAnchor.MiddleCenter, false);
+            if (!string.IsNullOrEmpty(match.Config.Hint))
+            {
+                var lh = UiKit.Rect("Hint", lb.transform);
+                UiKit.Stretch(lh, 0.15f, 0.2f, 0.85f, 0.3f);
+                UiKit.Label("Text", lh, "İPUCU: " + match.Config.Hint, 28, UiKit.Cyan, TextAnchor.MiddleCenter, false);
+            }
+            var ll = UiKit.Rect("Status", lb.transform);
+            UiKit.Stretch(ll, 0.3f, 0.08f, 0.7f, 0.15f);
+            loadingText = UiKit.Label("Text", ll, "YÜKLENİYOR", 28, UiKit.TextDim, TextAnchor.MiddleCenter, false);
         }
 
-        // ------------------------------------------------------------------ element helpers
-        static void Anchor(RectTransform rt, float x0, float y0, float x1, float y1)
+        void BuildTopLeft()
         {
-            rt.anchorMin = new Vector2(x0, y0);
-            rt.anchorMax = new Vector2(x1, y1);
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
+            var radarBg = UiKit.Image("Radar", safe, UiKit.Circle, new Color(0.02f, 0.05f, 0.06f, 0.72f));
+            UiKit.Place(radarBg.rectTransform, 0f, 1f, 220f, 220f, 0f, 1f);
+            radar = radarBg.rectTransform;
+            var rring = UiKit.Image("Ring", radar, UiKit.RingSprite, new Color(0.2f, 0.85f, 1f, 0.45f));
+            UiKit.Stretch(rring.rectTransform, 0f, 0f, 1f, 1f);
+            var rmid = UiKit.Image("Mid", radar, UiKit.RingSprite, new Color(0.2f, 0.85f, 1f, 0.18f));
+            UiKit.Place(rmid.rectTransform, 0.5f, 0.5f, 110f, 110f, 0.5f, 0.5f);
+            var me = UiKit.Image("Me", radar, UiKit.Circle, Color.white);
+            UiKit.Place(me.rectTransform, 0.5f, 0.5f, 14f, 14f, 0.5f, 0.5f);
+            var cone = UiKit.Image("Cone", radar, UiKit.Square, new Color(1f, 1f, 1f, 0.8f));
+            UiKit.Place(cone.rectTransform, 0.5f, 0.5f, 4f, 22f, 0.5f, 0f);
+            for (int i = 0; i < 24; i++)
+            {
+                var d = UiKit.Image("Dot", radar, UiKit.Circle, Color.red);
+                UiKit.Place(d.rectTransform, 0.5f, 0.5f, 14f, 14f, 0.5f, 0.5f);
+                d.enabled = false;
+                radarDots.Add(d);
+            }
+
+            var bars = UiKit.Rect("Bars", safe);
+            UiKit.Place(bars, 0f, 1f, 470f, 170f, 0f, 1f);
+            bars.anchoredPosition = new Vector2(236f, 0f);
+
+            var hp = UiKit.Bar(bars, UiKit.Green, out hpFill);
+            UiKit.Place(hp.rectTransform, 0f, 1f, 470f, 52f, 0f, 1f);
+            var sh = UiKit.Image("Shield", hp.transform, UiKit.Square, new Color(0.7f, 0.8f, 1f, 0.75f));
+            sh.type = Image.Type.Filled; sh.fillMethod = Image.FillMethod.Horizontal;
+            UiKit.Stretch(sh.rectTransform, 0f, 0f, 1f, 0.22f);
+            shieldFill = sh;
+            hpText = UiKit.Label("Text", hp.transform, "", 30, Color.white, TextAnchor.MiddleLeft, true);
+            hpText.rectTransform.offsetMin = new Vector2(16f, 0f);
+
+            var ni = UiKit.Bar(bars, UiKit.Cyan, out nitroFill);
+            UiKit.Place(ni.rectTransform, 0f, 1f, 330f, 34f, 0f, 1f);
+            ni.rectTransform.anchoredPosition = new Vector2(0f, -60f);
+            var nl = UiKit.Label("Text", ni.transform, "NİTRO", 22, Color.white, TextAnchor.MiddleLeft, true);
+            nl.rectTransform.offsetMin = new Vector2(14f, 0f);
+
+            var he = UiKit.Bar(bars, UiKit.Amber, out heatFill);
+            UiKit.Place(he.rectTransform, 0f, 1f, 330f, 34f, 0f, 1f);
+            he.rectTransform.anchoredPosition = new Vector2(0f, -102f);
+            heatText = UiKit.Label("Text", he.transform, "SİLAH", 22, Color.white, TextAnchor.MiddleLeft, true);
+            heatText.rectTransform.offsetMin = new Vector2(14f, 0f);
         }
 
-        Image NewImage(string name, Transform parent, Sprite sprite, Color color, bool sliced)
+        void BuildTopCenter()
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var img = go.AddComponent<Image>();
-            img.sprite = sprite;
-            img.color = color;
-            img.raycastTarget = false;
-            if (sliced) img.type = Image.Type.Sliced;
+            var tp = UiKit.Image("Timer", safe, UiKit.Rounded, UiKit.Panel);
+            UiKit.Place(tp.rectTransform, 0.5f, 1f, 220f, 84f, 0.5f, 1f);
+            timeText = UiKit.Label("Text", tp.transform, "0:00", 52, Color.white, TextAnchor.MiddleCenter, true);
+
+            var op = UiKit.Image("Objective", safe, UiKit.Rounded, new Color(0.04f, 0.05f, 0.06f, 0.6f));
+            UiKit.Place(op.rectTransform, 0.5f, 1f, 820f, 60f, 0.5f, 1f);
+            op.rectTransform.anchoredPosition = new Vector2(0f, -92f);
+            objText = UiKit.Label("Text", op.transform, "", 28, Color.white, TextAnchor.MiddleCenter, true);
+
+            var pr = UiKit.Rect("Progress", safe);
+            UiKit.Place(pr, 0.5f, 1f, 600f, 44f, 0.5f, 1f);
+            pr.anchoredPosition = new Vector2(0f, -156f);
+            progText = UiKit.Label("Text", pr, "", 30, UiKit.Cyan, TextAnchor.MiddleCenter, true);
+
+            var dr = UiKit.Rect("Distance", safe);
+            UiKit.Place(dr, 0.5f, 1f, 600f, 36f, 0.5f, 1f);
+            dr.anchoredPosition = new Vector2(0f, -196f);
+            distText = UiKit.Label("Text", dr, "", 24, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+
+            var bb = UiKit.Bar(safe, UiKit.Red, out bossFill);
+            UiKit.Place(bb.rectTransform, 0.5f, 1f, 700f, 40f, 0.5f, 1f);
+            bb.rectTransform.anchoredPosition = new Vector2(0f, -240f);
+            bossText = UiKit.Label("Text", bb.transform, "", 24, Color.white, TextAnchor.MiddleCenter, true);
+            bossBar = bb.gameObject;
+            bossBar.SetActive(false);
+        }
+
+        Image RoundButton(string caption, float ax, float ay, float size, Color c, int font)
+        {
+            var img = UiKit.Image(caption, safe, UiKit.Circle, new Color(c.r, c.g, c.b, 0.5f));
+            UiKit.Place(img.rectTransform, ax, ay, size, size, 0.5f, 0.5f);
+            var ring = UiKit.Image("Ring", img.transform, UiKit.RingSprite, new Color(1f, 1f, 1f, 0.35f));
+            UiKit.Stretch(ring.rectTransform, 0f, 0f, 1f, 1f);
+            UiKit.Label("Label", img.transform, caption, font, Color.white, TextAnchor.MiddleCenter, true);
             return img;
         }
 
-        Text NewText(string name, Transform parent, TextAnchor anchor, int size, Color color)
+        Image Pedal(string caption, float ax, float ay, float w, float h, Color c)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var t = go.AddComponent<Text>();
-            t.font = font;
-            t.fontSize = size;
-            t.color = color;
-            t.alignment = anchor;
-            t.horizontalOverflow = HorizontalWrapMode.Overflow;
-            t.verticalOverflow = VerticalWrapMode.Overflow;
-            t.raycastTarget = false;
-            Anchor(t.rectTransform, 0f, 0f, 1f, 1f);
-            var sh = go.AddComponent<Shadow>();
-            sh.effectColor = new Color(0f, 0f, 0f, 0.75f);
-            sh.effectDistance = new Vector2(2f, -2f);
-            return t;
-        }
-
-        Image Panel(string name, Transform parent, float x0, float y0, float x1, float y1, Color color)
-        {
-            var img = NewImage(name, parent, round, color, true);
-            Anchor(img.rectTransform, x0, y0, x1, y1);
+            var img = UiKit.Image(caption, safe, UiKit.Rounded, new Color(c.r, c.g, c.b, 0.5f));
+            UiKit.Place(img.rectTransform, ax, ay, w, h, 0.5f, 0f);
+            UiKit.Label("Label", img.transform, caption, 32, Color.white, TextAnchor.MiddleCenter, true);
             return img;
         }
 
-        Image Bar(string name, float x0, float y0, float x1, float y1, Color fill, out Text label)
+        void BuildControls()
         {
-            var bg = Panel(name, safe, x0, y0, x1, y1, new Color(0f, 0f, 0f, 0.55f));
-            var f = NewImage("Fill", bg.transform, square, fill, false);
-            f.type = Image.Type.Filled;
-            f.fillMethod = Image.FillMethod.Horizontal;
-            f.fillAmount = 1f;
-            Anchor(f.rectTransform, 0.02f, 0.16f, 0.98f, 0.84f);
-            label = NewText("Label", bg.transform, TextAnchor.MiddleLeft, 28, Color.white);
-            Anchor(label.rectTransform, 0.06f, 0f, 1f, 1f);
-            return f;
+            // steering wheel
+            wheelGroup = UiKit.Rect("WheelGroup", safe).gameObject;
+            var wg = wheelGroup.GetComponent<RectTransform>();
+            UiKit.Place(wg, 0f, 0f, 360f, 360f, 0f, 0f);
+            wg.anchoredPosition = new Vector2(30f, 20f);
+            var shadow = UiKit.Image("Back", wg, UiKit.Circle, new Color(0f, 0f, 0f, 0.35f));
+            UiKit.Stretch(shadow.rectTransform, 0f, 0f, 1f, 1f);
+            wheelImg = UiKit.Image("Wheel", wg, UiKit.Wheel, new Color(0.92f, 0.94f, 0.98f, 0.82f));
+            UiKit.Stretch(wheelImg.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
+            controls.WheelRect = wg;
+
+            // arrow buttons (alternative)
+            arrowsGroup = UiKit.Rect("Arrows", safe).gameObject;
+            var ag = arrowsGroup.GetComponent<RectTransform>();
+            UiKit.Stretch(ag, 0f, 0f, 1f, 1f);
+            leftImg = UiKit.Image("Left", ag, UiKit.Rounded, new Color(1f, 1f, 1f, 0.22f));
+            UiKit.Place(leftImg.rectTransform, 0f, 0f, 200f, 200f, 0f, 0f);
+            leftImg.rectTransform.anchoredPosition = new Vector2(20f, 30f);
+            UiKit.Label("L", leftImg.transform, "<", 90, Color.white, TextAnchor.MiddleCenter, true);
+            rightImg = UiKit.Image("Right", ag, UiKit.Rounded, new Color(1f, 1f, 1f, 0.22f));
+            UiKit.Place(rightImg.rectTransform, 0f, 0f, 200f, 200f, 0f, 0f);
+            rightImg.rectTransform.anchoredPosition = new Vector2(240f, 30f);
+            UiKit.Label("R", rightImg.transform, ">", 90, Color.white, TextAnchor.MiddleCenter, true);
+            controls.LeftRect = leftImg.rectTransform;
+            controls.RightRect = rightImg.rectTransform;
+
+            gasImg = Pedal("GAZ", 0.885f, 0.02f, 190f, 270f, new Color(0.15f, 0.7f, 0.32f));
+            brakeImg = Pedal("FREN", 0.745f, 0.02f, 170f, 190f, new Color(0.75f, 0.18f, 0.14f));
+            fireImg = RoundButton("ATEŞ", 0.86f, 0.58f, 230f, new Color(0.95f, 0.3f, 0.12f), 36);
+            rocketImg = RoundButton("ROKET", 0.71f, 0.5f, 150f, new Color(1f, 0.55f, 0.1f), 24);
+            rocketText = rocketImg.GetComponentsInChildren<Text>()[0];
+            nitroImg = RoundButton("NİTRO", 0.615f, 0.27f, 140f, new Color(0.2f, 0.45f, 1f), 24);
+            driftImg = RoundButton("DRİFT", 0.62f, 0.1f, 125f, new Color(0.45f, 0.47f, 0.55f), 24);
+
+            controls.GasRect = gasImg.rectTransform;
+            controls.BrakeRect = brakeImg.rectTransform;
+            controls.FireRect = fireImg.rectTransform;
+            controls.RocketRect = rocketImg.rectTransform;
+            controls.NitroRect = nitroImg.rectTransform;
+            controls.DriftRect = driftImg.rectTransform;
+            ApplyControlMode();
         }
 
-        Image Btn(string caption, float x0, float y0, float x1, float y1, Color color)
+        public void ApplyControlMode()
         {
-            var img = Panel(caption, safe, x0, y0, x1, y1, new Color(color.r, color.g, color.b, 0.55f));
-            var t = NewText("T", img.transform, TextAnchor.MiddleCenter, 32, Color.white);
-            t.text = caption;
-            return img;
+            bool wheel = Save.Data.ControlMode == 0;
+            wheelGroup.SetActive(wheel);
+            arrowsGroup.SetActive(!wheel);
+            gasImg.gameObject.SetActive(!Save.Data.AutoGas);
         }
 
-        static void Tint(Image img, bool pressed)
+        static void Press(Image img, bool on, float baseAlpha)
         {
             if (img == null) return;
             var c = img.color;
-            c.a = pressed ? 0.95f : 0.55f;
+            c.a = on ? 0.9f : baseAlpha;
             img.color = c;
+            img.rectTransform.localScale = Vector3.one * (on ? 0.94f : 1f);
         }
 
-        // ------------------------------------------------------------------ build
-        public void Build()
+        // ================================================================== runtime
+        void OnMessage(string text, Color color)
         {
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font == null) font = Font.CreateDynamicFontFromOSFont("Arial", 32);
-            square = MakeSquare();
-            round = MakeRound(64, 20);
-            circle = MakeRound(128, 64);
-
-            var canvasGo = new GameObject("HUD");
-            var canvas = canvasGo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 50;
-            var scaler = canvasGo.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            var safeGo = new GameObject("SafeArea", typeof(RectTransform));
-            safeGo.transform.SetParent(canvasGo.transform, false);
-            safe = safeGo.GetComponent<RectTransform>();
-            ApplySafeArea();
-
-            // Top bar
-            hpFill = Bar("HpBar", 0.015f, 0.905f, 0.30f, 0.975f, new Color(0.25f, 0.85f, 0.40f, 0.95f), out hpText);
-            nitroFill = Bar("NitroBar", 0.015f, 0.825f, 0.24f, 0.885f, new Color(0.25f, 0.55f, 1f, 0.95f), out nitroText);
-
-            var timePanel = Panel("TimePanel", safe, 0.42f, 0.905f, 0.58f, 0.975f, new Color(0f, 0f, 0f, 0.55f));
-            timeText = NewText("Time", timePanel.transform, TextAnchor.MiddleCenter, 40, Color.white);
-            var cellPanel = Panel("CellPanel", safe, 0.60f, 0.905f, 0.80f, 0.975f, new Color(0f, 0f, 0f, 0.55f));
-            cellText = NewText("Cells", cellPanel.transform, TextAnchor.MiddleCenter, 30, new Color(0.45f, 0.85f, 1f));
-            var pausePanelBtn = Panel("PauseBtn", safe, 0.83f, 0.905f, 0.985f, 0.975f, new Color(0.12f, 0.12f, 0.14f, 0.85f));
-            var pauseLabel = NewText("T", pausePanelBtn.transform, TextAnchor.MiddleCenter, 26, Color.white);
-            pauseLabel.text = "DURAKLAT";
-
-            objText = NewText("Objective", safe, TextAnchor.MiddleCenter, 32, Color.white);
-            Anchor(objText.rectTransform, 0.2f, 0.80f, 0.8f, 0.89f);
-
-            // Analog joystick: base ring + moving knob
-            stickBase = NewImage("StickBase", safe, circle, new Color(1f, 1f, 1f, 0.18f), false);
-            var sb = stickBase.rectTransform;
-            sb.anchorMin = new Vector2(0.125f, 0.25f);
-            sb.anchorMax = new Vector2(0.125f, 0.25f);
-            sb.pivot = new Vector2(0.5f, 0.5f);
-            sb.sizeDelta = new Vector2(300f, 300f);
-            sb.anchoredPosition = Vector2.zero;
-            knob = NewImage("Knob", stickBase.transform, circle, new Color(1f, 1f, 1f, 0.45f), false);
-            var kr = knob.rectTransform;
-            kr.anchorMin = new Vector2(0.5f, 0.5f);
-            kr.anchorMax = new Vector2(0.5f, 0.5f);
-            kr.pivot = new Vector2(0.5f, 0.5f);
-            kr.sizeDelta = new Vector2(130f, 130f);
-            kr.anchoredPosition = Vector2.zero;
-            var hint = NewText("Hint", stickBase.transform, TextAnchor.MiddleCenter, 26, new Color(1f, 1f, 1f, 0.35f));
-            hint.text = "<         >";
-
-            // Pedals and actions
-            gasImg = Btn("GAZ", 0.58f, 0.05f, 0.74f, 0.28f, new Color(0.18f, 0.62f, 0.30f));
-            brakeImg = Btn("FREN", 0.76f, 0.05f, 0.94f, 0.24f, new Color(0.72f, 0.20f, 0.16f));
-            nitroImg = Btn("NİTRO", 0.56f, 0.30f, 0.72f, 0.46f, new Color(0.18f, 0.42f, 0.92f));
-            handImg = Btn("EL FRENİ", 0.74f, 0.28f, 0.94f, 0.44f, new Color(0.30f, 0.32f, 0.38f));
-            fireImg = Btn("ATEŞ", 0.72f, 0.50f, 0.96f, 0.86f, new Color(0.85f, 0.28f, 0.14f));
-            rocketImg = Btn("ROKET", 0.56f, 0.50f, 0.70f, 0.64f, new Color(0.95f, 0.55f, 0.10f));
-            rocketText = rocketImg.GetComponentInChildren<Text>();
-
-            // Pause menu (full screen, above everything)
-            pausePanel = NewImage("PauseMenu", canvasGo.transform, square, new Color(0f, 0f, 0f, 0.65f), false).gameObject;
-            Anchor(pausePanel.GetComponent<RectTransform>(), 0f, 0f, 1f, 1f);
-            var pt = NewText("Title", pausePanel.transform, TextAnchor.MiddleCenter, 60, Color.white);
-            Anchor(pt.rectTransform, 0.2f, 0.64f, 0.8f, 0.80f);
-            pt.text = "DURAKLATILDI";
-            var resume = Panel("Resume", pausePanel.transform, 0.32f, 0.42f, 0.68f, 0.56f, new Color(0.18f, 0.62f, 0.30f, 0.95f));
-            NewText("T", resume.transform, TextAnchor.MiddleCenter, 40, Color.white).text = "DEVAM";
-            resumeRect = resume.rectTransform;
-            var again = Panel("Again", pausePanel.transform, 0.32f, 0.24f, 0.68f, 0.38f, new Color(0.72f, 0.20f, 0.16f, 0.95f));
-            NewText("T", again.transform, TextAnchor.MiddleCenter, 40, Color.white).text = "YENİDEN BAŞLAT";
-            againRect = again.rectTransform;
-            pausePanel.SetActive(false);
-
-            // Result screen
-            resultPanel = NewImage("Result", canvasGo.transform, square, new Color(0f, 0f, 0f, 0.7f), false).gameObject;
-            Anchor(resultPanel.GetComponent<RectTransform>(), 0f, 0f, 1f, 1f);
-            resultTitle = NewText("Title", resultPanel.transform, TextAnchor.MiddleCenter, 72, Color.white);
-            Anchor(resultTitle.rectTransform, 0.1f, 0.58f, 0.9f, 0.78f);
-            resultSub = NewText("Sub", resultPanel.transform, TextAnchor.MiddleCenter, 34, new Color(0.85f, 0.9f, 1f));
-            Anchor(resultSub.rectTransform, 0.1f, 0.44f, 0.9f, 0.56f);
-            var ra = Panel("Again", resultPanel.transform, 0.30f, 0.20f, 0.70f, 0.34f, new Color(0.18f, 0.42f, 0.92f, 0.95f));
-            NewText("T", ra.transform, TextAnchor.MiddleCenter, 40, Color.white).text = "YENİDEN OYNA";
-            resultAgainRect = ra.rectTransform;
-            resultPanel.SetActive(false);
-
-            // Register the real on-screen rectangles for input hit-testing.
-            if (Controls != null)
+            for (int i = feed.Count - 1; i > 0; i--)
             {
-                Controls.StickRect = sb;
-                Controls.GasRect = gasImg.rectTransform;
-                Controls.BrakeRect = brakeImg.rectTransform;
-                Controls.NitroRect = nitroImg.rectTransform;
-                Controls.HandRect = handImg.rectTransform;
-                Controls.FireRect = fireImg.rectTransform;
-                Controls.RocketRect = rocketImg.rectTransform;
-                Controls.PauseRect = pausePanelBtn.rectTransform;
+                feed[i].text = feed[i - 1].text;
+                feed[i].color = feed[i - 1].color;
+                feedTime[i] = feedTime[i - 1];
             }
-        }
-
-        void ApplySafeArea()
-        {
-            if (safe == null) return;
-            Rect sa = Screen.safeArea;
-            float w = Mathf.Max(1, Screen.width);
-            float h = Mathf.Max(1, Screen.height);
-            safe.anchorMin = new Vector2(sa.xMin / w, sa.yMin / h);
-            safe.anchorMax = new Vector2(sa.xMax / w, sa.yMax / h);
-            safe.offsetMin = Vector2.zero;
-            safe.offsetMax = Vector2.zero;
-            lastSafe = sa;
-        }
-
-        // ------------------------------------------------------------------ behaviour
-        public void TogglePause()
-        {
-            if (Mission != null && (Mission.Rules.Phase == MissionPhase.Won || Mission.Rules.Phase == MissionPhase.Lost))
-                return;
-            if (Time.unscaledTime - lastToggle < 0.25f)
-                return;
-            lastToggle = Time.unscaledTime;
-            Paused = !Paused;
-            Time.timeScale = Paused ? 0f : 1f;
-            if (pausePanel != null) pausePanel.SetActive(Paused);
-        }
-
-        void DoRestart()
-        {
-            Time.timeScale = 1f;
-            if (Restart != null) Restart();
-        }
-
-        void HandleTap(Vector2 p)
-        {
-            if (Paused)
-            {
-                if (TouchControls.Hit(resumeRect, p, 0f)) TogglePause();
-                else if (TouchControls.Hit(againRect, p, 0f)) DoRestart();
-                return;
-            }
-            if (resultVisible && Time.unscaledTime - resultShownAt > 0.8f)
-                DoRestart();
+            feed[0].text = text;
+            feed[0].color = color;
+            feedTime[0] = 2.6f;
         }
 
         void Update()
         {
-            if (safe != null && Screen.safeArea != lastSafe)
-                ApplySafeArea();
+            float dt = Time.unscaledDeltaTime;
+            UpdateLoading();
+            if (match == null) return;
+            if (match.Phase == MatchPhase.Loading) return;
 
-            if (Controls != null)
+            if (controls.PausePressed && (match.Phase == MatchPhase.Playing || match.Phase == MatchPhase.Countdown)) TogglePause();
+
+            for (int i = 0; i < feed.Count; i++)
             {
-                if (Controls.AnyTap) HandleTap(Controls.TapPosition);
-                if (Controls.PausePressed) TogglePause();
+                if (feedTime[i] <= 0f) continue;
+                feedTime[i] -= dt;
+                var c = feed[i].color;
+                c.a = Mathf.Clamp01(feedTime[i] / 0.5f);
+                feed[i].color = c;
+            }
 
-                Tint(gasImg, Controls.Throttle > 0.5f);
-                Tint(brakeImg, Controls.Brake > 0.5f);
-                Tint(nitroImg, Controls.Nitro);
-                Tint(handImg, Controls.Handbrake);
-                Tint(fireImg, Controls.Fire);
-                Tint(rocketImg, Controls.Rocket);
-                if (knob != null)
+            if (match.Phase == MatchPhase.Countdown)
+            {
+                int n = Mathf.CeilToInt(match.Countdown);
+                countText.text = n > 0 ? n.ToString() : "";
+                float f = match.Countdown - Mathf.Floor(match.Countdown);
+                countText.rectTransform.localScale = Vector3.one * (1f + f * 0.4f);
+            }
+            else if (match.Phase == MatchPhase.Playing && match.Elapsed < 0.8f)
+            {
+                countText.text = "BAŞLA!";
+                countText.color = new Color(UiKit.Amber.r, UiKit.Amber.g, UiKit.Amber.b, 1f - match.Elapsed / 0.8f);
+                countText.rectTransform.localScale = Vector3.one * (1f + match.Elapsed);
+            }
+            else countText.text = "";
+
+            UpdateBars(dt);
+            UpdateTop();
+            UpdateRadar();
+            UpdateReticle(dt);
+            UpdateControls();
+        }
+
+        void UpdateLoading()
+        {
+            if (loadingPage == null || !loadingPage.activeSelf) return;
+            bool done = match != null && match.Phase != MatchPhase.Loading;
+            if (!done)
+            {
+                int dots = (int)(Time.unscaledTime * 3f) % 4;
+                loadingText.text = "YÜKLENİYOR" + new string('.', dots);
+                return;
+            }
+            var c = loadingBg.color;
+            c.a -= Time.unscaledDeltaTime * 2.2f;
+            loadingBg.color = c;
+            foreach (var t in loadingPage.GetComponentsInChildren<Text>()) { var tc = t.color; tc.a = c.a; t.color = tc; }
+            if (c.a <= 0f) loadingPage.SetActive(false);
+        }
+
+        void UpdateBars(float dt)
+        {
+            var hp = match.PlayerHealth;
+            if (hp != null)
+            {
+                float f = hp.Fraction;
+                hpFill.fillAmount = Mathf.Lerp(hpFill.fillAmount, f, 1f - Mathf.Exp(-12f * dt));
+                hpFill.color = f > 0.5f ? UiKit.Green : Color.Lerp(UiKit.Red, UiKit.Amber, f * 2f);
+                shieldFill.fillAmount = hp.Shield / Mathf.Max(1f, hp.ShieldMax);
+                hpText.text = Mathf.CeilToInt(hp.Current) + " / " + Mathf.CeilToInt(hp.Max) + (hp.Shield > 0.5f ? "   +" + Mathf.CeilToInt(hp.Shield) + " KALKAN" : "");
+                if (Time.time - hp.LastHitTime < 0.05f) damageFlash = Mathf.Min(0.75f, damageFlash + 0.25f);
+            }
+            damageFlash = Mathf.Max(0f, damageFlash - dt * 1.8f);
+            float low = hp != null && hp.Fraction < 0.25f && !hp.Dead ? 0.18f + 0.12f * Mathf.Sin(Time.unscaledTime * 6f) : 0f;
+            damageVignette.color = new Color(1f, 0.05f, 0.02f, Mathf.Max(damageFlash, low));
+
+            if (match.PlayerCar != null)
+            {
+                nitroFill.fillAmount = match.PlayerCar.Nitro;
+                nitroFill.color = match.PlayerCar.NitroActive ? Color.white : UiKit.Cyan;
+            }
+            var w = match.PlayerWeapons;
+            if (w != null)
+            {
+                heatFill.fillAmount = w.Heat;
+                heatFill.color = w.Overheated ? (Mathf.Repeat(Time.unscaledTime * 4f, 1f) > 0.5f ? UiKit.Red : UiKit.Amber) : Color.Lerp(UiKit.Amber, UiKit.Red, w.Heat);
+                heatText.text = w.Overheated ? "AŞIRI ISINDI" : "SİLAH";
+                rocketText.text = "ROKET\n" + w.Rockets;
+            }
+        }
+
+        void UpdateTop()
+        {
+            int t = Mathf.Max(0, Mathf.CeilToInt(match.TimeLeft));
+            timeText.text = (t / 60) + ":" + (t % 60).ToString("00");
+            timeText.color = t <= 15 ? (Mathf.Repeat(Time.unscaledTime * 2f, 1f) > 0.5f ? UiKit.Red : Color.white) : Color.white;
+
+            var cfg = match.Config;
+            if (cfg.Kind == ObjectiveKind.Reactor)
+            {
+                if (match.ExtractionOpen)
                 {
-                    knob.rectTransform.anchoredPosition = Controls.StickVector * KnobTravel;
-                    var kc = knob.color;
-                    kc.a = Controls.StickVector.sqrMagnitude > 0.02f ? 0.75f : 0.45f;
-                    knob.color = kc;
+                    objText.text = "TAHLİYE BÖLGESİNDE BEKLE";
+                    progText.text = "TAHLİYE " + Mathf.FloorToInt(match.ExtractHold / MatchDirector.ExtractRequired * 100f) + "%";
+                    progText.color = UiKit.Green;
+                }
+                else
+                {
+                    objText.text = "REAKTÖR HÜCRELERİNİ TOPLA";
+                    progText.text = "HÜCRE " + match.CellsTaken + " / " + cfg.Cells;
+                    progText.color = UiKit.Cyan;
                 }
             }
-
-            if (Health != null && hpText != null)
+            else if (cfg.Kind == ObjectiveKind.Demolition)
             {
-                float frac = Mathf.Clamp01(Health.Current / Mathf.Max(1f, Health.Max));
-                hpText.text = "CAN " + Mathf.CeilToInt(Health.Current);
-                hpFill.fillAmount = frac;
-                hpFill.color = Color.Lerp(new Color(0.9f, 0.2f, 0.15f, 0.95f), new Color(0.25f, 0.85f, 0.40f, 0.95f), frac);
+                objText.text = "TÜM RAKİPLERİ İMHA ET";
+                int alive = match.AliveEnemies();
+                int pendingCount = Mathf.Max(0, match.TotalEnemies - match.Enemies.Count);
+                progText.text = "KALAN RAKİP " + (alive + pendingCount);
+                progText.color = UiKit.Amber;
             }
-            if (Weapons != null && rocketText != null)
-                rocketText.text = Weapons.Spec != null && Weapons.Spec.Rockets ? "ROKET " + Weapons.Rockets : "ROKET -";
-            if (Drive != null && nitroText != null)
-            {
-                nitroText.text = "NİTRO " + Mathf.RoundToInt(Drive.Nitro * 100f) + "%";
-                nitroFill.fillAmount = Mathf.Clamp01(Drive.Nitro);
-            }
-            if (Mission == null || timeText == null)
-                return;
-
-            int t = Mathf.Max(0, Mathf.CeilToInt(Mission.Rules.TimeLeft));
-            timeText.text = (t / 60) + ":" + (t % 60).ToString("00");
-            timeText.color = t <= 30 ? new Color(1f, 0.35f, 0.3f) : Color.white;
-            cellText.text = "HÜCRE " + Mission.Rules.Cells + "/" + MissionRules.CellsRequired;
-
-            var phase = Mission.Rules.Phase;
-            if (phase == MissionPhase.Hunt)
-                objText.text = "Reaktör hücrelerini topla";
-            else if (phase == MissionPhase.Extract)
-                objText.text = "Tahliye alanında kal  " + Mathf.CeilToInt(Mission.Rules.ExtractHold) + "/" +
-                               Mathf.CeilToInt(Mission.Rules.ExtractHoldRequired);
-            else if (phase == MissionPhase.Won)
-                objText.text = "BLACKOUT RUN TAMAM";
             else
-                objText.text = "KAYBEDİLDİ";
-
-            bool finished = phase == MissionPhase.Won || phase == MissionPhase.Lost;
-            if (finished && !resultVisible)
             {
-                resultVisible = true;
-                resultShownAt = Time.unscaledTime;
-                resultTitle.text = phase == MissionPhase.Won ? "GÖREV TAMAM" : "KAYBETTİN";
-                resultSub.text = "Hücre " + Mission.Rules.Cells + "/" + MissionRules.CellsRequired +
-                                 "   -   dokun ve yeniden oyna";
-                if (resultPanel != null) resultPanel.SetActive(true);
+                objText.text = "PATRONU YOK ET";
+                progText.text = "İMHA " + match.Kills;
+                progText.color = UiKit.Amber;
             }
+
+            Vector3 op;
+            if (match.PlayerCar != null && match.ObjectivePoint(out op))
+                distText.text = Mathf.RoundToInt(Vector3.Distance(op, match.PlayerCar.transform.position)) + " m";
+            else distText.text = "";
+
+            if (match.Boss != null && !match.Boss.Dead)
+            {
+                if (!bossBar.activeSelf) bossBar.SetActive(true);
+                bossFill.fillAmount = match.Boss.Fraction;
+                bossText.text = match.Config.Title.Replace("PATRON: ", "");
+            }
+            else if (bossBar.activeSelf) bossBar.SetActive(false);
+        }
+
+        void UpdateRadar()
+        {
+            int used = 0;
+            var car = match.PlayerCar;
+            if (car != null)
+            {
+                Vector3 pp = car.transform.position;
+                Quaternion inv = Quaternion.Euler(0f, -car.transform.eulerAngles.y, 0f);
+                const float range = 60f;
+                const float rad = 98f;
+                foreach (var e in match.Enemies)
+                {
+                    if (e == null || e.Health == null || e.Health.Dead) continue;
+                    Dot(ref used, inv * (e.transform.position - pp), range, rad, e.Health == match.Boss ? new Color(1f, 0.1f, 0.4f) : UiKit.Red, e.Health == match.Boss ? 20f : 14f);
+                }
+                foreach (var c in match.Cells)
+                    if (c != null && !c.Taken) Dot(ref used, inv * (c.transform.position - pp), range, rad, UiKit.Cyan, 14f);
+                if (match.ExtractionOpen && match.Extraction != null)
+                    Dot(ref used, inv * (match.Extraction.transform.position - pp), range, rad, UiKit.Green, 20f);
+                foreach (var p in match.Pickups)
+                    if (p != null && p.Available) Dot(ref used, inv * (p.transform.position - pp), range, rad, new Color(1f, 1f, 1f, 0.45f), 8f);
+            }
+            for (int i = used; i < radarDots.Count; i++) radarDots[i].enabled = false;
+        }
+
+        void Dot(ref int used, Vector3 rel, float range, float rad, Color c, float size)
+        {
+            if (used >= radarDots.Count) return;
+            var v = new Vector2(rel.x, rel.z) / range * rad;
+            if (v.magnitude > rad) v = v.normalized * rad;
+            var d = radarDots[used++];
+            d.enabled = true;
+            d.color = c;
+            d.rectTransform.sizeDelta = new Vector2(size, size);
+            d.rectTransform.anchoredPosition = v;
+        }
+
+        void UpdateReticle(float dt)
+        {
+            var driver = match.PlayerCar != null ? match.PlayerCar.GetComponent<PlayerDriver>() : null;
+            var target = driver != null ? driver.LockTarget : null;
+            var cam = Camera.main;
+            if (target == null || cam == null || match.Phase != MatchPhase.Playing)
+            {
+                reticle.enabled = false;
+                hitMark.enabled = false;
+                return;
+            }
+            Vector3 sp = cam.WorldToScreenPoint(target.transform.position + Vector3.up * 1f);
+            if (sp.z <= 0f) { reticle.enabled = false; hitMark.enabled = false; return; }
+            Vector2 local;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRt, sp, null, out local);
+            reticle.enabled = true;
+            hitMark.enabled = true;
+            reticle.rectTransform.anchoredPosition = local;
+            reticle.rectTransform.anchorMin = reticle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            float s = 1f + 0.08f * Mathf.Sin(Time.unscaledTime * 8f);
+            reticle.rectTransform.localScale = Vector3.one * s;
+            hitTimer -= dt;
+            hitMark.color = new Color(1f, 1f, 1f, hitTimer > 0f ? 1f : 0f);
+        }
+
+        void UpdateControls()
+        {
+            Press(gasImg, controls.Throttle > 0.5f, 0.5f);
+            Press(brakeImg, controls.Brake > 0.5f, 0.5f);
+            Press(nitroImg, controls.Nitro, 0.5f);
+            Press(driftImg, controls.Handbrake, 0.5f);
+            Press(fireImg, controls.Fire, 0.5f);
+            Press(rocketImg, controls.Rocket, 0.5f);
+            if (Save.Data.ControlMode == 0)
+                wheelImg.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -controls.WheelAngle);
+            else
+            {
+                Press(leftImg, controls.Steer < -0.3f, 0.22f);
+                Press(rightImg, controls.Steer > 0.3f, 0.22f);
+            }
+        }
+
+        // ================================================================== pause
+        void TogglePause()
+        {
+            paused = !paused;
+            Time.timeScale = paused ? 0f : 1f;
+            AudioListener.pause = paused;
+            if (paused) BuildPause();
+            else if (pausePage != null) Destroy(pausePage);
+        }
+
+        void OnApplicationPause(bool p)
+        {
+            if (p && !paused && match != null && match.Phase == MatchPhase.Playing) TogglePause();
+        }
+
+        void BuildPause()
+        {
+            var bg = UiKit.Image("Pause", canvasRt, UiKit.Square, new Color(0f, 0f, 0f, 0.7f));
+            UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
+            pausePage = bg.gameObject;
+            var panel = UiKit.Image("Panel", bg.transform, UiKit.Rounded, UiKit.Panel);
+            UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 760f, 760f, 0.5f, 0.5f);
+            var title = UiKit.Rect("Title", panel.transform);
+            UiKit.Place(title, 0.5f, 1f, 700f, 110f, 0.5f, 1f);
+            UiKit.Label("Text", title, "DURAKLATILDI", 60, Color.white, TextAnchor.MiddleCenter, true);
+
+            float y = -130f;
+            AddPauseButton(panel.transform, "DEVAM ET", UiKit.Green, ref y, () => TogglePause());
+            AddPauseButton(panel.transform, "YENİDEN BAŞLAT", UiKit.Amber, ref y, () => GameFlow.Play(match.Config.Number));
+            AddPauseButton(panel.transform, "KONTROL: " + (Save.Data.ControlMode == 0 ? "DİREKSİYON" : "OKLAR"), UiKit.PanelLight, ref y, () =>
+            {
+                Save.Data.ControlMode = 1 - Save.Data.ControlMode;
+                Save.Write();
+                ApplyControlMode();
+                Destroy(pausePage);
+                BuildPause();
+            });
+            AddPauseButton(panel.transform, "SES: " + (Save.Data.Sound ? "AÇIK" : "KAPALI"), UiKit.PanelLight, ref y, () =>
+            {
+                Save.Data.Sound = !Save.Data.Sound;
+                Save.Write();
+                AudioHub.SetSound(Save.Data.Sound);
+                Destroy(pausePage);
+                BuildPause();
+            });
+            AddPauseButton(panel.transform, "ANA MENÜ", UiKit.Red, ref y, () => GameFlow.ToMenu("home"));
+        }
+
+        void AddPauseButton(Transform parent, string caption, Color color, ref float y, System.Action a)
+        {
+            var b = UiKit.Button(parent, caption, color, 36, a);
+            b.IgnoreBlock = true;
+            UiKit.Place(b.Background.rectTransform, 0.5f, 1f, 560f, 96f, 0.5f, 1f);
+            b.Background.rectTransform.anchoredPosition = new Vector2(0f, y);
+            y -= 118f;
+        }
+
+        // ================================================================== results
+        static Sprite Star()
+        {
+            if (star != null) return star;
+            const int size = 128;
+            var px = new Color32[size * size];
+            var pts = new Vector2[10];
+            for (int i = 0; i < 10; i++)
+            {
+                float a = Mathf.PI / 2f + i * Mathf.PI / 5f;
+                float r = i % 2 == 0 ? 60f : 25f;
+                pts[i] = new Vector2(64f + Mathf.Cos(a) * r, 64f + Mathf.Sin(a) * r);
+            }
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    int hits = 0;
+                    for (int s = 0; s < 4; s++)
+                    {
+                        var p = new Vector2(x + (s % 2) * 0.5f + 0.25f, y + (s / 2) * 0.5f + 0.25f);
+                        bool inside = false;
+                        for (int i = 0, j = 9; i < 10; j = i++)
+                            if ((pts[i].y > p.y) != (pts[j].y > p.y) && p.x < (pts[j].x - pts[i].x) * (p.y - pts[i].y) / (pts[j].y - pts[i].y) + pts[i].x)
+                                inside = !inside;
+                        if (inside) hits++;
+                    }
+                    px[y * size + x] = new Color32(255, 255, 255, (byte)(hits * 63));
+                }
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.SetPixels32(px);
+            tex.Apply(false, true);
+            star = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+            return star;
+        }
+
+        void BuildResults(MatchDirector m)
+        {
+            if (paused) TogglePause();
+            bool won = m.Phase == MatchPhase.Won;
+            var bg = UiKit.Image("Result", canvasRt, UiKit.Square, new Color(0f, 0f, 0f, 0.72f));
+            UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
+            resultPage = bg.gameObject;
+            var panel = UiKit.Image("Panel", bg.transform, UiKit.Rounded, UiKit.Panel);
+            UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 900f, 820f, 0.5f, 0.5f);
+
+            var title = UiKit.Rect("Title", panel.transform);
+            UiKit.Place(title, 0.5f, 1f, 860f, 120f, 0.5f, 1f);
+            UiKit.Label("Text", title, won ? "GÖREV TAMAM" : "KAYBETTİN", 72, won ? UiKit.Green : UiKit.Red, TextAnchor.MiddleCenter, true);
+            var sub = UiKit.Rect("Sub", panel.transform);
+            UiKit.Place(sub, 0.5f, 1f, 860f, 50f, 0.5f, 1f);
+            sub.anchoredPosition = new Vector2(0f, -118f);
+            UiKit.Label("Text", sub, won ? ("BÖLÜM " + m.Config.Number + " · " + m.Config.Title) : m.LoseReason, 30, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+
+            for (int i = 0; i < 3; i++)
+            {
+                bool on = won && i < m.Stars;
+                var s = UiKit.Image("Star", panel.transform, Star(), on ? UiKit.Amber : new Color(1f, 1f, 1f, 0.12f));
+                UiKit.Place(s.rectTransform, 0.5f, 1f, i == 1 ? 150f : 120f, i == 1 ? 150f : 120f, 0.5f, 0.5f);
+                s.rectTransform.anchoredPosition = new Vector2((i - 1) * 170f, i == 1 ? -255f : -245f);
+            }
+
+            string stats = "SÜRE  " + FormatTime(m.Elapsed) + "     İMHA  " + m.Kills + "\n+" + m.Reward + " HURDA";
+            if (won)
+            {
+                bool fast = m.Elapsed <= m.Config.ParTime;
+                bool healthy = m.PlayerHealth != null && m.PlayerHealth.Fraction >= 0.5f;
+                stats += "\n\nHızlı bitiş (" + FormatTime(m.Config.ParTime) + "): " + (fast ? "EVET" : "HAYIR")
+                       + "     Can %50 üstü: " + (healthy ? "EVET" : "HAYIR");
+            }
+            var st = UiKit.Rect("Stats", panel.transform);
+            UiKit.Place(st, 0.5f, 1f, 820f, 200f, 0.5f, 1f);
+            st.anchoredPosition = new Vector2(0f, -345f);
+            UiKit.Label("Text", st, stats, 32, Color.white, TextAnchor.UpperCenter, true);
+
+            float x = -270f;
+            bool hasNext = won && m.Config.Number < Campaign.Total;
+            int n = m.Config.Number;
+            if (hasNext) { ResultButton(panel.transform, "SONRAKİ", UiKit.Green, x, () => GameFlow.Play(n + 1)); x += 270f; }
+            ResultButton(panel.transform, "TEKRAR", UiKit.Amber, hasNext ? x : -135f, () => GameFlow.Play(n));
+            x += 270f;
+            ResultButton(panel.transform, "MENÜ", UiKit.PanelLight, hasNext ? x : 135f, () => GameFlow.ToMenu(won ? "levels" : "home"));
+            if (!won)
+            {
+                var hint = UiKit.Rect("Tip", panel.transform);
+                UiKit.Place(hint, 0.5f, 0f, 820f, 60f, 0.5f, 0f);
+                hint.anchoredPosition = new Vector2(0f, 26f);
+                UiKit.Label("Text", hint, "Garajda zırh ve motor yükselt, sonra tekrar dene.", 26, UiKit.Cyan, TextAnchor.MiddleCenter, false);
+            }
+        }
+
+        void ResultButton(Transform parent, string caption, Color color, float x, System.Action a)
+        {
+            var b = UiKit.Button(parent, caption, color, 34, a);
+            b.IgnoreBlock = true;
+            UiKit.Place(b.Background.rectTransform, 0.5f, 0f, 250f, 100f, 0.5f, 0f);
+            b.Background.rectTransform.anchoredPosition = new Vector2(x, 110f);
+        }
+
+        static string FormatTime(float s)
+        {
+            int t = Mathf.Max(0, Mathf.RoundToInt(s));
+            return (t / 60) + ":" + (t % 60).ToString("00");
         }
     }
 }

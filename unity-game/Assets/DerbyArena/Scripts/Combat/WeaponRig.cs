@@ -4,220 +4,112 @@ using UnityEngine;
 
 namespace DerbyArena.Combat
 {
+    /// <summary>
+    /// Turret machine gun with heat (no ammo to manage) plus limited homing rockets.
+    /// Hit detection uses a sphere cast that ignores the shooter's own colliders.
+    /// </summary>
     public sealed class WeaponRig : MonoBehaviour
     {
-        public Transform Muzzle;
         public VehicleSpec Spec;
+        public VehicleHealth Owner;
+        public VehicleVisual Visual;
         public int Rockets;
+        public float Heat;
+        public bool Overheated { get; private set; }
+        public float DamageMul = 1f;
+        public float AimErrorDeg = 1.5f;
+        public bool UseHeat = true;
+        public Color TracerColor = new Color(1f, 0.8f, 0.4f, 1f);
+        public float RocketCooldownLeft { get { return Mathf.Max(0f, rocketCd); } }
+
         float gunCd;
         float rocketCd;
-        VehicleHealth owner;
+        Rigidbody body;
+        readonly RaycastHit[] hits = new RaycastHit[12];
 
-        public void Configure(VehicleSpec spec, VehicleHealth health)
+        public void Configure(VehicleSpec spec, VehicleHealth owner, VehicleVisual visual, int rockets)
         {
             Spec = spec;
-            owner = health;
-            Rockets = spec.RocketAmmo;
-        }
-
-        public void AddRockets(int amount)
-        {
-            Rockets += amount;
-        }
-
-        public void TickFire(bool fireGun, bool fireRocket, Vector3 aimPoint)
-        {
-            gunCd -= Time.deltaTime;
-            rocketCd -= Time.deltaTime;
-            if (owner != null && owner.Dead)
-                return;
-            Vector3 origin = Muzzle != null ? Muzzle.position : transform.position + Vector3.up;
-            Vector3 dir = aimPoint - origin;
-            if (dir.sqrMagnitude < 0.01f)
-                dir = transform.forward;
-            dir.y *= 0.25f;
-            dir.Normalize();
-            if (fireGun && gunCd <= 0f)
-            {
-                gunCd = Spec.GunCooldown;
-                FireGun(origin, dir);
-            }
-            if (fireRocket && Spec.Rockets && Rockets > 0 && rocketCd <= 0f)
-            {
-                rocketCd = 0.85f;
-                Rockets--;
-                FireRocket(origin, dir);
-            }
-        }
-
-        void FireGun(Vector3 origin, Vector3 dir)
-        {
-            AudioSource.PlayClipAtPoint(SynthAudio.Shot(), origin, 0.55f);
-            if (Physics.Raycast(origin, dir, out var hit, Spec.GunRange))
-            {
-                var hp = hit.collider.GetComponentInParent<VehicleHealth>();
-                if (hp != null && hp != owner)
-                    hp.Apply(Spec.GunDamage, this);
-                SpawnSpark(hit.point);
-            }
-            SpawnTracer(origin, origin + dir * Mathf.Min(Spec.GunRange, 28f));
-        }
-
-        void FireRocket(Vector3 origin, Vector3 dir)
-        {
-            var go = ProjectilePool.Spawn(origin, dir, 36f, 26f, 3.6f, owner);
-            if (go == null)
-                return;
-            AudioSource.PlayClipAtPoint(SynthAudio.Boom(), origin, 0.4f);
-        }
-
-        static void SpawnTracer(Vector3 a, Vector3 b)
-        {
-            var go = new GameObject("Tracer");
-            var lr = go.AddComponent<LineRenderer>();
-            lr.positionCount = 2;
-            lr.SetPosition(0, a);
-            lr.SetPosition(1, b);
-            lr.startWidth = 0.05f;
-            lr.endWidth = 0.01f;
-            lr.material = DerbyArena.World.SpillwayBuilder.Lit(new Color(1f, 0.75f, 0.3f), 0.2f, 0f, new Color(1f, 0.6f, 0.2f), 2.5f);
-            UnityEngine.Object.Destroy(go, 0.06f);
-        }
-
-        static void SpawnSpark(Vector3 p)
-        {
-            var go = new GameObject("Spark");
-            go.transform.position = p;
-            var light = go.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.range = 3.5f;
-            light.intensity = 2.2f;
-            light.color = new Color(1f, 0.7f, 0.35f);
-            light.shadows = LightShadows.None;
-            UnityEngine.Object.Destroy(go, 0.05f);
-        }
-    }
-
-    public sealed class ProjectilePool : MonoBehaviour
-    {
-        public static ProjectilePool Instance { get; private set; }
-        const int Size = 10;
-        Rocket[] items;
-
-        public static Rocket Spawn(Vector3 pos, Vector3 dir, float speed, float damage, float radius, VehicleHealth owner)
-        {
-            if (Instance == null)
-            {
-                var go = new GameObject("ProjectilePool");
-                Instance = go.AddComponent<ProjectilePool>();
-                Instance.Build();
-            }
-            for (int i = 0; i < Instance.items.Length; i++)
-            {
-                if (!Instance.items[i].Active)
-                {
-                    Instance.items[i].Launch(pos, dir, speed, damage, radius, owner);
-                    return Instance.items[i];
-                }
-            }
-            Instance.items[0].Launch(pos, dir, speed, damage, radius, owner);
-            return Instance.items[0];
-        }
-
-        void Awake()
-        {
-            Instance = this;
-            if (items == null)
-                Build();
-        }
-
-        void Build()
-        {
-            items = new Rocket[Size];
-            for (int i = 0; i < Size; i++)
-            {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                go.name = "Rocket" + i;
-                go.transform.SetParent(transform, false);
-                go.transform.localScale = new Vector3(0.18f, 0.35f, 0.18f);
-                Destroy(go.GetComponent<Collider>());
-                var col = go.AddComponent<SphereCollider>();
-                col.isTrigger = true;
-                col.radius = 0.4f;
-                var rb = go.AddComponent<Rigidbody>();
-                rb.isKinematic = true;
-                rb.useGravity = false;
-                go.GetComponent<Renderer>().sharedMaterial = DerbyArena.World.SpillwayBuilder.Lit(new Color(0.3f, 0.3f, 0.3f), 0.4f, 0.6f, new Color(1f, 0.4f, 0.1f), 1.5f);
-                var rocket = go.AddComponent<Rocket>();
-                rocket.gameObject.SetActive(false);
-                items[i] = rocket;
-            }
-        }
-    }
-
-    public sealed class Rocket : MonoBehaviour
-    {
-        public bool Active;
-        Vector3 velocity;
-        float damage;
-        float radius;
-        float life;
-        VehicleHealth owner;
-
-        public void Launch(Vector3 pos, Vector3 dir, float speed, float dmg, float rad, VehicleHealth source)
-        {
-            owner = source;
-            damage = dmg;
-            radius = rad;
-            life = 2.2f;
-            velocity = dir.normalized * speed;
-            transform.position = pos;
-            transform.rotation = Quaternion.LookRotation(dir);
-            Active = true;
-            gameObject.SetActive(true);
+            Owner = owner;
+            Visual = visual;
+            Rockets = rockets;
+            body = GetComponent<Rigidbody>();
         }
 
         void Update()
         {
-            if (!Active)
-                return;
             float dt = Time.deltaTime;
-            var next = transform.position + velocity * dt;
-            if (Physics.SphereCast(transform.position, 0.2f, velocity.normalized, out var hit, velocity.magnitude * dt))
+            gunCd -= dt;
+            rocketCd -= dt;
+            if (UseHeat)
             {
-                Explode(hit.point);
-                return;
+                Heat = Mathf.Max(0f, Heat - dt * (Overheated ? 0.45f : 0.6f));
+                if (Overheated && Heat < 0.3f) Overheated = false;
             }
-            transform.position = next;
-            life -= dt;
-            if (life <= 0f)
-                Explode(transform.position);
         }
 
-        void Explode(Vector3 point)
+        public bool TryFireGun(Vector3 aimPoint)
         {
-            Active = false;
-            gameObject.SetActive(false);
-            AudioSource.PlayClipAtPoint(SynthAudio.Boom(), point, 0.8f);
-            var hits = Physics.OverlapSphere(point, radius);
-            for (int i = 0; i < hits.Length; i++)
+            if (Spec == null || Owner == null || Owner.Dead) return false;
+            if (gunCd > 0f || Overheated) return false;
+            gunCd = Spec.GunInterval;
+            if (UseHeat)
             {
-                var hp = hits[i].GetComponentInParent<VehicleHealth>();
-                if (hp == null || hp == owner)
-                    continue;
-                float dist = Vector3.Distance(point, hp.transform.position);
-                float falloff = 1f - Mathf.Clamp01(dist / radius);
-                hp.Apply(damage * Mathf.Max(0.35f, falloff), this);
+                Heat += 0.042f;
+                if (Heat >= 1f) { Heat = 1f; Overheated = true; AudioHub.Play2D(SynthAudio.Overheat(), 0.6f, 1f); }
             }
-            var lightGo = new GameObject("Blast");
-            lightGo.transform.position = point;
-            var light = lightGo.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.color = new Color(1f, 0.45f, 0.15f);
-            light.intensity = 4f;
-            light.range = radius * 2f;
-            light.shadows = LightShadows.None;
-            Destroy(lightGo, 0.08f);
+
+            Vector3 origin = Visual != null ? Visual.Muzzle() : transform.position + Vector3.up * 1.5f + transform.forward * 2f;
+            Vector3 dir = aimPoint - origin;
+            if (dir.sqrMagnitude < 0.01f) dir = transform.forward;
+            dir.Normalize();
+            if (AimErrorDeg > 0f)
+                dir = Quaternion.Euler(Random.Range(-AimErrorDeg, AimErrorDeg) * 0.5f, Random.Range(-AimErrorDeg, AimErrorDeg), 0f) * dir;
+
+            Vector3 end = origin + dir * Spec.GunRange;
+            int n = Physics.SphereCastNonAlloc(origin, 0.3f, dir, hits, Spec.GunRange, ~0, QueryTriggerInteraction.Ignore);
+            float best = float.MaxValue;
+            int bestI = -1;
+            for (int i = 0; i < n; i++)
+            {
+                if (hits[i].collider == null) continue;
+                if (body != null && hits[i].rigidbody == body) continue;
+                if (hits[i].distance < best) { best = hits[i].distance; bestI = i; }
+            }
+            if (bestI >= 0)
+            {
+                var h = hits[bestI];
+                end = h.distance > 0f ? h.point : origin + dir * 0.5f;
+                var hp = h.collider.GetComponentInParent<VehicleHealth>();
+                if (hp != null && hp != Owner && !(hp.Team == Owner.Team && Owner.Team != 0))
+                {
+                    hp.Apply(Spec.GunDamage * DamageMul, Owner, end);
+                    Fx.Sparks(end, -dir, 6);
+                    if (Owner.Team == 0) DerbyArena.UI.HudController.HitMarker();
+                }
+                else
+                {
+                    Fx.Sparks(end, h.normal, 3);
+                }
+            }
+
+            Fx.Tracer(origin, end, TracerColor);
+            Fx.Muzzle(origin, dir);
+            AudioHub.PlayAt(SynthAudio.Shot(), origin, Owner.Team == 0 ? 0.45f : 0.3f, Random.Range(0.92f, 1.08f));
+            return true;
+        }
+
+        public bool TryFireRocket(Vector3 aimPoint, Transform target, float cooldown)
+        {
+            if (Spec == null || !Spec.Rockets || Owner == null || Owner.Dead) return false;
+            if (Rockets <= 0 || rocketCd > 0f) return false;
+            rocketCd = cooldown;
+            Rockets--;
+            Vector3 origin = Visual != null ? Visual.Muzzle() + Vector3.up * 0.25f : transform.position + Vector3.up * 1.8f;
+            Vector3 dir = aimPoint - origin;
+            if (dir.sqrMagnitude < 0.01f) dir = transform.forward;
+            Projectiles.Fire(origin, dir.normalized, Owner, target, 42f * DamageMul);
+            return true;
         }
     }
 }

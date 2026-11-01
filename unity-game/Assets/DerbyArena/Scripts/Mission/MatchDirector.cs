@@ -1,0 +1,622 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using DerbyArena.AI;
+using DerbyArena.Audio;
+using DerbyArena.CameraRig;
+using DerbyArena.Combat;
+using DerbyArena.Core;
+using DerbyArena.UI;
+using DerbyArena.Vehicles;
+using DerbyArena.World;
+using UnityEngine;
+
+namespace DerbyArena.Mission
+{
+    public enum MatchPhase { Loading, Countdown, Playing, Won, Lost }
+
+    /// <summary>
+    /// Owns one match: spawns, objectives (reactor run / demolition / boss), timer, pickups,
+    /// out-of-bounds recovery, scoring, stars, rewards and save. One instance per scene load.
+    /// </summary>
+    public sealed class MatchDirector : MonoBehaviour
+    {
+        public static MatchDirector Current;
+
+        public LevelConfig Config;
+        public ArenaLoader Arena;
+        public MatchPhase Phase = MatchPhase.Loading;
+        public float TimeLeft;
+        public float Elapsed;
+        public float Countdown;
+        public int Kills;
+        public int CellsTaken;
+        public float ExtractHold;
+        public const float ExtractRequired = 3.5f;
+        public bool ExtractionOpen;
+        public int Stars;
+        public int Reward;
+        public string LoseReason = "";
+        public bool NewUnlock;
+
+        public ArcadeCar PlayerCar;
+        public VehicleHealth PlayerHealth;
+        public WeaponRig PlayerWeapons;
+        public VehicleVisual PlayerVisual;
+        public VehicleHealth Boss;
+        public readonly List<EnemyDriver> Enemies = new List<EnemyDriver>();
+        public readonly List<ReactorCell> Cells = new List<ReactorCell>();
+        public readonly List<Pickup> Pickups = new List<Pickup>();
+        public ExtractionPad Extraction;
+
+        public event Action<string, Color> Message;
+
+        TouchControls controls;
+        Queue<EnemyKind> pending = new Queue<EnemyKind>();
+        Transform root;
+        float endTimer;
+        bool resultsSent;
+        int beepSecond = -1;
+
+        public static MatchDirector Begin(LevelConfig config, ArenaLoader arena, TouchControls touch, Transform sceneRoot)
+        {
+            var go = new GameObject("MatchDirector");
+            go.transform.SetParent(sceneRoot, false);
+            var m = go.AddComponent<MatchDirector>();
+            Current = m;
+            m.Config = config;
+            m.Arena = arena;
+            m.controls = touch;
+            m.root = sceneRoot;
+            m.TimeLeft = config.TimeLimit;
+            m.StartCoroutine(m.Setup());
+            return m;
+        }
+
+        void OnDestroy() { if (Current == this) Current = null; }
+
+        void Say(string text, Color color) { if (Message != null) Message(text, color); }
+
+        IEnumerator Setup()
+        {
+            // preload vehicle models while the arena streams in
+            GlbLibrary.Preload("vehicles/player_muscle.glb");
+            foreach (var k in Config.Enemies) GlbLibrary.Preload(SpecOf(k).GlbFile);
+
+            float wait = 0f;
+            while (!Arena.Ready && wait < 15f) { wait += Time.unscaledDeltaTime; yield return null; }
+            var info = Arena.Info;
+
+            // player
+            var spec = VehicleSpec.Interceptor();
+            spec.Health += Upgrades.HealthBonus();
+            var player = SpawnVehicle(spec, info.PlayerSpawn, info.PlayerYaw, 0);
+            PlayerCar = player.GetComponent<ArcadeCar>();
+            PlayerHealth = player.GetComponent<VehicleHealth>();
+            PlayerWeapons = player.GetComponent<WeaponRig>();
+            PlayerVisual = player.GetComponent<VehicleVisual>();
+            PlayerCar.SpeedMul = Upgrades.SpeedMul();
+            PlayerCar.NitroDrainMul = Upgrades.NitroDrainMul();
+            PlayerCar.NitroRegenMul = Upgrades.NitroRegenMul();
+            PlayerWeapons.DamageMul = Upgrades.DamageMul();
+            PlayerWeapons.Rockets = spec.RocketAmmo + Upgrades.ExtraRockets();
+            PlayerWeapons.AimErrorDeg = 1.2f;
+            PlayerWeapons.TracerColor = new Color(1f, 0.85f, 0.45f, 1f);
+            player.AddComponent<EngineAudio>().Volume = 0.42f;
+            player.AddComponent<PlayerDriver>().Init(this, controls);
+            PlayerHealth.Died += OnPlayerDied;
+            PlayerCar.Locked = true;
+
+            var cam = ChaseCamera.Main;
+            if (cam != null)
+            {
+                cam.Orbit = false;
+                cam.Target = player.transform;
+                cam.Car = PlayerCar;
+                cam.SnapBehind();
+            }
+
+            // objectives
+            if (Config.Kind == ObjectiveKind.Reactor)
+            {
+                var pts = Shuffle(info.CellPoints, Config.Number);
+                for (int i = 0; i < Config.Cells && i < pts.Length; i++) Cells.Add(ReactorCell.Create(root, pts[i]));
+                Extraction = ExtractionPad.Create(root, info.Extraction);
+            }
+
+            // pickups
+            PickupKind[] kinds = { PickupKind.Health, PickupKind.Nitro, PickupKind.Ammo, PickupKind.Shield, PickupKind.Health, PickupKind.Ammo, PickupKind.Nitro };
+            for (int i = 0; i < info.PickupPoints.Length; i++)
+                Pickups.Add(Pickup.Create(root, info.PickupPoints[i], kinds[i % kinds.Length]));
+
+            // enemies
+            foreach (var k in Config.Enemies) pending.Enqueue(k);
+            int initial = Config.StartEnemies;
+            for (int i = 0; i < initial && pending.Count > 0; i++) SpawnEnemy(pending.Dequeue(), i);
+
+            // wait until vehicle models are in (or a short timeout) so nothing pops in during the countdown
+            wait = 0f;
+            while (wait < 6f && (PlayerVisual == null || !PlayerVisual.Loaded)) { wait += Time.unscaledDeltaTime; yield return null; }
+
+            Phase = MatchPhase.Countdown;
+            Countdown = 3.2f;
+            AudioHub.Ambience(0.35f);
+            Say(Config.Title, UiKit.Amber);
+        }
+
+        static VehicleSpec SpecOf(EnemyKind k)
+        {
+            switch (k)
+            {
+                case EnemyKind.Rammer: return VehicleSpec.Rammer();
+                case EnemyKind.Hunter: return VehicleSpec.Hunter();
+                case EnemyKind.WarRig: return VehicleSpec.WarRig();
+                default: return VehicleSpec.Drifter();
+            }
+        }
+
+        static Vector3[] Shuffle(Vector3[] src, int seed)
+        {
+            var a = (Vector3[])src.Clone();
+            var rng = new System.Random(seed * 31 + 7);
+            for (int i = a.Length - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                var t = a[i]; a[i] = a[j]; a[j] = t;
+            }
+            return a;
+        }
+
+        GameObject SpawnVehicle(VehicleSpec spec, Vector3 pos, float yaw, int team)
+        {
+            var go = new GameObject(spec.DisplayName);
+            go.transform.SetParent(root, false);
+            go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
+            if (team == 0) go.tag = "Player";
+            go.AddComponent<Rigidbody>();
+            var car = go.AddComponent<ArcadeCar>();
+            car.Configure(spec);
+            var hp = go.AddComponent<VehicleHealth>();
+            hp.Configure(spec.Health, team);
+            var visual = go.AddComponent<VehicleVisual>();
+            visual.Begin(spec, car);
+            var guns = go.AddComponent<WeaponRig>();
+            guns.Configure(spec, hp, visual, spec.RocketAmmo);
+            guns.UseHeat = team == 0;
+            return go;
+        }
+
+        Vector3 PickSpawn(out float yaw)
+        {
+            var info = Arena.Info;
+            Vector3 best = info.EnemySpawns[0];
+            float bestScore = float.MinValue;
+            Vector3 pp = PlayerCar != null ? PlayerCar.transform.position : info.PlayerSpawn;
+            for (int i = 0; i < info.EnemySpawns.Length; i++)
+            {
+                Vector3 s = info.EnemySpawns[i];
+                float dPlayer = Vector3.Distance(s, pp);
+                if (dPlayer < 14f) continue;
+                float crowd = 0f;
+                foreach (var e in Enemies) if (e != null && !e.Health.Dead) crowd += Mathf.Max(0f, 8f - Vector3.Distance(e.transform.position, s));
+                float score = Mathf.Min(dPlayer, 40f) - crowd * 4f + UnityEngine.Random.value * 3f;
+                if (score > bestScore) { bestScore = score; best = s; }
+            }
+            Vector3 to = pp - best;
+            yaw = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+            return best;
+        }
+
+        void SpawnEnemy(EnemyKind kind, int index)
+        {
+            var spec = SpecOf(kind);
+            spec.Health *= Config.EnemyHp;
+            spec.TopSpeed *= Config.EnemySpeed;
+            spec.Accel *= Mathf.Lerp(1f, Config.EnemySpeed, 0.6f);
+            float yaw;
+            Vector3 pos;
+            if (kind == EnemyKind.WarRig)
+            {
+                pos = Arena.Info.BossSpawn;
+                Vector3 to = Arena.Info.PlayerSpawn - pos;
+                yaw = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+            }
+            else pos = PickSpawn(out yaw);
+
+            var go = SpawnVehicle(spec, pos, yaw, 1);
+            var car = go.GetComponent<ArcadeCar>();
+            var hp = go.GetComponent<VehicleHealth>();
+            var guns = go.GetComponent<WeaponRig>();
+            guns.DamageMul = Config.EnemyDamage;
+            hp.InvulnerableUntil = Time.time + 1.5f;
+            var ai = go.AddComponent<EnemyDriver>();
+            ai.Car = car;
+            ai.Weapons = guns;
+            ai.Health = hp;
+            ai.Visual = go.GetComponent<VehicleVisual>();
+            ai.Player = PlayerHealth;
+            ai.Arena = Arena.Info;
+            ai.AimError = Config.AimErrorDeg;
+            ai.Aggression = Mathf.Lerp(0.8f, 1.15f, (Config.Number - 1) / 49f);
+            ai.Active = Phase == MatchPhase.Playing;
+            car.Locked = Phase != MatchPhase.Playing;
+            go.AddComponent<EngineAudio>().Volume = 0.22f;
+            hp.Died += OnEnemyDied;
+            Enemies.Add(ai);
+            if (kind == EnemyKind.WarRig) Boss = hp;
+            if (Phase == MatchPhase.Playing)
+            {
+                Fx.Burst(pos + Vector3.up, new Color(1f, 0.3f, 0.2f), 12);
+                Say(kind == EnemyKind.WarRig ? "PATRON GELDİ!" : "YENİ RAKİP: " + spec.DisplayName.ToUpperInvariant(), UiKit.Red);
+            }
+        }
+
+        public int AliveEnemies()
+        {
+            int n = 0;
+            foreach (var e in Enemies) if (e != null && e.Health != null && !e.Health.Dead) n++;
+            return n;
+        }
+
+        public int TotalEnemies { get { return Config.Enemies.Length; } }
+
+        void OnEnemyDied(VehicleHealth victim, VehicleHealth killer)
+        {
+            if (Phase != MatchPhase.Playing && Phase != MatchPhase.Countdown) return;
+            int scrap = 0;
+            var car = victim.GetComponent<ArcadeCar>();
+            if (car != null && car.Spec != null) scrap = car.Spec.ScrapValue;
+            if (killer == PlayerHealth || killer == null)
+            {
+                Kills++;
+                Say("İMHA! +" + scrap, UiKit.Amber);
+                Haptics(false);
+            }
+            StartCoroutine(Sink(victim.gameObject, 9f));
+
+            if (victim == Boss)
+            {
+                Win();
+                return;
+            }
+            if (Config.Kind == ObjectiveKind.Demolition && pending.Count == 0 && AliveEnemies() == 0)
+            {
+                Win();
+                return;
+            }
+            if (pending.Count > 0 && Config.Kind != ObjectiveKind.Reactor)
+                StartCoroutine(DelayedSpawn(1.5f));
+        }
+
+        IEnumerator DelayedSpawn(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (Phase == MatchPhase.Playing && pending.Count > 0) SpawnEnemy(pending.Dequeue(), Enemies.Count);
+        }
+
+        IEnumerator Sink(GameObject wreck, float after)
+        {
+            yield return new WaitForSeconds(after);
+            if (wreck == null) yield break;
+            var body = wreck.GetComponent<Rigidbody>();
+            if (body != null) body.isKinematic = true;
+            foreach (var c in wreck.GetComponentsInChildren<Collider>()) c.enabled = false;
+            float t = 0f;
+            Vector3 start = wreck.transform.position;
+            while (t < 2.5f && wreck != null)
+            {
+                t += Time.deltaTime;
+                wreck.transform.position = start + Vector3.down * (t * 1.2f);
+                yield return null;
+            }
+            if (wreck != null) Destroy(wreck);
+        }
+
+        void OnPlayerDied(VehicleHealth victim, VehicleHealth killer)
+        {
+            if (Phase != MatchPhase.Playing) return;
+            LoseReason = killer != null && killer.GetComponent<ArcadeCar>() != null
+                ? killer.GetComponent<ArcadeCar>().Spec.DisplayName + " seni imha etti"
+                : "Aracın imha edildi";
+            Lose();
+            Haptics(true);
+        }
+
+        void Win()
+        {
+            if (Phase != MatchPhase.Playing) return;
+            Phase = MatchPhase.Won;
+            endTimer = 1.6f;
+            Stars = 1;
+            if (Elapsed <= Config.ParTime) Stars++;
+            if (PlayerHealth != null && PlayerHealth.Fraction >= 0.5f) Stars++;
+            int prevStars = Save.Data.Stars[Config.Number];
+            Reward = Config.Reward + Kills * 15;
+            if (prevStars > 0) Reward = Mathf.RoundToInt(Reward * 0.45f);
+            Save.Data.Stars[Config.Number] = Mathf.Max(prevStars, Stars);
+            if (Config.Number < Campaign.Total && Save.Data.Unlocked <= Config.Number)
+            {
+                Save.Data.Unlocked = Config.Number + 1;
+                NewUnlock = true;
+            }
+            Save.Data.Scrap += Reward;
+            Save.Data.TotalKills += Kills;
+            Save.Write();
+            FreezeAll();
+            AudioHub.Play2D(SynthAudio.Win(), 0.8f, 1f);
+            Say("GÖREV TAMAM", UiKit.Green);
+        }
+
+        void Lose()
+        {
+            if (Phase != MatchPhase.Playing) return;
+            Phase = MatchPhase.Lost;
+            endTimer = 2.2f;
+            Reward = Kills * 10;
+            Save.Data.Scrap += Reward;
+            Save.Data.TotalKills += Kills;
+            Save.Write();
+            FreezeAll();
+            AudioHub.Play2D(SynthAudio.Lose(), 0.7f, 1f);
+        }
+
+        void FreezeAll()
+        {
+            foreach (var e in Enemies) if (e != null) e.Active = false;
+            if (PlayerCar != null) PlayerCar.Locked = true;
+        }
+
+        static void Haptics(bool strong)
+        {
+            if (!Save.Data.Haptics) return;
+#if UNITY_ANDROID || UNITY_IOS
+            if (strong) Handheld.Vibrate();
+#endif
+        }
+
+        void Update()
+        {
+            float dt = Time.deltaTime;
+            switch (Phase)
+            {
+                case MatchPhase.Countdown: TickCountdown(dt); break;
+                case MatchPhase.Playing: TickPlaying(dt); break;
+                case MatchPhase.Won:
+                case MatchPhase.Lost:
+                    endTimer -= Time.unscaledDeltaTime;
+                    if (endTimer <= 0f && !resultsSent)
+                    {
+                        resultsSent = true;
+                        HudController.ShowResults(this);
+                    }
+                    break;
+            }
+        }
+
+        void TickCountdown(float dt)
+        {
+            Countdown -= dt;
+            int sec = Mathf.CeilToInt(Countdown);
+            if (sec != beepSecond && sec > 0 && sec <= 3)
+            {
+                beepSecond = sec;
+                AudioHub.Play2D(SynthAudio.Beep(), 0.6f, 1f);
+            }
+            if (Countdown <= 0f)
+            {
+                Phase = MatchPhase.Playing;
+                AudioHub.Play2D(SynthAudio.Go(), 0.7f, 1f);
+                PlayerCar.Locked = false;
+                PlayerHealth.InvulnerableUntil = Time.time + 2.5f;
+                foreach (var e in Enemies)
+                {
+                    if (e == null) continue;
+                    e.Active = true;
+                    e.Car.Locked = false;
+                }
+                Say(Config.ObjectiveLine, Color.white);
+            }
+        }
+
+        void TickPlaying(float dt)
+        {
+            Elapsed += dt;
+            TimeLeft -= dt;
+            if (TimeLeft <= 0f)
+            {
+                TimeLeft = 0f;
+                LoseReason = "Süre doldu";
+                Lose();
+                return;
+            }
+            if (TimeLeft < 10.5f && Mathf.CeilToInt(TimeLeft) != beepSecond)
+            {
+                beepSecond = Mathf.CeilToInt(TimeLeft);
+                AudioHub.Play2D(SynthAudio.Beep(), 0.35f, 1.3f);
+            }
+            if (PlayerCar == null || PlayerHealth == null || PlayerHealth.Dead) return;
+            Vector3 pp = PlayerCar.transform.position;
+
+            // out of bounds / fell through
+            if (pp.y < -6f || !Arena.Info.Inside(pp))
+            {
+                Vector3 safe = Arena.Info.ClosestSafePoint(pp);
+                PlayerCar.Teleport(safe, PlayerCar.transform.eulerAngles.y);
+                Say("Arenaya geri döndün", UiKit.TextDim);
+            }
+            foreach (var e in Enemies)
+            {
+                if (e == null || e.Health.Dead) continue;
+                Vector3 ep = e.transform.position;
+                if (ep.y < -6f || !Arena.Info.Inside(ep))
+                {
+                    float y;
+                    e.Car.Teleport(PickSpawn(out y), y);
+                }
+            }
+
+            // pickups
+            foreach (var p in Pickups)
+            {
+                if (p == null || !p.Available) continue;
+                if ((p.transform.position - pp).sqrMagnitude < 2.8f * 2.8f && p.TryCollect(PlayerCar, PlayerHealth, PlayerWeapons))
+                    Say(PickupText(p.Kind), Pickup.ColorOf(p.Kind));
+            }
+
+            if (Config.Kind == ObjectiveKind.Reactor) TickReactor(pp, dt);
+        }
+
+        static string PickupText(PickupKind k)
+        {
+            switch (k)
+            {
+                case PickupKind.Health: return "+ ONARIM";
+                case PickupKind.Nitro: return "+ NİTRO";
+                case PickupKind.Ammo: return "+3 ROKET";
+                default: return "+ KALKAN";
+            }
+        }
+
+        void TickReactor(Vector3 pp, float dt)
+        {
+            if (!ExtractionOpen)
+            {
+                foreach (var c in Cells)
+                {
+                    if (c == null || c.Taken) continue;
+                    Vector3 d = c.transform.position - pp;
+                    d.y = 0f;
+                    if (d.magnitude < 3.4f)
+                    {
+                        c.Collect();
+                        CellsTaken++;
+                        TimeLeft += 8f;
+                        if (CellsTaken >= Config.Cells)
+                        {
+                            ExtractionOpen = true;
+                            Extraction.gameObject.SetActive(true);
+                            Say("TAHLİYE AÇILDI! Yeşil bölgeye git", UiKit.Green);
+                            AudioHub.Play2D(SynthAudio.Alarm(), 0.6f, 1f);
+                            while (pending.Count > 0) SpawnEnemy(pending.Dequeue(), Enemies.Count);
+                        }
+                        else
+                        {
+                            Say("HÜCRE " + CellsTaken + "/" + Config.Cells + "  +8 sn", UiKit.Cyan);
+                            if (pending.Count > 0) SpawnEnemy(pending.Dequeue(), Enemies.Count);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                Vector3 d = Extraction.transform.position - pp;
+                d.y = 0f;
+                bool inside = d.magnitude < ExtractionPad.Radius;
+                if (inside) ExtractHold += dt;
+                else ExtractHold = Mathf.Max(0f, ExtractHold - dt * 0.6f);
+                Extraction.SetProgress(ExtractHold / ExtractRequired);
+                if (ExtractHold >= ExtractRequired) Win();
+            }
+        }
+
+        /// <summary>Next objective position for the HUD arrow (or null).</summary>
+        public bool ObjectivePoint(out Vector3 p)
+        {
+            p = Vector3.zero;
+            if (Config.Kind == ObjectiveKind.Reactor)
+            {
+                if (ExtractionOpen && Extraction != null) { p = Extraction.transform.position; return true; }
+                float best = float.MaxValue;
+                bool any = false;
+                Vector3 pp = PlayerCar != null ? PlayerCar.transform.position : Vector3.zero;
+                foreach (var c in Cells)
+                {
+                    if (c == null || c.Taken) continue;
+                    float d = (c.transform.position - pp).sqrMagnitude;
+                    if (d < best) { best = d; p = c.transform.position; any = true; }
+                }
+                return any;
+            }
+            if (Boss != null && !Boss.Dead) { p = Boss.transform.position; return true; }
+            return false;
+        }
+    }
+
+    /// <summary>Feeds touch input into the player car and weapons (auto-aim, rockets).</summary>
+    public sealed class PlayerDriver : MonoBehaviour
+    {
+        MatchDirector match;
+        TouchControls input;
+        ArcadeCar car;
+        WeaponRig guns;
+        VehicleVisual visual;
+        VehicleHealth hp;
+        public VehicleHealth LockTarget { get; private set; }
+
+        public void Init(MatchDirector m, TouchControls t)
+        {
+            match = m;
+            input = t;
+            car = GetComponent<ArcadeCar>();
+            guns = GetComponent<WeaponRig>();
+            visual = GetComponent<VehicleVisual>();
+            hp = GetComponent<VehicleHealth>();
+        }
+
+        void Update()
+        {
+            if (input == null || car == null) return;
+            if (hp.Dead || match.Phase != MatchPhase.Playing)
+            {
+                car.Throttle = 0f; car.Brake = 0f; car.Steer = 0f; car.NitroHeld = false; car.Handbrake = false;
+                return;
+            }
+            car.Steer = input.Steer;
+            car.Throttle = input.Throttle;
+            car.Brake = input.Brake;
+            car.Handbrake = input.Handbrake;
+            car.NitroHeld = input.Nitro;
+
+            LockTarget = FindTarget();
+            Vector3 aim;
+            if (LockTarget != null)
+            {
+                aim = LockTarget.transform.position + Vector3.up * 0.9f;
+                var b = LockTarget.GetComponent<Rigidbody>();
+                if (b != null) aim += b.linearVelocity * 0.06f;
+            }
+            else aim = transform.position + transform.forward * 30f + Vector3.up * 1.1f;
+            if (visual != null) visual.AimAt(aim, Time.deltaTime);
+
+            if (input.Fire) guns.TryFireGun(aim);
+            if (input.RocketPressed)
+            {
+                if (!guns.TryFireRocket(aim, LockTarget != null ? LockTarget.transform : null, 0.7f) && guns.Rockets <= 0)
+                    DerbyArena.Audio.AudioHub.Play2D(DerbyArena.Audio.SynthAudio.Overheat(), 0.4f, 1.4f);
+            }
+        }
+
+        VehicleHealth FindTarget()
+        {
+            float range = guns != null && guns.Spec != null ? guns.Spec.GunRange : 40f;
+            float cone = Save.Data.AutoAim ? 0.55f : 0.93f;      // cos of half-angle
+            VehicleHealth best = null;
+            float bestScore = float.MaxValue;
+            Vector3 me = transform.position;
+            Vector3 fwd = transform.forward;
+            foreach (var e in match.Enemies)
+            {
+                if (e == null || e.Health == null || e.Health.Dead) continue;
+                Vector3 d = e.transform.position - me;
+                float dist = d.magnitude;
+                if (dist > range || dist < 0.5f) continue;
+                float dot = Vector3.Dot(fwd, d / dist);
+                if (dot < cone) continue;
+                float score = dist * (2f - dot);
+                if (e.Health == LockTarget) score *= 0.75f;   // sticky lock
+                if (score < bestScore) { bestScore = score; best = e.Health; }
+            }
+            return best;
+        }
+    }
+}

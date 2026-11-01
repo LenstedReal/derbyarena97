@@ -24,6 +24,8 @@ namespace DerbyArena.EditorTools
         const string EmissiveMaterialPath = MaterialsFolder + "/RuntimeLitEmissive.mat";
         const string GlassMaterialPath = MaterialsFolder + "/RuntimeLitGlass.mat";
         const string FxMaterialPath = MaterialsFolder + "/RuntimeFx.mat";
+        const string FxAddMaterialPath = MaterialsFolder + "/RuntimeFxAdd.mat";
+        const string SkyMaterialPath = MaterialsFolder + "/RuntimeSky.mat";
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
@@ -103,6 +105,12 @@ namespace DerbyArena.EditorTools
             });
 
             EnsureMaterial(FxMaterialPath, "Sprites/Default", null);
+            EnsureMaterial(FxAddMaterialPath, "Legacy Shaders/Particles/Additive", null);
+            EnsureMaterial(SkyMaterialPath, "Skybox/Procedural", m =>
+            {
+                if (m.HasProperty("_SunSize")) m.SetFloat("_SunSize", 0.03f);
+                if (m.HasProperty("_AtmosphereThickness")) m.SetFloat("_AtmosphereThickness", 1.4f);
+            });
         }
 
         static void EnableBothInputBackends()
@@ -123,6 +131,33 @@ namespace DerbyArena.EditorTools
             catch (Exception ex)
             {
                 Debug.LogWarning("DERBY: could not set active input handler: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Fog is enabled from code at runtime, so "Automatic" fog stripping (which looks at the scene's
+        /// saved RenderSettings) would remove the fog shader variants from the player. Keep them explicitly.
+        /// </summary>
+        static void KeepFogVariants()
+        {
+            try
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
+                if (assets == null || assets.Length == 0) return;
+                var so = new SerializedObject(assets[0]);
+                var strip = so.FindProperty("m_FogStripping");
+                if (strip != null) strip.intValue = 1;
+                string[] keep = { "m_FogKeepLinear", "m_FogKeepExp", "m_FogKeepExp2" };
+                for (int i = 0; i < keep.Length; i++)
+                {
+                    var p = so.FindProperty(keep[i]);
+                    if (p != null) p.boolValue = true;
+                }
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("DERBY: fog stripping settings not applied: " + ex.Message);
             }
         }
 
@@ -157,9 +192,9 @@ namespace DerbyArena.EditorTools
 
             PlayerSettings.companyName = "LenstedReal";
             PlayerSettings.productName = "DERBY ARENA";
-            PlayerSettings.bundleVersion = "1.1.0";
+            PlayerSettings.bundleVersion = "1.2.0";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.lenstedreal.derbyarena");
-            PlayerSettings.Android.bundleVersionCode = 110;
+            PlayerSettings.Android.bundleVersionCode = 120;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
@@ -183,6 +218,28 @@ namespace DerbyArena.EditorTools
             }
 
             EnableBothInputBackends();
+            KeepFogVariants();
+
+            // Runtime code builds every collider / particle / audio component with AddComponent, so engine
+            // code stripping removed classes such as CapsuleCollider ("Can't add component because class
+            // 'CapsuleCollider' doesn't exist"). Keep engine code; link.xml additionally preserves modules.
+            PlayerSettings.stripEngineCode = false;
+            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Android, ManagedStrippingLevel.Minimal);
+
+            // iOS: same identity; Unity Build Automation signs with your Apple credentials.
+            try
+            {
+                PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.lenstedreal.derbyarena");
+                PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.iOS, ManagedStrippingLevel.Minimal);
+                PlayerSettings.iOS.buildNumber = "120";
+                PlayerSettings.iOS.targetOSVersionString = "13.0";
+                PlayerSettings.iOS.requiresFullScreen = true;
+                PlayerSettings.iOS.hideHomeButton = false;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("DERBY: iOS settings not applied: " + ex.Message);
+            }
 
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
@@ -195,10 +252,12 @@ namespace DerbyArena.EditorTools
                 AssetDatabase.LoadAssetAtPath<Material>(NormalMaterialPath) == null ||
                 AssetDatabase.LoadAssetAtPath<Material>(EmissiveMaterialPath) == null ||
                 AssetDatabase.LoadAssetAtPath<Material>(GlassMaterialPath) == null ||
-                AssetDatabase.LoadAssetAtPath<Material>(FxMaterialPath) == null)
+                AssetDatabase.LoadAssetAtPath<Material>(FxMaterialPath) == null ||
+                AssetDatabase.LoadAssetAtPath<Material>(FxAddMaterialPath) == null ||
+                AssetDatabase.LoadAssetAtPath<Material>(SkyMaterialPath) == null)
                 throw new BuildFailedException("DERBY: runtime Resources materials were not generated.");
 
-            Debug.Log("DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / 1.1.0 / 110 / ARM64");
+            Debug.Log("DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / 1.2.0 / 120 / ARM64 + iOS");
         }
     }
 
