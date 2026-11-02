@@ -104,6 +104,21 @@ namespace DerbyArena.UI
             UiKit.Place(chips.rectTransform, 1f, 1f, 640f, 90f, 1f, 1f);
             UiKit.Label("Text", chips.transform, "HURDA " + Save.Data.Scrap + "    YILDIZ " + Save.TotalStars() + "/" + (Campaign.Total * 3) + "    BÖLÜM " + Save.Data.Unlocked + "/" + Campaign.Total,
                 28, Color.white, TextAnchor.MiddleCenter, true);
+            var art = Resources.Load<Texture2D>("Derby/keyart");
+            if (art != null)
+            {
+                var frame = UiKit.Image("KeyArtFrame", P, UiKit.Rounded, new Color(1f, 0.55f, 0.15f, 0.9f));
+                UiKit.Place(frame.rectTransform, 1f, 0f, 330f, 330f, 1f, 0f);
+                frame.rectTransform.anchoredPosition = new Vector2(-10f, 70f);
+                var ago = new GameObject("KeyArt", typeof(RectTransform));
+                ago.transform.SetParent(frame.transform, false);
+                var raw = ago.AddComponent<RawImage>();
+                raw.texture = art;
+                raw.raycastTarget = false;
+                UiKit.Stretch(raw.rectTransform, 0f, 0f, 1f, 1f);
+                raw.rectTransform.offsetMin = new Vector2(6f, 6f);
+                raw.rectTransform.offsetMax = new Vector2(-6f, -6f);
+            }
             Txt(P, "v" + DerbyStartupDiagnostics.Version, 22, new Color(1f, 1f, 1f, 0.35f), TextAnchor.LowerRight, false, 1f, 0f, 300f, 40f, 1f, 0f);
         }
 
@@ -135,11 +150,11 @@ namespace DerbyArena.UI
                 card.Background.rectTransform.anchoredPosition = new Vector2((i % 5) * 256f, -196f - (i / 5) * 206f);
                 card.Interactable = !locked;
                 var t = card.Background.transform;
-                Color typeCol = cfg.Kind == ObjectiveKind.Boss ? UiKit.Red : (cfg.Kind == ObjectiveKind.Demolition ? UiKit.Amber : UiKit.Cyan);
+                Color typeCol = HudController.KindColor(cfg.Kind);
                 var num = UiKit.Rect("Num", t); UiKit.Stretch(num, 0f, 0.42f, 1f, 1f);
                 UiKit.Label("Label", num, locked ? "KİLİTLİ" : n.ToString(), locked ? 30 : 64, locked ? UiKit.TextDim : Color.white, TextAnchor.MiddleCenter, true);
                 var kind = UiKit.Rect("Kind", t); UiKit.Stretch(kind, 0f, 0.2f, 1f, 0.42f);
-                UiKit.Label("Label", kind, cfg.Kind == ObjectiveKind.Boss ? "PATRON" : (cfg.Kind == ObjectiveKind.Demolition ? "YIKIM" : "REAKTÖR"), 22, locked ? UiKit.TextDim : typeCol, TextAnchor.MiddleCenter, true);
+                UiKit.Label("Label", kind, LevelConfig.KindName(cfg.Kind), 22, locked ? UiKit.TextDim : typeCol, TextAnchor.MiddleCenter, true);
                 int stars = Save.Data.Stars[n];
                 for (int s = 0; s < 3; s++)
                 {
@@ -149,6 +164,9 @@ namespace DerbyArena.UI
                 }
             }
 
+            var feat = Txt(P, Campaign.ChapterFeatures[Mathf.Clamp(chapter - 1, 0, Campaign.ChapterFeatures.Length - 1)], 24, UiKit.Cyan, TextAnchor.UpperLeft, false, 0f, 1f, 1270f, 70f, 0f, 1f);
+            feat.rectTransform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(4f, -812f);
+
             var sel = Campaign.Get(selected);
             var detail = UiKit.Image("Detail", P, UiKit.Rounded, UiKit.Panel);
             UiKit.Place(detail.rectTransform, 1f, 1f, 560f, 600f, 1f, 1f);
@@ -156,10 +174,11 @@ namespace DerbyArena.UI
             var d = detail.transform;
             Txt(d, "BÖLÜM " + selected, 30, UiKit.TextDim, TextAnchor.MiddleLeft, true, 0f, 1f, 500f, 50f, 0f, 1f).rectTransform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(30f, -20f);
             Txt(d, sel.Title, 42, UiKit.Amber, TextAnchor.MiddleLeft, true, 0f, 1f, 520f, 60f, 0f, 1f).rectTransform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(30f, -70f);
-            string info = sel.ObjectiveLine + "\n\nArena: " + (sel.Arena == ArenaKind.Colosseum ? "Kolezyum" : "Blackout Spillway")
+            string info = LevelConfig.KindName(sel.Kind) + "\n" + sel.ObjectiveLine + "\n\nArena: " + (sel.Arena == ArenaKind.Colosseum ? "Kolezyum" : "Blackout Spillway")
                         + "\nRakip: " + sel.Enemies.Length + "    Süre: " + Mathf.RoundToInt(sel.TimeLimit) + " sn"
-                        + "\nÖdül: " + sel.Reward + " hurda" + "\nEn iyi: " + Save.Data.Stars[selected] + "/3 yıldız";
-            Txt(d, info, 28, Color.white, TextAnchor.UpperLeft, false, 0f, 1f, 500f, 320f, 0f, 1f).rectTransform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(30f, -150f);
+                        + "\nÖdül: " + sel.Reward + " hurda" + "\nEn iyi: " + Save.Data.Stars[selected] + "/3 yıldız"
+                        + "\n2. yıldız: " + sel.StarTwoLine;
+            Txt(d, info, 26, Color.white, TextAnchor.UpperLeft, false, 0f, 1f, 500f, 320f, 0f, 1f).rectTransform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(30f, -150f);
             int go = selected;
             var start2 = Btn(d, "BAŞLAT", UiKit.Green, 0.5f, 0f, 480f, 110f, 0.5f, 0f, 46, () => GameFlow.Play(go));
             start2.Background.rectTransform.anchoredPosition = new Vector2(0f, 30f);
@@ -216,7 +235,7 @@ namespace DerbyArena.UI
             Row("SES", Save.Data.Sound ? "AÇIK" : "KAPALI", ref y, () => { Save.Data.Sound = !Save.Data.Sound; AudioHub.SetSound(Save.Data.Sound); });
             Row("TİTREŞİM", Save.Data.Haptics ? "AÇIK" : "KAPALI", ref y, () => { Save.Data.Haptics = !Save.Data.Haptics; });
             string[] q = { "DÜŞÜK", "ORTA", "YÜKSEK" };
-            Row("GRAFİK KALİTESİ", q[Save.Data.Quality], ref y, () => { Save.Data.Quality = (Save.Data.Quality + 1) % 3; DerbyBootstrapQuality.Apply(); });
+            Row("GRAFİK KALİTESİ", q[Mathf.Clamp(Save.Data.Quality, 0, 2)], ref y, () => { Save.Data.Quality = (Save.Data.Quality + 1) % 3; Save.Data.QualityChosen = true; DerbyBootstrapQuality.Apply(); });
         }
 
         void Row(string label, string value, ref float y, Action change)

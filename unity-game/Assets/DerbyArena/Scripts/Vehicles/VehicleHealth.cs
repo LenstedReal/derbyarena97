@@ -27,6 +27,7 @@ namespace DerbyArena.Vehicles
         public event Action<VehicleHealth, float> Damaged;               // victim, amount
 
         ArcadeCar car;
+        VehicleVisual visual;
         readonly Dictionary<int, float> ramCooldown = new Dictionary<int, float>();
         float smokeTimer;
         float fireUntil;
@@ -40,6 +41,7 @@ namespace DerbyArena.Vehicles
             Current = max;
             Team = team;
             car = GetComponent<ArcadeCar>();
+            visual = GetComponent<VehicleVisual>();
         }
 
         public void Apply(float amount, VehicleHealth attacker, Vector3 from)
@@ -65,6 +67,8 @@ namespace DerbyArena.Vehicles
                 hitSoundCd = 0.08f;
                 AudioHub.PlayAt(SynthAudio.Hit(), transform.position, Team == 0 ? 0.75f : 0.5f, UnityEngine.Random.Range(0.85f, 1.15f));
             }
+            if (visual == null) visual = GetComponent<VehicleVisual>();
+            if (visual != null && amount >= 1.5f) visual.Flash();
             if (Damaged != null) Damaged(this, amount);
             if (Current <= 0f) Die(attacker);
         }
@@ -96,6 +100,8 @@ namespace DerbyArena.Vehicles
             Fx.Explosion(transform.position + Vector3.up, 1.4f);
             AudioHub.PlayAt(SynthAudio.Explosion(), transform.position, 1f, UnityEngine.Random.Range(0.85f, 1.05f));
             Char();
+            Fx.Ring(transform.position + Vector3.up * 0.3f, 9f, new Color(1f, 0.55f, 0.2f));
+            DerbyArena.World.Crowd.Cheer(Team == 0 ? 0.3f : 1f);
             if (Died != null) Died(this, killer);
         }
 
@@ -165,17 +171,20 @@ namespace DerbyArena.Vehicles
             if (impact < 6f) return;
 
             ramCooldown[key] = Time.time + 0.5f;
-            float baseDmg = Mathf.Clamp((impact - 6f) * 3.2f, 6f, 48f);
+            float baseDmg = Mathf.Clamp((impact - 6f) * 2.4f, 5f, 34f);
             bool iAmRammer = mine >= theirs;
             var rammer = iAmRammer ? this : other;
             var victim = iAmRammer ? other : this;
             var rammerCar = iAmRammer ? myCar : theirCar;
             float mul = rammerCar.Spec != null ? rammerCar.Spec.RamMul : 1f;
-            if (rammer.Team == 0) mul *= 1.25f;
+            if (rammer.Team == 0) mul *= 1.35f;
+            if (victim.Team == 0) mul *= 0.75f;
+            float selfMul = rammer.Team == 0 ? 0.2f : 0.25f;
 
             Vector3 contact = collision.contactCount > 0 ? collision.GetContact(0).point : (transform.position + other.transform.position) * 0.5f;
             victim.Apply(baseDmg * mul, rammer, contact);
-            rammer.Apply(baseDmg * 0.3f, victim, contact);
+            rammer.Apply(baseDmg * selfMul, victim, contact);
+            if (baseDmg * mul > 18f) DerbyArena.World.Crowd.Cheer(0.6f);
             Fx.Sparks(contact, -dir, 18);
             AudioHub.PlayAt(SynthAudio.Crash(), contact, Mathf.Clamp01(impact / 25f) + 0.3f, UnityEngine.Random.Range(0.85f, 1.1f));
             if (rammer.Team == 0 || victim.Team == 0)

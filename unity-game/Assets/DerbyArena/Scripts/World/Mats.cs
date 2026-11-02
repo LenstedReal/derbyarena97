@@ -131,6 +131,30 @@ namespace DerbyArena.World
             return mat;
         }
 
+        /// <summary>Vertex-colour lit material (robot crowd). Falls back to the plain lit template.</summary>
+        public static Material VertexLit(Color tint, float smooth, float metal)
+        {
+            var t = Resources.Load<Material>("Derby/Materials/RuntimeVertexLit");
+            Material mat = null;
+            if (t != null && t.shader != null && t.shader.isSupported) mat = new Material(t);
+            if (mat == null) mat = Make("RuntimeLit", "Standard", "Legacy Shaders/Diffuse", "Sprites/Default");
+            if (mat == null) return null;
+            SetColor(mat, "_Color", tint);
+            SetFloat(mat, "_Glossiness", smooth);
+            SetFloat(mat, "_Metallic", Mathf.Min(metal, 0.5f));
+            return mat;
+        }
+
+        /// <summary>Dark soft blob used as a contact shadow under vehicles.</summary>
+        public static Material BlobShadow()
+        {
+            var mat = Make("RuntimeFx", "Sprites/Default");
+            if (mat == null) return null;
+            SetTex(mat, "_MainTex", SoftTexture());
+            SetColor(mat, "_Color", new Color(0f, 0f, 0f, 0.62f));
+            return mat;
+        }
+
         /// <summary>Procedural sky; null when the template is missing (camera falls back to a flat colour).</summary>
         public static Material Sky(Color tint, Color ground, float exposure, float thickness)
         {

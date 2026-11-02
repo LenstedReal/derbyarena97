@@ -13,11 +13,27 @@ namespace DerbyArena.Vehicles
         public Transform Barrel { get; private set; }
         public bool Loaded { get; private set; }
 
+        /// <summary>Vehicle renderers live on this layer so the camera rim light only touches cars.</summary>
+        public const int VehicleLayer = 9;
+
         ArcadeCar car;
         VehicleSpec spec;
         Transform visualRoot;
         Quaternion turretBase;
         float turretYaw;
+        float roll, pitch;
+        Vector3 lastVel;
+        Renderer[] renderers = new Renderer[0];
+        MaterialPropertyBlock block;
+        float flashTimer;
+        bool flashOn;
+        TrailRenderer[] skids;
+        Transform shadow;
+        float nitroTimer;
+        bool isPlayer;
+        int quality;
+
+        static Material skidMat;
 
         public void Begin(VehicleSpec vehicleSpec, ArcadeCar arcadeCar)
         {
@@ -28,7 +44,176 @@ namespace DerbyArena.Vehicles
             vr.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             vr.transform.localScale = Vector3.one * spec.Scale;
             visualRoot = vr.transform;
-            GlbLibrary.Spawn(spec.GlbFile, visualRoot, OnModel);
+            isPlayer = spec.Role == DriverRole.Player;
+            quality = Save.Data.Quality;
+            GlbLibrary.Spawn(spec.GlbFile, spec.ModelOptions(), visualRoot, OnModel);
+            BuildShadow();
+            if (quality > 0 || isPlayer) BuildSkids();
+            if (isPlayer && quality > 0) BuildHeadlight();
+        }
+
+        void BuildShadow()
+        {
+            var mat = Mats.BlobShadow();
+            if (mat == null) return;
+            var go = MeshFactory.Make("BlobShadow", MeshFactory.UnitQuad(), mat, null, Vector3.zero, Vector3.one);
+            var r = go.GetComponent<MeshRenderer>();
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            go.transform.SetParent(transform.parent, false);
+            shadow = go.transform;
+            shadow.localScale = new Vector3(spec.BodySize.x * 1.35f * spec.Scale, 1f, spec.BodySize.z * 1.25f * spec.Scale);
+        }
+
+        void BuildSkids()
+        {
+            if (skidMat == null)
+            {
+                skidMat = Mats.FxSoft();
+                if (skidMat != null) skidMat.color = new Color(0.03f, 0.03f, 0.03f, 0.55f);
+            }
+            if (skidMat == null) return;
+            skids = new TrailRenderer[2];
+            for (int i = 0; i < 2; i++)
+            {
+                var go = new GameObject("Skid");
+                go.transform.SetParent(transform.parent, false);
+                go.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                var tr = go.AddComponent<TrailRenderer>();
+                tr.sharedMaterial = skidMat;
+                tr.time = isPlayer ? 3.5f : 2f;
+                tr.minVertexDistance = 0.35f;
+                tr.startWidth = 0.32f * spec.Scale;
+                tr.endWidth = 0.28f * spec.Scale;
+                tr.alignment = LineAlignment.TransformZ;
+                tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                tr.receiveShadows = false;
+                tr.emitting = false;
+                tr.autodestruct = false;
+                skids[i] = tr;
+            }
+        }
+
+        void BuildHeadlight()
+        {
+            var go = new GameObject("Headlight");
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = new Vector3(0f, 1.0f * spec.Scale, spec.BodySize.z * 0.5f);
+            go.transform.localRotation = Quaternion.Euler(12f, 0f, 0f);
+            var l = go.AddComponent<Light>();
+            l.type = LightType.Spot;
+            l.range = 26f;
+            l.spotAngle = 62f;
+            l.intensity = 1.6f;
+            l.color = new Color(1f, 0.92f, 0.78f);
+            l.shadows = LightShadows.None;
+            l.renderMode = LightRenderMode.ForcePixel;
+        }
+
+        /// <summary>White hit flash on all vehicle renderers (MaterialPropertyBlock, no material copies).</summary>
+        public void Flash()
+        {
+            if (renderers.Length == 0) return;
+            if (block == null) block = new MaterialPropertyBlock();
+            block.Clear();
+            block.SetColor("_Color", new Color(1.9f, 1.6f, 1.4f, 1f));
+            block.SetColor("_EmissionColor", new Color(1.2f, 0.75f, 0.5f));
+            for (int i = 0; i < renderers.Length; i++) if (renderers[i] != null) renderers[i].SetPropertyBlock(block);
+            flashTimer = 0.07f;
+            flashOn = true;
+        }
+
+        void ClearFlash()
+        {
+            flashOn = false;
+            if (block == null) block = new MaterialPropertyBlock();
+            block.Clear();
+            for (int i = 0; i < renderers.Length; i++) if (renderers[i] != null) renderers[i].SetPropertyBlock(block);
+        }
+
+        void CollectRenderers()
+        {
+            if (visualRoot == null) return;
+            renderers = visualRoot.GetComponentsInChildren<Renderer>(true);
+            var list = new List<Renderer>(renderers);
+            if (car != null)
+                foreach (var r in car.GetComponentsInChildren<Renderer>(true))
+                    if (!list.Contains(r) && r.GetComponent<TrailRenderer>() == null && r.GetComponent<ParticleSystem>() == null) list.Add(r);
+            renderers = list.ToArray();
+            foreach (var r in renderers) r.gameObject.layer = VehicleLayer;
+        }
+
+        void LateUpdate()
+        {
+            float dt = Time.deltaTime;
+            if (dt <= 0f || car == null) return;
+            if (flashOn)
+            {
+                flashTimer -= dt;
+                if (flashTimer <= 0f) ClearFlash();
+            }
+
+            Vector3 vel = car.Body != null ? car.Body.linearVelocity : Vector3.zero;
+            Vector3 accel = (vel - lastVel) / dt;
+            lastVel = vel;
+            Vector3 la = transform.InverseTransformDirection(accel);
+            float targetRoll = Mathf.Clamp(la.x * 0.35f, -5f, 5f);
+            float targetPitch = Mathf.Clamp(-la.z * 0.22f, -3f, 3f);
+            if (!car.Grounded) { targetRoll = 0f; targetPitch = 0f; }
+            float k = 1f - Mathf.Exp(-6f * dt);
+            roll = Mathf.Lerp(roll, targetRoll, k);
+            pitch = Mathf.Lerp(pitch, targetPitch, k);
+            if (visualRoot != null) visualRoot.localRotation = Quaternion.Euler(pitch, 180f, roll);
+
+            if (shadow != null)
+            {
+                Vector3 p = transform.position;
+                RaycastHit hit;
+                bool ground = Physics.Raycast(p + Vector3.up * 0.5f, Vector3.down, out hit, 6f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+                if (ground && hit.rigidbody == car.Body)
+                    ground = Physics.Raycast(hit.point + Vector3.down * 0.05f, Vector3.down, out hit, 6f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+                shadow.gameObject.SetActive(ground);
+                if (ground)
+                {
+                    shadow.position = hit.point + hit.normal * 0.04f;
+                    shadow.rotation = Quaternion.FromToRotation(Vector3.up, hit.normal) * Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+                }
+            }
+
+            if (skids != null)
+            {
+                bool slide = car.Grounded && (car.Drifting || car.Handbrake || Mathf.Abs(car.LateralSpeed) > 4.5f) && vel.sqrMagnitude > 16f;
+                for (int i = 0; i < 2; i++)
+                {
+                    var tr = skids[i];
+                    if (tr == null) continue;
+                    bool grounded = car.WheelGrounded(2 + i);
+                    tr.transform.position = car.WheelContact(2 + i) + Vector3.up * 0.04f;
+                    tr.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                    tr.emitting = slide && grounded;
+                }
+            }
+
+            if (car.NitroActive)
+            {
+                nitroTimer -= dt;
+                if (nitroTimer <= 0f)
+                {
+                    nitroTimer = 0.03f;
+                    Vector3 back = -transform.forward;
+                    Vector3 basePos = transform.position + transform.up * (0.55f * spec.Scale) + back * (spec.BodySize.z * 0.5f * spec.Scale);
+                    Vector3 side = transform.right * (spec.BodySize.x * 0.22f * spec.Scale);
+                    DerbyArena.Combat.Fx.Nitro(basePos + side, back);
+                    DerbyArena.Combat.Fx.Nitro(basePos - side, back);
+                }
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (shadow != null) Destroy(shadow.gameObject);
+            if (skids != null)
+                foreach (var tr in skids) if (tr != null) Destroy(tr.gameObject, tr.time);
         }
 
         void OnModel(GameObject model, string error)
@@ -43,6 +228,7 @@ namespace DerbyArena.Vehicles
             try
             {
                 Bind(model.transform);
+                CollectRenderers();
                 Loaded = true;
             }
             catch (Exception ex)
@@ -139,6 +325,7 @@ namespace DerbyArena.Vehicles
             Barrel = barrel.transform;
             turretBase = Turret.localRotation;
             if (car != null) car.BindWheels(ws);
+            CollectRenderers();
             Loaded = true;
         }
 

@@ -23,12 +23,35 @@ namespace DerbyArena.CameraRig
         float trauma;
         float orbitAngle;
         Vector3 vel;
+        float introTimer, introMax = 1f;
         readonly RaycastHit[] hits = new RaycastHit[8];
 
         void Awake()
         {
             Main = this;
             cam = GetComponent<Camera>();
+            // Vehicle-only fill light: cars were reading as black silhouettes against bright skies.
+            // Culling mask limits it to the vehicle layer so the world lighting is untouched.
+            if (DerbyArena.Core.Save.Data.Quality > 0)
+            {
+                var go = new GameObject("VehicleFill");
+                go.transform.SetParent(transform, false);
+                go.transform.localRotation = Quaternion.Euler(25f, -20f, 0f);
+                var l = go.AddComponent<Light>();
+                l.type = LightType.Directional;
+                l.color = new Color(0.78f, 0.86f, 1f);
+                l.intensity = 0.55f;
+                l.shadows = LightShadows.None;
+                l.cullingMask = 1 << VehicleVisual.VehicleLayer;
+                l.renderMode = LightRenderMode.ForcePixel;
+            }
+        }
+
+        /// <summary>Countdown fly-in: sweeps from the front of the car to the chase position.</summary>
+        public void Intro(float seconds)
+        {
+            introMax = Mathf.Max(0.1f, seconds);
+            introTimer = introMax;
         }
 
         void OnDestroy() { if (Main == this) Main = null; }
@@ -79,6 +102,17 @@ namespace DerbyArena.CameraRig
             float height = Mathf.Lerp(3.3f, 3.0f, s01);
             Vector3 look = Target.position + Vector3.up * 1.3f + fwd * Mathf.Lerp(2.5f, 6f, s01);
             Vector3 desired = Target.position - fwd * dist + Vector3.up * height;
+            bool intro = introTimer > 0f;
+            if (intro)
+            {
+                introTimer -= dt;
+                float k = 1f - Mathf.Clamp01(introTimer / introMax);
+                k = k * k * (3f - 2f * k);
+                float ang = Mathf.Lerp(165f, 0f, k);
+                Vector3 ofs = Quaternion.Euler(0f, yaw + ang, 0f) * new Vector3(0f, 0f, -Mathf.Lerp(11f, dist, k));
+                desired = Target.position + ofs + Vector3.up * Mathf.Lerp(2.2f, height, k);
+                look = Vector3.Lerp(Target.position + Vector3.up * 1.0f, look, k);
+            }
 
             Vector3 pivot = Target.position + Vector3.up * 1.6f;
             Vector3 dir = desired - pivot;
@@ -98,9 +132,18 @@ namespace DerbyArena.CameraRig
                 if (best < len) desired = pivot + dir * Mathf.Max(1.6f, best - 0.3f);
             }
 
-            transform.position = Vector3.SmoothDamp(transform.position, desired, ref vel, 0.09f, Mathf.Infinity, dt);
-            Quaternion rot = Quaternion.LookRotation(look - transform.position, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rot, 1f - Mathf.Exp(-10f * dt));
+            if (intro)
+            {
+                transform.position = desired;
+                vel = Vector3.zero;
+                transform.rotation = Quaternion.LookRotation(look - transform.position, Vector3.up);
+            }
+            else
+            {
+                transform.position = Vector3.SmoothDamp(transform.position, desired, ref vel, 0.09f, Mathf.Infinity, dt);
+                Quaternion rot = Quaternion.LookRotation(look - transform.position, Vector3.up);
+                transform.rotation = Quaternion.Slerp(transform.rotation, rot, 1f - Mathf.Exp(-10f * dt));
+            }
 
             float fov = Mathf.Lerp(60f, 68f, s01) + (Car != null && Car.NitroActive ? 7f : 0f);
             if (cam != null) cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, 1f - Mathf.Exp(-5f * dt));

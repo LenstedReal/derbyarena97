@@ -22,6 +22,7 @@ namespace DerbyArena.Core
         public bool Sound = true;
         public bool Haptics = true;
         public int Quality = 1;               // 0 low, 1 medium, 2 high
+        public bool QualityChosen = false;    // false -> auto-detect once on first launch
     }
 
     public static class Save
@@ -87,6 +88,19 @@ namespace DerbyArena.Core
             d.ControlMode = Mathf.Clamp(d.ControlMode, 0, 1);
             d.Sensitivity = Mathf.Clamp(d.Sensitivity, 0.5f, 1.8f);
             d.Quality = Mathf.Clamp(d.Quality, 0, 2);
+        }
+
+        /// <summary>First launch: pick a quality tier from the device (memory, shader level, HDR support).</summary>
+        public static void AutoQuality()
+        {
+            if (Data.QualityChosen) return;
+            int mem = SystemInfo.systemMemorySize;
+            bool hdr = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.DefaultHDR);
+            if (mem >= 7000 && SystemInfo.graphicsShaderLevel >= 45 && hdr) Data.Quality = 2;
+            else if (mem >= 3500) Data.Quality = 1;
+            else Data.Quality = 0;
+            Data.QualityChosen = true;
+            Write();
         }
 
         public static int TotalStars()

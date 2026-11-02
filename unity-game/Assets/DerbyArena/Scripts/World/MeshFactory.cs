@@ -6,11 +6,33 @@ namespace DerbyArena.World
     /// <summary>Procedural meshes. Nothing at runtime depends on engine primitives (which pull in collider classes).</summary>
     public static class MeshFactory
     {
-        static Mesh cylinder, cube, ring;
+        static Mesh cylinder, cube, ring, quad;
 
         public static Mesh UnitCylinder() { if (cylinder == null) cylinder = Cylinder(0.5f, 1f, 20); return cylinder; }
         public static Mesh UnitCube() { if (cube == null) cube = Box(); return cube; }
         public static Mesh UnitRing() { if (ring == null) ring = Ring(0.86f, 1f, 48); return ring; }
+        public static Mesh UnitQuad() { if (quad == null) quad = Quad(); return quad; }
+
+        /// <summary>1x1 quad on the XZ plane facing up (contact shadows, decals).</summary>
+        static Mesh Quad()
+        {
+            var v = new List<Vector3> { new Vector3(-0.5f, 0f, -0.5f), new Vector3(-0.5f, 0f, 0.5f), new Vector3(0.5f, 0f, 0.5f), new Vector3(0.5f, 0f, -0.5f) };
+            var n = new List<Vector3> { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            var uv = new List<Vector2> { new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(1f, 0f) };
+            var t = new List<int> { 0, 1, 2, 0, 2, 3 };
+            return Build("Quad", v, n, uv, t);
+        }
+
+        /// <summary>Solid box collider (no renderer) with an arbitrary rotation.</summary>
+        public static GameObject ColliderBox(string name, Transform parent, Vector3 worldPos, Vector3 size, Quaternion rot)
+        {
+            var go = new GameObject(name);
+            if (parent != null) go.transform.SetParent(parent, false);
+            go.transform.SetPositionAndRotation(worldPos, rot);
+            go.AddComponent<BoxCollider>().size = size;
+            go.isStatic = true;
+            return go;
+        }
 
         public static Mesh Cylinder(float radius, float height, int segments)
         {

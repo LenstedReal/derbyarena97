@@ -28,7 +28,19 @@ namespace DerbyArena.UI
         readonly List<float> feedTime = new List<float>();
         float hitTimer, damageFlash;
         bool paused;
-        static Sprite star;
+        static Sprite star, arrowSprite;
+        PlayerDriver driver;
+        RawImage loadingArt;
+        RectTransform objArrow;
+        Image objArrowImg;
+        const int EnemyBars = 8;
+        readonly List<RectTransform> enemyBars = new List<RectTransform>();
+        readonly List<Image> enemyBarFills = new List<Image>();
+
+        static void SetText(Text t, string value)
+        {
+            if (t != null && t.text != value) t.text = value;
+        }
 
         public static void HitMarker() { if (inst != null) inst.hitTimer = 0.12f; }
 
@@ -54,11 +66,33 @@ namespace DerbyArena.UI
             canvasRt = UiKit.Canvas("HUD", 10, out safe);
             canvasRt.SetParent(transform, false);
 
-            var vig = UiKit.Image("Vignette", canvasRt, UiKit.VignetteSprite, new Color(0f, 0f, 0f, 0.55f));
+            var vig = UiKit.Image("Vignette", canvasRt, UiKit.VignetteSprite, new Color(0f, 0f, 0f, 0.32f));
             UiKit.Stretch(vig.rectTransform, 0f, 0f, 1f, 1f);
             vig.transform.SetAsFirstSibling();
             damageVignette = UiKit.Image("DamageVignette", canvasRt, UiKit.VignetteSprite, new Color(1f, 0.05f, 0.02f, 0f));
             UiKit.Stretch(damageVignette.rectTransform, 0f, 0f, 1f, 1f);
+
+            // enemy health bars (pooled) and the off-screen objective arrow
+            for (int i = 0; i < EnemyBars; i++)
+            {
+                Image fill;
+                var bar = UiKit.Bar(canvasRt, UiKit.Red, out fill);
+                bar.raycastTarget = false;
+                fill.raycastTarget = false;
+                bar.rectTransform.anchorMin = bar.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                bar.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                bar.rectTransform.sizeDelta = new Vector2(96f, 16f);
+                bar.gameObject.SetActive(false);
+                enemyBars.Add(bar.rectTransform);
+                enemyBarFills.Add(fill);
+            }
+            objArrowImg = UiKit.Image("ObjectiveArrow", canvasRt, ArrowSprite(), UiKit.Amber);
+            objArrowImg.raycastTarget = false;
+            objArrow = objArrowImg.rectTransform;
+            objArrow.anchorMin = objArrow.anchorMax = new Vector2(0.5f, 0.5f);
+            objArrow.pivot = new Vector2(0.5f, 0.5f);
+            objArrow.sizeDelta = new Vector2(70f, 70f);
+            objArrowImg.enabled = false;
 
             BuildTopLeft();
             BuildTopCenter();
@@ -96,6 +130,24 @@ namespace DerbyArena.UI
             UiKit.Stretch(lb.rectTransform, 0f, 0f, 1f, 1f);
             loadingBg = lb;
             loadingPage = lb.gameObject;
+            var art = Resources.Load<Texture2D>("Derby/keyart");
+            if (art != null)
+            {
+                var ago = new GameObject("KeyArt", typeof(RectTransform));
+                ago.transform.SetParent(lb.transform, false);
+                loadingArt = ago.AddComponent<RawImage>();
+                loadingArt.texture = art;
+                loadingArt.raycastTarget = false;
+                loadingArt.color = new Color(0.5f, 0.5f, 0.5f, 1f);
+                var ar = loadingArt.rectTransform;
+                ar.anchorMin = ar.anchorMax = new Vector2(0.5f, 0.5f);
+                ar.pivot = new Vector2(0.5f, 0.5f);
+                // square art scaled to cover the reference canvas, cropped on the long side
+                ar.sizeDelta = new Vector2(2400f, 2400f);
+            }
+            var badge = UiKit.Rect("Kind", lb.transform);
+            UiKit.Stretch(badge, 0.3f, 0.7f, 0.7f, 0.78f);
+            UiKit.Label("Text", badge, LevelConfig.KindName(match.Config.Kind), 34, KindColor(match.Config.Kind), TextAnchor.MiddleCenter, true);
             var lt = UiKit.Rect("Title", lb.transform);
             UiKit.Stretch(lt, 0.1f, 0.5f, 0.9f, 0.7f);
             UiKit.Label("Text", lt, match.Config.Title, 72, UiKit.Amber, TextAnchor.MiddleCenter, true);
@@ -323,7 +375,121 @@ namespace DerbyArena.UI
             UpdateTop();
             UpdateRadar();
             UpdateReticle(dt);
+            UpdateEnemyBars();
             UpdateControls();
+        }
+        void UpdateEnemyBars()
+        {
+            var cam = Camera.main;
+            int used = 0;
+            if (cam != null && match.Phase == MatchPhase.Playing && match.PlayerCar != null)
+            {
+                Vector3 me = match.PlayerCar.transform.position;
+                foreach (var e in match.Enemies)
+                {
+                    if (used >= enemyBars.Count) break;
+                    if (e == null || e.Health == null || e.Health.Dead || e.Health == match.Boss) continue;
+                    Vector3 wp = e.transform.position;
+                    float d = Vector3.Distance(wp, me);
+                    if (d > 38f) continue;
+                    Vector3 sp = cam.WorldToScreenPoint(wp + Vector3.up * 2.6f);
+                    if (sp.z <= 0f) continue;
+                    Vector2 local;
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRt, sp, null, out local);
+                    var bar = enemyBars[used];
+                    if (!bar.gameObject.activeSelf) bar.gameObject.SetActive(true);
+                    bar.anchoredPosition = local;
+                    float scale = Mathf.Clamp(14f / Mathf.Max(1f, d), 0.55f, 1.15f);
+                    bar.localScale = new Vector3(scale, scale, 1f);
+                    enemyBarFills[used].fillAmount = e.Health.Fraction;
+                    bool elite = e.Car != null && e.Car.Spec != null && e.Car.Spec.Elite;
+                    enemyBarFills[used].color = elite ? new Color(0.75f, 0.35f, 1f) : UiKit.Red;
+                    used++;
+                }
+            }
+            for (int i = used; i < enemyBars.Count; i++)
+                if (enemyBars[i].gameObject.activeSelf) enemyBars[i].gameObject.SetActive(false);
+        }
+
+        void UpdateObjectiveArrow(bool has, Vector3 world)
+        {
+            var cam = Camera.main;
+            if (!has || cam == null || match.Phase != MatchPhase.Playing)
+            {
+                if (objArrowImg.enabled) objArrowImg.enabled = false;
+                return;
+            }
+            Vector3 sp = cam.WorldToScreenPoint(world + Vector3.up * 1.5f);
+            bool behind = sp.z < 0f;
+            float w = Screen.width, h = Screen.height;
+            if (behind) { sp.x = w - sp.x; sp.y = h - sp.y; }
+            bool onScreen = !behind && sp.x > w * 0.08f && sp.x < w * 0.92f && sp.y > h * 0.1f && sp.y < h * 0.85f;
+            if (onScreen)
+            {
+                if (objArrowImg.enabled) objArrowImg.enabled = false;
+                return;
+            }
+            Vector2 centre = new Vector2(w * 0.5f, h * 0.5f);
+            Vector2 dir = new Vector2(sp.x, sp.y) - centre;
+            if (dir.sqrMagnitude < 1f) dir = Vector2.down;
+            dir.Normalize();
+            float k = Mathf.Min((w * 0.4f) / Mathf.Max(0.001f, Mathf.Abs(dir.x)), (h * 0.34f) / Mathf.Max(0.001f, Mathf.Abs(dir.y)));
+            Vector2 edge = centre + dir * k;
+            Vector2 local;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRt, edge, null, out local);
+            objArrowImg.enabled = true;
+            objArrow.anchoredPosition = local;
+            objArrow.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f);
+            float pulse = 1f + 0.12f * Mathf.Sin(Time.unscaledTime * 7f);
+            objArrow.localScale = new Vector3(pulse, pulse, 1f);
+            objArrowImg.color = match.PlayerOutsideZone ? UiKit.Red : UiKit.Amber;
+        }
+
+        public static Color KindColor(ObjectiveKind k)
+        {
+            switch (k)
+            {
+                case ObjectiveKind.Reactor: return UiKit.Cyan;
+                case ObjectiveKind.Demolition: return UiKit.Amber;
+                case ObjectiveKind.Checkpoint: return new Color(1f, 0.85f, 0.3f);
+                case ObjectiveKind.Survival: return UiKit.Green;
+                case ObjectiveKind.LastStand: return new Color(1f, 0.4f, 0.3f);
+                default: return UiKit.Red;
+            }
+        }
+
+        static Sprite ArrowSprite()
+        {
+            if (arrowSprite != null) return arrowSprite;
+            const int size = 64;
+            var px = new Color32[size * size];
+            Vector2 tip = new Vector2(32f, 60f), left = new Vector2(6f, 8f), right = new Vector2(58f, 8f), notch = new Vector2(32f, 22f);
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    int hits = 0;
+                    for (int q = 0; q < 4; q++)
+                    {
+                        var p = new Vector2(x + (q % 2) * 0.5f + 0.25f, y + (q / 2) * 0.5f + 0.25f);
+                        if (InTri(p, tip, left, notch) || InTri(p, tip, notch, right)) hits++;
+                    }
+                    px[y * size + x] = new Color32(255, 255, 255, (byte)(hits * 63));
+                }
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.SetPixels32(px);
+            tex.Apply(false, true);
+            arrowSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+            return arrowSprite;
+        }
+
+        static bool InTri(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+        {
+            float d1 = (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+            float d2 = (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y);
+            float d3 = (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y);
+            bool neg = d1 < 0f || d2 < 0f || d3 < 0f;
+            bool pos = d1 > 0f || d2 > 0f || d3 > 0f;
+            return !(neg && pos);
         }
 
         void UpdateLoading()
@@ -340,6 +506,7 @@ namespace DerbyArena.UI
             c.a -= Time.unscaledDeltaTime * 2.2f;
             loadingBg.color = c;
             foreach (var t in loadingPage.GetComponentsInChildren<Text>()) { var tc = t.color; tc.a = c.a; t.color = tc; }
+            if (loadingArt != null) { var ac = loadingArt.color; ac.a = c.a; loadingArt.color = ac; }
             if (c.a <= 0f) loadingPage.SetActive(false);
         }
 
@@ -352,11 +519,12 @@ namespace DerbyArena.UI
                 hpFill.fillAmount = Mathf.Lerp(hpFill.fillAmount, f, 1f - Mathf.Exp(-12f * dt));
                 hpFill.color = f > 0.5f ? UiKit.Green : Color.Lerp(UiKit.Red, UiKit.Amber, f * 2f);
                 shieldFill.fillAmount = hp.Shield / Mathf.Max(1f, hp.ShieldMax);
-                hpText.text = Mathf.CeilToInt(hp.Current) + " / " + Mathf.CeilToInt(hp.Max) + (hp.Shield > 0.5f ? "   +" + Mathf.CeilToInt(hp.Shield) + " KALKAN" : "");
-                if (Time.time - hp.LastHitTime < 0.05f) damageFlash = Mathf.Min(0.75f, damageFlash + 0.25f);
+                SetText(hpText, Mathf.CeilToInt(hp.Current) + " / " + Mathf.CeilToInt(hp.Max) + (hp.Shield > 0.5f ? "   +" + Mathf.CeilToInt(hp.Shield) + " KALKAN" : ""));
+                if (Time.time - hp.LastHitTime < 0.05f) damageFlash = Mathf.Min(0.45f, damageFlash + 0.16f);
             }
-            damageFlash = Mathf.Max(0f, damageFlash - dt * 1.8f);
-            float low = hp != null && hp.Fraction < 0.25f && !hp.Dead ? 0.18f + 0.12f * Mathf.Sin(Time.unscaledTime * 6f) : 0f;
+            damageFlash = Mathf.Max(0f, damageFlash - dt * 2.2f);
+            float low = hp != null && hp.Fraction < 0.25f && !hp.Dead ? 0.12f + 0.08f * Mathf.Sin(Time.unscaledTime * 6f) : 0f;
+            if (match.PlayerOutsideZone) low = Mathf.Max(low, 0.22f + 0.1f * Mathf.Sin(Time.unscaledTime * 9f));
             damageVignette.color = new Color(1f, 0.05f, 0.02f, Mathf.Max(damageFlash, low));
 
             if (match.PlayerCar != null)
@@ -369,58 +537,82 @@ namespace DerbyArena.UI
             {
                 heatFill.fillAmount = w.Heat;
                 heatFill.color = w.Overheated ? (Mathf.Repeat(Time.unscaledTime * 4f, 1f) > 0.5f ? UiKit.Red : UiKit.Amber) : Color.Lerp(UiKit.Amber, UiKit.Red, w.Heat);
-                heatText.text = w.Overheated ? "AŞIRI ISINDI" : "SİLAH";
-                rocketText.text = "ROKET\n" + w.Rockets;
+                SetText(heatText, w.Overheated ? "AŞIRI ISINDI" : "SİLAH");
+                SetText(rocketText, "ROKET\n" + w.Rockets);
             }
         }
 
         void UpdateTop()
         {
             int t = Mathf.Max(0, Mathf.CeilToInt(match.TimeLeft));
-            timeText.text = (t / 60) + ":" + (t % 60).ToString("00");
+            SetText(timeText, (t / 60) + ":" + (t % 60).ToString("00"));
             timeText.color = t <= 15 ? (Mathf.Repeat(Time.unscaledTime * 2f, 1f) > 0.5f ? UiKit.Red : Color.white) : Color.white;
 
             var cfg = match.Config;
+            objText.color = match.PlayerOutsideZone ? UiKit.Red : Color.white;
             if (cfg.Kind == ObjectiveKind.Reactor)
             {
                 if (match.ExtractionOpen)
                 {
-                    objText.text = "TAHLİYE BÖLGESİNDE BEKLE";
-                    progText.text = "TAHLİYE " + Mathf.FloorToInt(match.ExtractHold / MatchDirector.ExtractRequired * 100f) + "%";
+                    SetText(objText, "TAHLİYE BÖLGESİNDE BEKLE");
+                    SetText(progText, "TAHLİYE " + Mathf.FloorToInt(match.ExtractHold / MatchDirector.ExtractRequired * 100f) + "%");
                     progText.color = UiKit.Green;
                 }
                 else
                 {
-                    objText.text = "REAKTÖR HÜCRELERİNİ TOPLA";
-                    progText.text = "HÜCRE " + match.CellsTaken + " / " + cfg.Cells;
+                    SetText(objText, "REAKTÖR HÜCRELERİNİ TOPLA");
+                    SetText(progText, "HÜCRE " + match.CellsTaken + " / " + cfg.Cells);
                     progText.color = UiKit.Cyan;
                 }
             }
             else if (cfg.Kind == ObjectiveKind.Demolition)
             {
-                objText.text = "TÜM RAKİPLERİ İMHA ET";
+                SetText(objText, "TÜM RAKİPLERİ İMHA ET");
                 int alive = match.AliveEnemies();
                 int pendingCount = Mathf.Max(0, match.TotalEnemies - match.Enemies.Count);
-                progText.text = "KALAN RAKİP " + (alive + pendingCount);
+                SetText(progText, "KALAN RAKİP " + (alive + pendingCount));
+                progText.color = UiKit.Amber;
+            }
+            else if (cfg.Kind == ObjectiveKind.Checkpoint)
+            {
+                SetText(objText, "KAPILARDAN SIRAYLA GEÇ");
+                SetText(progText, "KAPI " + match.GatesPassed + " / " + match.Gates.Count);
+                progText.color = UiKit.Amber;
+            }
+            else if (cfg.Kind == ObjectiveKind.Survival)
+            {
+                SetText(objText, "SÜRE BİTENE KADAR HAYATTA KAL");
+                SetText(progText, "İMHA " + match.Kills + " / " + cfg.KillTarget);
+                progText.color = match.Kills >= cfg.KillTarget ? UiKit.Green : UiKit.Cyan;
+            }
+            else if (cfg.Kind == ObjectiveKind.LastStand)
+            {
+                int aliveL = match.AliveEnemies();
+                int pendingL = Mathf.Max(0, match.TotalEnemies - match.Enemies.Count);
+                SetText(objText, match.PlayerOutsideZone ? "BÖLGE DIŞINDASIN! İÇERİ GİR" : "SON KALAN SEN OL");
+                SetText(progText, "KALAN RAKİP " + (aliveL + pendingL));
                 progText.color = UiKit.Amber;
             }
             else
             {
-                objText.text = "PATRONU YOK ET";
-                progText.text = "İMHA " + match.Kills;
+                SetText(objText, "PATRONU YOK ET");
+                SetText(progText, "İMHA " + match.Kills);
                 progText.color = UiKit.Amber;
             }
 
-            Vector3 op;
-            if (match.PlayerCar != null && match.ObjectivePoint(out op))
-                distText.text = Mathf.RoundToInt(Vector3.Distance(op, match.PlayerCar.transform.position)) + " m";
-            else distText.text = "";
+            Vector3 op = Vector3.zero;
+            bool hasObjective = match.PlayerCar != null && match.ObjectivePoint(out op);
+            UpdateObjectiveArrow(hasObjective, op);
+            if (hasObjective)
+                SetText(distText, Mathf.RoundToInt(Vector3.Distance(op, match.PlayerCar.transform.position)) + " m");
+            else
+                SetText(distText, "");
 
             if (match.Boss != null && !match.Boss.Dead)
             {
                 if (!bossBar.activeSelf) bossBar.SetActive(true);
                 bossFill.fillAmount = match.Boss.Fraction;
-                bossText.text = match.Config.Title.Replace("PATRON: ", "");
+                SetText(bossText, match.Config.Title.Replace("PATRON: ", ""));
             }
             else if (bossBar.activeSelf) bossBar.SetActive(false);
         }
@@ -464,7 +656,7 @@ namespace DerbyArena.UI
 
         void UpdateReticle(float dt)
         {
-            var driver = match.PlayerCar != null ? match.PlayerCar.GetComponent<PlayerDriver>() : null;
+            if (driver == null && match.PlayerCar != null) driver = match.PlayerCar.GetComponent<PlayerDriver>();
             var target = driver != null ? driver.LockTarget : null;
             var cam = Camera.main;
             if (target == null || cam == null || match.Phase != MatchPhase.Playing)
@@ -625,9 +817,9 @@ namespace DerbyArena.UI
             string stats = "SÜRE  " + FormatTime(m.Elapsed) + "     İMHA  " + m.Kills + "\n+" + m.Reward + " HURDA";
             if (won)
             {
-                bool fast = m.Elapsed <= m.Config.ParTime;
+                bool fast = m.Config.Kind == ObjectiveKind.Survival ? m.Kills >= m.Config.KillTarget : m.Elapsed <= m.Config.ParTime;
                 bool healthy = m.PlayerHealth != null && m.PlayerHealth.Fraction >= 0.5f;
-                stats += "\n\nHızlı bitiş (" + FormatTime(m.Config.ParTime) + "): " + (fast ? "EVET" : "HAYIR")
+                stats += "\n\n" + m.Config.StarTwoLine + ": " + (fast ? "EVET" : "HAYIR")
                        + "     Can %50 üstü: " + (healthy ? "EVET" : "HAYIR");
             }
             var st = UiKit.Rect("Stats", panel.transform);

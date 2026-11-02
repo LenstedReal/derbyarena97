@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.IO;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -26,6 +27,11 @@ namespace DerbyArena.EditorTools
         const string FxMaterialPath = MaterialsFolder + "/RuntimeFx.mat";
         const string FxAddMaterialPath = MaterialsFolder + "/RuntimeFxAdd.mat";
         const string SkyMaterialPath = MaterialsFolder + "/RuntimeSky.mat";
+        const string VertexLitMaterialPath = MaterialsFolder + "/RuntimeVertexLit.mat";
+        const string PostMaterialPath = MaterialsFolder + "/RuntimePost.mat";
+        const string IconFolder = "Assets/DerbyArena/Icons";
+        const string Version = "1.3.0";
+        const int VersionCode = 130;
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
@@ -47,6 +53,24 @@ namespace DerbyArena.EditorTools
             ApplyBuildSettings();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        /// <summary>Like EnsureMaterial but for project shaders: never fails the build (runtime falls back).</summary>
+        static void TryEnsureMaterial(string path, string shaderName, Action<Material> configure)
+        {
+            try
+            {
+                if (Shader.Find(shaderName) == null)
+                {
+                    Debug.LogWarning("DERBY: optional shader not found, feature falls back at runtime: " + shaderName);
+                    return;
+                }
+                EnsureMaterial(path, shaderName, configure);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("DERBY: optional material " + path + " not created: " + ex.Message);
+            }
         }
 
         static Material EnsureMaterial(string path, string shaderName, Action<Material> configure)
@@ -111,6 +135,148 @@ namespace DerbyArena.EditorTools
                 if (m.HasProperty("_SunSize")) m.SetFloat("_SunSize", 0.03f);
                 if (m.HasProperty("_AtmosphereThickness")) m.SetFloat("_AtmosphereThickness", 1.4f);
             });
+
+            // Project shaders (Assets/DerbyArena/Shaders). Missing or broken -> runtime fallback, never a failed build.
+            TryEnsureMaterial(VertexLitMaterialPath, "DerbyArena/VertexLit", null);
+            TryEnsureMaterial(PostMaterialPath, "Hidden/DerbyArena/Post", null);
+        }
+
+        // ------------------------------------------------------------------ app icons
+        // Icons are assigned through reflection so this file compiles on every build target (Android, iOS,
+        // Editor) and across Unity API overload changes; the outcome is written to the build log.
+        static Texture2D LoadIcon(string file, bool alpha)
+        {
+            string path = IconFolder + "/" + file;
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer != null)
+            {
+                bool dirty = false;
+                if (importer.textureCompression != TextureImporterCompression.Uncompressed) { importer.textureCompression = TextureImporterCompression.Uncompressed; dirty = true; }
+                if (importer.mipmapEnabled) { importer.mipmapEnabled = false; dirty = true; }
+                if (importer.npotScale != TextureImporterNPOTScale.None) { importer.npotScale = TextureImporterNPOTScale.None; dirty = true; }
+                if (importer.alphaIsTransparency != alpha) { importer.alphaIsTransparency = alpha; dirty = true; }
+                if (!importer.isReadable) { importer.isReadable = true; dirty = true; }
+                if (dirty) importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        static object TargetFor(Type parameterType, string platform)
+        {
+            if (parameterType == typeof(NamedBuildTarget))
+            {
+                if (platform == "Android") return NamedBuildTarget.Android;
+                if (platform == "iOS") return NamedBuildTarget.iOS;
+                return NamedBuildTarget.Unknown;
+            }
+            if (parameterType == typeof(BuildTargetGroup))
+            {
+                if (platform == "Android") return BuildTargetGroup.Android;
+                if (platform == "iOS") return BuildTargetGroup.iOS;
+                return BuildTargetGroup.Unknown;
+            }
+            return null;
+        }
+
+        static bool SetDefaultIcon(Texture2D icon)
+        {
+            foreach (var method in typeof(PlayerSettings).GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (method.Name != "SetIcons") continue;
+                var ps = method.GetParameters();
+                if (ps.Length != 3 || ps[1].ParameterType != typeof(Texture2D[]) || !ps[2].ParameterType.IsEnum) continue;
+                object target = TargetFor(ps[0].ParameterType, "");
+                if (target == null) continue;
+                object any = Enum.Parse(ps[2].ParameterType, "Any");
+                method.Invoke(null, new object[] { target, new Texture2D[] { icon }, any });
+                return true;
+            }
+            foreach (var method in typeof(PlayerSettings).GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (method.Name != "SetIconsForTargetGroup") continue;
+                var ps = method.GetParameters();
+                if (ps.Length != 2 || ps[0].ParameterType != typeof(BuildTargetGroup) || ps[1].ParameterType != typeof(Texture2D[])) continue;
+                method.Invoke(null, new object[] { BuildTargetGroup.Unknown, new Texture2D[] { icon } });
+                return true;
+            }
+            return false;
+        }
+
+        static object StaticMember(Type holder, string name)
+        {
+            var prop = holder.GetProperty(name, BindingFlags.Public | BindingFlags.Static);
+            if (prop != null) return prop.GetValue(null, null);
+            var field = holder.GetField(name, BindingFlags.Public | BindingFlags.Static);
+            return field != null ? field.GetValue(null) : null;
+        }
+
+        static Type FindType(string fullName)
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type t = null;
+                try { t = asm.GetType(fullName, false); }
+                catch (Exception) { t = null; }
+                if (t != null) return t;
+            }
+            return null;
+        }
+
+        static int SetAndroidIconKind(Type holder, string kindName, Texture2D[] layers)
+        {
+            object kind = StaticMember(holder, kindName);
+            if (kind == null) return 0;
+            MethodInfo getter = null;
+            MethodInfo setter = null;
+            foreach (var method in typeof(PlayerSettings).GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                var ps = method.GetParameters();
+                if (method.Name == "GetPlatformIcons" && ps.Length == 2 && ps[1].ParameterType.IsInstanceOfType(kind) && TargetFor(ps[0].ParameterType, "Android") != null)
+                    if (getter == null || ps[0].ParameterType == typeof(NamedBuildTarget)) getter = method;
+                if (method.Name == "SetPlatformIcons" && ps.Length == 3 && ps[1].ParameterType.IsInstanceOfType(kind) && TargetFor(ps[0].ParameterType, "Android") != null)
+                    if (setter == null || ps[0].ParameterType == typeof(NamedBuildTarget)) setter = method;
+            }
+            if (getter == null || setter == null) return 0;
+            var icons = getter.Invoke(null, new object[] { TargetFor(getter.GetParameters()[0].ParameterType, "Android"), kind }) as Array;
+            if (icons == null || icons.Length == 0) return 0;
+            foreach (object icon in icons)
+            {
+                var setTextures = icon.GetType().GetMethod("SetTextures");
+                if (setTextures != null) setTextures.Invoke(icon, new object[] { layers });
+            }
+            setter.Invoke(null, new object[] { TargetFor(setter.GetParameters()[0].ParameterType, "Android"), kind, icons });
+            return icons.Length;
+        }
+
+        static void ApplyIcons()
+        {
+            try
+            {
+                var legacy = LoadIcon("icon_legacy.png", false);
+                var round = LoadIcon("icon_round.png", true);
+                var background = LoadIcon("icon_adaptive_bg.png", false);
+                var foreground = LoadIcon("icon_adaptive_fg.png", true);
+                if (legacy == null)
+                {
+                    Debug.LogWarning("DERBY ICONS: " + IconFolder + "/icon_legacy.png not found");
+                    return;
+                }
+                bool def = SetDefaultIcon(legacy);
+                int adaptive = 0, roundCount = 0, legacyCount = 0;
+                Type holder = FindType("UnityEditor.Android.AndroidPlatformIconKind");
+                if (holder != null)
+                {
+                    if (background != null && foreground != null) adaptive = SetAndroidIconKind(holder, "Adaptive", new[] { background, foreground });
+                    if (round != null) roundCount = SetAndroidIconKind(holder, "Round", new[] { round });
+                    legacyCount = SetAndroidIconKind(holder, "Legacy", new[] { legacy });
+                }
+                Debug.Log("DERBY ICONS: default=" + def + " android adaptive=" + adaptive + " round=" + roundCount + " legacy=" + legacyCount
+                          + (holder == null ? " (Android module not loaded on this build target)" : ""));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("DERBY ICONS: not applied: " + ex);
+            }
         }
 
         static void EnableBothInputBackends()
@@ -189,12 +355,13 @@ namespace DerbyArena.EditorTools
             }
 
             CreateRuntimeMaterials();
+            ApplyIcons();
 
             PlayerSettings.companyName = "LenstedReal";
             PlayerSettings.productName = "DERBY ARENA";
-            PlayerSettings.bundleVersion = "1.2.0";
+            PlayerSettings.bundleVersion = Version;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.lenstedreal.derbyarena");
-            PlayerSettings.Android.bundleVersionCode = 120;
+            PlayerSettings.Android.bundleVersionCode = VersionCode;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
@@ -231,7 +398,7 @@ namespace DerbyArena.EditorTools
             {
                 PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.lenstedreal.derbyarena");
                 PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.iOS, ManagedStrippingLevel.Minimal);
-                PlayerSettings.iOS.buildNumber = "120";
+                PlayerSettings.iOS.buildNumber = VersionCode.ToString();
                 PlayerSettings.iOS.targetOSVersionString = "13.0";
                 PlayerSettings.iOS.requiresFullScreen = true;
                 PlayerSettings.iOS.hideHomeButton = false;
@@ -257,7 +424,7 @@ namespace DerbyArena.EditorTools
                 AssetDatabase.LoadAssetAtPath<Material>(SkyMaterialPath) == null)
                 throw new BuildFailedException("DERBY: runtime Resources materials were not generated.");
 
-            Debug.Log("DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / 1.2.0 / 120 / ARM64 + iOS");
+            Debug.Log("DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / " + Version + " / " + VersionCode + " / ARM64 + iOS");
         }
     }
 

@@ -48,6 +48,13 @@ namespace DerbyArena.Mission
         public readonly List<ReactorCell> Cells = new List<ReactorCell>();
         public readonly List<Pickup> Pickups = new List<Pickup>();
         public ExtractionPad Extraction;
+        public readonly List<CheckpointGate> Gates = new List<CheckpointGate>();
+        public readonly List<AcidPool> Acid = new List<AcidPool>();
+        public int GatesPassed;
+        public ZoneRing Zone;
+        public bool PlayerOutsideZone;
+        public const float ZoneDelay = 15f;
+        public const float ZoneShrinkTime = 100f;
 
         public event Action<string, Color> Message;
 
@@ -57,6 +64,11 @@ namespace DerbyArena.Mission
         float endTimer;
         bool resultsSent;
         int beepSecond = -1;
+        string lastMessage = "";
+        float lastMessageTime = -10f;
+        float hazardTick;
+        int survivalSpawnIndex;
+        System.Random eliteRng;
 
         public static MatchDirector Begin(LevelConfig config, ArenaLoader arena, TouchControls touch, Transform sceneRoot)
         {
@@ -75,13 +87,26 @@ namespace DerbyArena.Mission
 
         void OnDestroy() { if (Current == this) Current = null; }
 
-        void Say(string text, Color color) { if (Message != null) Message(text, color); }
+        void Say(string text, Color color)
+        {
+            if (text == lastMessage && Time.time - lastMessageTime < 1.5f) return;
+            lastMessage = text;
+            lastMessageTime = Time.time;
+            if (Message != null) Message(text, color);
+        }
 
         IEnumerator Setup()
         {
             // preload vehicle models while the arena streams in
-            GlbLibrary.Preload("vehicles/player_muscle.glb");
-            foreach (var k in Config.Enemies) GlbLibrary.Preload(SpecOf(k).GlbFile);
+            var preSpec = VehicleSpec.Interceptor();
+            GlbLibrary.Preload(preSpec.GlbFile, preSpec.ModelOptions());
+            foreach (var k in Config.Enemies)
+            {
+                var ks = SpecOf(k);
+                GlbLibrary.Preload(ks.GlbFile, ks.ModelOptions());
+            }
+            eliteRng = new System.Random(Config.Number * 977 + 13);
+            EnemyDriver.ResetTokens(Config.MaxShooters);
 
             float wait = 0f;
             while (!Arena.Ready && wait < 15f) { wait += Time.unscaledDeltaTime; yield return null; }
@@ -123,6 +148,25 @@ namespace DerbyArena.Mission
                 for (int i = 0; i < Config.Cells && i < pts.Length; i++) Cells.Add(ReactorCell.Create(root, pts[i]));
                 Extraction = ExtractionPad.Create(root, info.Extraction);
             }
+            else if (Config.Kind == ObjectiveKind.Checkpoint && info.GatePoints.Length > 1)
+            {
+                int n = Mathf.Max(1, Config.Gates);
+                for (int i = 0; i < n; i++)
+                {
+                    Vector3 at = info.GatePoints[i % info.GatePoints.Length];
+                    Vector3 next = info.GatePoints[(i + 1) % info.GatePoints.Length];
+                    Vector3 dir = next - at; dir.y = 0f;
+                    float gateYaw = dir.sqrMagnitude > 0.01f ? Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg : 0f;
+                    Gates.Add(CheckpointGate.Create(root, at, gateYaw, i));
+                }
+                Gates[0].SetState(1);
+            }
+            else if (Config.Kind == ObjectiveKind.LastStand)
+            {
+                Zone = ZoneRing.Create(root, info.Center, info.ZoneStart);
+            }
+            if (Config.AcidPools)
+                foreach (var ap in info.AcidPoints) Acid.Add(AcidPool.Create(root, ap, 3.2f));
 
             // pickups
             PickupKind[] kinds = { PickupKind.Health, PickupKind.Nitro, PickupKind.Ammo, PickupKind.Shield, PickupKind.Health, PickupKind.Ammo, PickupKind.Nitro };
@@ -130,9 +174,17 @@ namespace DerbyArena.Mission
                 Pickups.Add(Pickup.Create(root, info.PickupPoints[i], kinds[i % kinds.Length]));
 
             // enemies
-            foreach (var k in Config.Enemies) pending.Enqueue(k);
-            int initial = Config.StartEnemies;
-            for (int i = 0; i < initial && pending.Count > 0; i++) SpawnEnemy(pending.Dequeue(), i);
+            if (Config.Kind == ObjectiveKind.Survival)
+            {
+                int c = Mathf.Max(1, Config.SurvivalConcurrent);
+                for (int i = 0; i < c; i++) SpawnEnemy(NextSurvivalKind(), i);
+            }
+            else
+            {
+                foreach (var k in Config.Enemies) pending.Enqueue(k);
+                int initial = Config.StartEnemies;
+                for (int i = 0; i < initial && pending.Count > 0; i++) SpawnEnemy(pending.Dequeue(), i);
+            }
 
             // wait until vehicle models are in (or a short timeout) so nothing pops in during the countdown
             wait = 0f;
@@ -140,8 +192,18 @@ namespace DerbyArena.Mission
 
             Phase = MatchPhase.Countdown;
             Countdown = 3.2f;
+            if (cam != null) cam.Intro(2.6f);
             AudioHub.Ambience(0.35f);
             Say(Config.Title, UiKit.Amber);
+        }
+
+        EnemyKind NextSurvivalKind()
+        {
+            var list = Config.Enemies;
+            if (list == null || list.Length == 0) return EnemyKind.Drifter;
+            var k = list[survivalSpawnIndex % list.Length];
+            survivalSpawnIndex++;
+            return k == EnemyKind.WarRig ? EnemyKind.Hunter : k;
         }
 
         static VehicleSpec SpecOf(EnemyKind k)
@@ -210,7 +272,10 @@ namespace DerbyArena.Mission
         void SpawnEnemy(EnemyKind kind, int index)
         {
             var spec = SpecOf(kind);
+            if (kind != EnemyKind.WarRig && Config.EliteChance > 0f && eliteRng != null && eliteRng.NextDouble() < Config.EliteChance)
+                spec.MakeElite();
             spec.Health *= Config.EnemyHp;
+            if (kind == EnemyKind.WarRig && Config.BossHealth > 0f) spec.Health = Config.BossHealth;
             spec.TopSpeed *= Config.EnemySpeed;
             spec.Accel *= Mathf.Lerp(1f, Config.EnemySpeed, 0.6f);
             float yaw;
@@ -238,6 +303,9 @@ namespace DerbyArena.Mission
             ai.Arena = Arena.Info;
             ai.AimError = Config.AimErrorDeg;
             ai.Aggression = Mathf.Lerp(0.8f, 1.15f, (Config.Number - 1) / 49f);
+            ai.Chapter = Config.Chapter;
+            ai.DamageScale = Config.EnemyDamage;
+            if (Zone != null) { ai.ZoneCenter = Zone.transform.position; ai.ZoneRadius = Zone.Radius; }
             ai.Active = Phase == MatchPhase.Playing;
             car.Locked = Phase != MatchPhase.Playing;
             go.AddComponent<EngineAudio>().Volume = 0.22f;
@@ -247,7 +315,8 @@ namespace DerbyArena.Mission
             if (Phase == MatchPhase.Playing)
             {
                 Fx.Burst(pos + Vector3.up, new Color(1f, 0.3f, 0.2f), 12);
-                Say(kind == EnemyKind.WarRig ? "PATRON GELDİ!" : "YENİ RAKİP: " + spec.DisplayName.ToUpperInvariant(), UiKit.Red);
+                if (Config.Kind != ObjectiveKind.Survival || kind == EnemyKind.WarRig)
+                    Say(kind == EnemyKind.WarRig ? "PATRON GELDİ!" : "YENİ RAKİP: " + spec.DisplayName.ToUpperInvariant(), UiKit.Red);
             }
         }
 
@@ -279,13 +348,27 @@ namespace DerbyArena.Mission
                 Win();
                 return;
             }
-            if (Config.Kind == ObjectiveKind.Demolition && pending.Count == 0 && AliveEnemies() == 0)
+            if ((Config.Kind == ObjectiveKind.Demolition || Config.Kind == ObjectiveKind.LastStand) && pending.Count == 0 && AliveEnemies() == 0)
             {
                 Win();
                 return;
             }
+            if (Config.Kind == ObjectiveKind.Survival)
+            {
+                StartCoroutine(SurvivalRespawn(3f));
+                return;
+            }
+            if (Config.Kind == ObjectiveKind.LastStand && AliveEnemies() > 0)
+                Say(AliveEnemies() + " RAKİP KALDI", UiKit.Amber);
             if (pending.Count > 0 && Config.Kind != ObjectiveKind.Reactor)
                 StartCoroutine(DelayedSpawn(1.5f));
+        }
+
+        IEnumerator SurvivalRespawn(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (Phase == MatchPhase.Playing && AliveEnemies() < Mathf.Max(1, Config.SurvivalConcurrent))
+                SpawnEnemy(NextSurvivalKind(), Enemies.Count);
         }
 
         IEnumerator DelayedSpawn(float delay)
@@ -328,7 +411,7 @@ namespace DerbyArena.Mission
             Phase = MatchPhase.Won;
             endTimer = 1.6f;
             Stars = 1;
-            if (Elapsed <= Config.ParTime) Stars++;
+            if (Config.Kind == ObjectiveKind.Survival ? Kills >= Config.KillTarget : Elapsed <= Config.ParTime) Stars++;
             if (PlayerHealth != null && PlayerHealth.Fraction >= 0.5f) Stars++;
             int prevStars = Save.Data.Stars[Config.Number];
             Reward = Config.Reward + Kills * 15;
@@ -344,6 +427,7 @@ namespace DerbyArena.Mission
             Save.Write();
             FreezeAll();
             AudioHub.Play2D(SynthAudio.Win(), 0.8f, 1f);
+            Crowd.Cheer(1f);
             Say("GÖREV TAMAM", UiKit.Green);
         }
 
@@ -425,6 +509,11 @@ namespace DerbyArena.Mission
             if (TimeLeft <= 0f)
             {
                 TimeLeft = 0f;
+                if (Config.Kind == ObjectiveKind.Survival && PlayerHealth != null && !PlayerHealth.Dead)
+                {
+                    Win();
+                    return;
+                }
                 LoseReason = "Süre doldu";
                 Lose();
                 return;
@@ -464,6 +553,64 @@ namespace DerbyArena.Mission
             }
 
             if (Config.Kind == ObjectiveKind.Reactor) TickReactor(pp, dt);
+            else if (Config.Kind == ObjectiveKind.Checkpoint) TickCheckpoint(pp);
+            if (Zone != null) TickZone(dt);
+            TickHazards(pp, dt);
+        }
+
+        void TickCheckpoint(Vector3 pp)
+        {
+            if (GatesPassed >= Gates.Count) return;
+            var g = Gates[GatesPassed];
+            if (g == null || !g.Reached(pp)) return;
+            g.Pass();
+            GatesPassed++;
+            if (GatesPassed >= Gates.Count)
+            {
+                Win();
+                return;
+            }
+            TimeLeft += 5f;
+            Gates[GatesPassed].SetState(1);
+            Say("KAPI " + GatesPassed + "/" + Gates.Count + "  +5 sn", UiKit.Amber);
+        }
+
+        void TickZone(float dt)
+        {
+            float t = Mathf.Clamp01((Elapsed - ZoneDelay) / ZoneShrinkTime);
+            var info = Arena.Info;
+            float r = Mathf.Lerp(info.ZoneStart, info.ZoneEnd, t * t * (3f - 2f * t));
+            if (Mathf.Abs(r - Zone.Radius) > 0.01f) Zone.SetRadius(r);
+            if (Elapsed > ZoneDelay - 5f && Elapsed - dt <= ZoneDelay - 5f) Say("BÖLGE 5 SN İÇİNDE DARALIYOR", UiKit.Red);
+            PlayerOutsideZone = PlayerCar != null && Zone.Outside(PlayerCar.transform.position);
+            foreach (var e in Enemies)
+            {
+                if (e == null) continue;
+                e.ZoneCenter = Zone.transform.position;
+                e.ZoneRadius = r;
+            }
+        }
+
+        void TickHazards(Vector3 pp, float dt)
+        {
+            if (Zone == null && Acid.Count == 0) return;
+            hazardTick -= dt;
+            if (hazardTick > 0f) return;
+            hazardTick = 0.5f;
+            HazardDamage(PlayerHealth);
+            foreach (var e in Enemies) if (e != null) HazardDamage(e.Health);
+            if (PlayerOutsideZone) Say("BÖLGE DIŞINDASIN!", UiKit.Red);
+        }
+
+        void HazardDamage(VehicleHealth h)
+        {
+            if (h == null || h.Dead) return;
+            Vector3 p = h.transform.position;
+            float dmg = 0f;
+            if (Zone != null && Elapsed > ZoneDelay && Zone.Outside(p)) dmg += 4f;
+            for (int i = 0; i < Acid.Count; i++)
+                if (Acid[i] != null && Acid[i].Contains(p)) { dmg += 3f; break; }
+            if (dmg > 0f) h.Apply(dmg, null, p + Vector3.up);
         }
 
         static string PickupText(PickupKind k)
@@ -537,7 +684,26 @@ namespace DerbyArena.Mission
                 }
                 return any;
             }
+            if (Config.Kind == ObjectiveKind.Checkpoint)
+            {
+                if (GatesPassed < Gates.Count && Gates[GatesPassed] != null) { p = Gates[GatesPassed].transform.position; return true; }
+                return false;
+            }
+            if (Zone != null && PlayerOutsideZone) { p = Zone.transform.position; return true; }
             if (Boss != null && !Boss.Dead) { p = Boss.transform.position; return true; }
+            if ((Config.Kind == ObjectiveKind.Demolition || Config.Kind == ObjectiveKind.LastStand) && AliveEnemies() <= 2 && pending.Count == 0 && PlayerCar != null)
+            {
+                float bestE = float.MaxValue;
+                bool found = false;
+                Vector3 me = PlayerCar.transform.position;
+                foreach (var e in Enemies)
+                {
+                    if (e == null || e.Health == null || e.Health.Dead) continue;
+                    float d2 = (e.transform.position - me).sqrMagnitude;
+                    if (d2 < bestE) { bestE = d2; p = e.transform.position; found = true; }
+                }
+                return found;
+            }
             return false;
         }
     }

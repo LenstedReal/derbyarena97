@@ -21,6 +21,10 @@ namespace DerbyArena.World
         public Vector3 Center;
         public float Radius;      // colosseum
         public Rect Bounds;       // spillway (x,z)
+        public Vector3[] GatePoints = new Vector3[0];
+        public Vector3[] AcidPoints = new Vector3[0];
+        public float ZoneStart = 27f;
+        public float ZoneEnd = 9f;
 
         public bool Inside(Vector3 p)
         {
@@ -101,6 +105,13 @@ namespace DerbyArena.World
             info.BossSpawn = new Vector3(0f, 0.8f, 30f);
             info.Center = new Vector3(0f, 0f, 4f);
             info.Bounds = new Rect(-35.5f, -39.5f, 71f, 87f);
+            info.GatePoints = new[]
+            {
+                new Vector3(0f, 0f, -20f), new Vector3(-20f, 0f, -10f), new Vector3(-24f, 0f, 18f), new Vector3(-10f, 0f, 36f),
+                new Vector3(12f, 0f, 38f), new Vector3(22f, 0f, 22f), new Vector3(22f, 0f, -8f), new Vector3(10f, 0f, -26f)
+            };
+            info.AcidPoints = new[] { new Vector3(-14f, 0f, -28f), new Vector3(16f, 0f, 10f), new Vector3(-6f, 0f, 22f) };
+            info.ZoneStart = 30f;
             Info = info;
 
             var concrete = Mats.Lit(new Color(0.34f, 0.33f, 0.31f), 0.85f, 0f, Color.black, 0f);
@@ -124,6 +135,37 @@ namespace DerbyArena.World
             Atmosphere.Lamp(root, new Vector3(-20f, 7f, -18f), theme.Accent, 1.6f, 20f);
             Atmosphere.Lamp(root, new Vector3(20f, 7f, 22f), theme.Accent, 1.6f, 20f);
             Atmosphere.Lamp(root, new Vector3(0f, 7f, 40f), new Color(0.2f, 1f, 0.5f), 1.4f, 18f);
+
+            // Drain pipes had no collision (cars ghosted through them). Solid, oriented boxes from the low
+            // end to the wall, plus a foot block so the sloped pipe can never act as a launch ramp.
+            float[] pipeZ = { -20f, 4f, 28f };
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int i = 0; i < pipeZ.Length; i++)
+                {
+                    Vector3 lo = new Vector3(side * 27.25f, 0.31f, pipeZ[i]);
+                    Vector3 hi = new Vector3(side * 33.2f, 4.4f, pipeZ[i]);
+                    Vector3 d = hi - lo;
+                    MeshFactory.ColliderBox("PipeCollider", shell, (lo + hi) * 0.5f, new Vector3(0.95f, 0.95f, d.magnitude + 0.4f), Quaternion.LookRotation(d.normalized, Vector3.up));
+                    MeshFactory.ColliderBox("PipeFoot", shell, new Vector3(side * 28.3f, 0.8f, pipeZ[i]), new Vector3(2.4f, 1.6f, 1.1f), Quaternion.identity);
+                }
+            }
+
+            // Neon guide strips along the walls (emissive, no collision, cheap).
+            var neonA = Mats.Glow(theme.Accent, 2.2f);
+            var neonB = Mats.Glow(new Color(1f, 0.2f, 0.1f), 2f);
+            var stripCube = MeshFactory.UnitCube();
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var low = MeshFactory.Make("NeonLow", stripCube, side < 0 ? neonA : neonB, root, new Vector3(side * 36.2f, 0.45f, 4f), new Vector3(0.08f, 0.12f, 94f));
+                low.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                var high = MeshFactory.Make("NeonHigh", stripCube, side < 0 ? neonB : neonA, root, new Vector3(side * 36.2f, 6.7f, 4f), new Vector3(0.08f, 0.1f, 94f));
+                high.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            var north = MeshFactory.Make("NeonNorth", stripCube, neonA, root, new Vector3(0f, 0.45f, 47.9f), new Vector3(72f, 0.12f, 0.08f));
+            north.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var south = MeshFactory.Make("NeonSouth", stripCube, neonA, root, new Vector3(0f, 0.45f, -39.9f), new Vector3(72f, 0.12f, 0.08f));
+            south.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             StartCoroutine(LoadSpillway(cover));
         }
@@ -298,6 +340,16 @@ namespace DerbyArena.World
             pick.Add(new Vector3(0f, 0.6f, 0f));
             info.PickupPoints = pick.ToArray();
             info.BossSpawn = new Vector3(0f, 0.8f, 19f);
+            var gates = new List<Vector3>();
+            for (int i = 0; i < 8; i++)
+            {
+                float a = (180f + i * 45f) * Mathf.Deg2Rad;
+                gates.Add(new Vector3(Mathf.Sin(a) * 18f, 0f, Mathf.Cos(a) * 18f));
+            }
+            info.GatePoints = gates.ToArray();
+            info.AcidPoints = new[] { new Vector3(0f, 0f, 12f), new Vector3(10.4f, 0f, -6f), new Vector3(-10.4f, 0f, -6f) };
+            info.ZoneStart = 27f;
+            info.ZoneEnd = 9f;
             Info = info;
 
             var sand = Mats.Lit(new Color(0.55f, 0.46f, 0.34f), 0.9f, 0f, Color.black, 0f);
@@ -318,6 +370,22 @@ namespace DerbyArena.World
             {
                 float a = (45f + i * 90f) * Mathf.Deg2Rad;
                 Atmosphere.Lamp(root, new Vector3(Mathf.Sin(a) * 24f, 9f, Mathf.Cos(a) * 24f), i % 2 == 0 ? theme.Accent : new Color(1f, 0.75f, 0.45f), 1.5f, 26f);
+            }
+
+            // Braziers on top of the barrier ring: animated fire, 4 of them carry a flickering light.
+            var iron = Mats.Lit(new Color(0.09f, 0.08f, 0.08f), 0.5f, 0.6f, Color.black, 0f);
+            var coal = Mats.Glow(new Color(1f, 0.45f, 0.12f), 3f);
+            for (int i = 0; i < 8; i++)
+            {
+                float a = (22.5f + i * 45f) * Mathf.Deg2Rad;
+                var at = new Vector3(Mathf.Sin(a) * 30.1f, 3.05f, Mathf.Cos(a) * 30.1f);
+                var b = new GameObject("Brazier").transform;
+                b.SetParent(root, false);
+                b.position = at;
+                MeshFactory.Make("Bowl", MeshFactory.UnitCylinder(), iron, b, new Vector3(0f, 0.25f, 0f), new Vector3(1.3f, 0.5f, 1.3f));
+                MeshFactory.Make("Coals", MeshFactory.UnitCylinder(), coal, b, new Vector3(0f, 0.52f, 0f), new Vector3(1.05f, 0.06f, 1.05f));
+                var fl = b.gameObject.AddComponent<Brazier>();
+                if (i % 2 == 0 && quality > 0) fl.Light = Atmosphere.Lamp(b, at + Vector3.up * 1.4f, new Color(1f, 0.55f, 0.2f), 1.3f, 12f);
             }
 
             StartCoroutine(LoadColosseum(floor));
@@ -342,15 +410,24 @@ namespace DerbyArena.World
                         ? UnityEngine.Rendering.ShadowCastingMode.Off
                         : UnityEngine.Rendering.ShadowCastingMode.On;
                     mr.receiveShadows = !big || n == "Ground" || n == "Tribunes";
-                    if (n == "Props")
-                    {
-                        var mf = mr.GetComponent<MeshFilter>();
-                        if (mf != null && mf.sharedMesh != null) mr.gameObject.AddComponent<MeshCollider>().sharedMesh = mf.sharedMesh;
-                    }
+                    // 1.3.0: the interior rubble / barrier / pole clutter ("Props") made the driving
+                    // surface bumpy and snagged cars. The arena floor is now clean and flat.
+                    if (n == "Props") mr.gameObject.SetActive(false);
                 }
+                int wreckIndex = 0;
+                var wrecks = new List<Transform>();
                 foreach (var t in arena.GetComponentsInChildren<Transform>(true))
+                    if (t.name.StartsWith("wreck", StringComparison.Ordinal) && t.name.EndsWith("_Root", StringComparison.Ordinal)) wrecks.Add(t);
+                foreach (var t in wrecks)
                 {
-                    if (!t.name.StartsWith("wreck", StringComparison.Ordinal) || !t.name.EndsWith("_Root", StringComparison.Ordinal)) continue;
+                    // keep four wrecks as cover on the diagonals near the wall, hide the rest
+                    if (wreckIndex >= 4) { t.gameObject.SetActive(false); wreckIndex++; continue; }
+                    float ang = 45f + wreckIndex * 90f;
+                    float rad = ang * Mathf.Deg2Rad;
+                    Vector3 p = t.position;
+                    t.position = new Vector3(Mathf.Sin(rad) * 25.5f, p.y, Mathf.Cos(rad) * 25.5f);
+                    t.RotateAround(t.position, Vector3.up, ang * 1.7f);
+                    wreckIndex++;
                     var rs = t.GetComponentsInChildren<Renderer>(true);
                     if (rs.Length == 0) continue;
                     Bounds b = rs[0].bounds;
@@ -362,6 +439,7 @@ namespace DerbyArena.World
                 }
                 var fr = floor.GetComponent<MeshRenderer>();
                 if (fr != null) fr.enabled = false;
+                Crowd.Spawn(root, quality);
                 Status = "Kolezyum yüklendi, " + (Time.realtimeSinceStartup - t0).ToString("0.0") + " sn";
             }
             else
@@ -377,6 +455,33 @@ namespace DerbyArena.World
             }
             DerbyStartupDiagnostics.Report("Arena", Status);
             Ready = true;
+        }
+    }
+
+    /// <summary>Brazier fire on the colosseum barrier: emits flames and flickers its light.</summary>
+    public sealed class Brazier : MonoBehaviour
+    {
+        public Light Light;
+        float timer;
+        float baseIntensity = -1f;
+        float seed;
+
+        void Start() { seed = UnityEngine.Random.value * 10f; }
+
+        void Update()
+        {
+            timer -= Time.deltaTime;
+            if (timer <= 0f)
+            {
+                timer = 0.11f;
+                DerbyArena.Combat.Fx.Fire(transform.position + Vector3.up * 0.75f, 0.7f);
+            }
+            if (Light != null)
+            {
+                if (baseIntensity < 0f) baseIntensity = Light.intensity;
+                float f = Mathf.PerlinNoise(seed, Time.time * 6f);
+                Light.intensity = baseIntensity * (0.75f + 0.5f * f);
+            }
         }
     }
 }

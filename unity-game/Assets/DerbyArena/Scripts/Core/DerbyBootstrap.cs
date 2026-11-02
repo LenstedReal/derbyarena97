@@ -29,6 +29,7 @@ namespace DerbyArena.Core
             Screen.autorotateToLandscapeRight = true;
             Physics.defaultSolverIterations = 8;
             Time.fixedDeltaTime = 1f / 60f;
+            Save.AutoQuality();
             DerbyBootstrapQuality.Apply();
 
             var cam = EnsureCamera();
@@ -62,6 +63,12 @@ namespace DerbyArena.Core
             return cam;
         }
 
+        static void AttachPost(Camera cam, int theme)
+        {
+            try { PostFx.Attach(cam, Save.Data.Quality, Atmosphere.Get(theme)); }
+            catch (Exception ex) { Debug.LogError("DERBY: post-processing disabled. " + ex); }
+        }
+
         void BuildMenu(Camera cam)
         {
             int lvl = Mathf.Clamp(Save.Data.LastPlayed, 1, Campaign.Total);
@@ -69,6 +76,7 @@ namespace DerbyArena.Core
             ArenaLoader arena = null;
             try { arena = ArenaLoader.Build(cfg.Arena, cfg.Theme, cam, Save.Data.Quality); }
             catch (Exception ex) { Debug.LogError("DERBY: menu arena failed. " + ex); }
+            AttachPost(cam, cfg.Theme);
 
             try
             {
@@ -79,7 +87,12 @@ namespace DerbyArena.Core
                 var holder = new GameObject("Visual");
                 holder.transform.SetParent(show.transform, false);
                 holder.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                GlbLibrary.Spawn("vehicles/player_muscle.glb", holder.transform, null);
+                var showSpec = DerbyArena.Vehicles.VehicleSpec.Interceptor();
+                GlbLibrary.Spawn(showSpec.GlbFile, showSpec.ModelOptions(), holder.transform, (model, err) =>
+                {
+                    if (model == null) return;
+                    foreach (var r in model.GetComponentsInChildren<Renderer>(true)) r.gameObject.layer = DerbyArena.Vehicles.VehicleVisual.VehicleLayer;
+                });
                 var chase = cam.GetComponent<ChaseCamera>();
                 chase.Orbit = true;
                 chase.OrbitCenter = pos;
@@ -107,6 +120,9 @@ namespace DerbyArena.Core
                 Debug.LogError("DERBY: arena failed, falling back to spillway shell. " + ex);
                 arena = ArenaLoader.Build(ArenaKind.Spillway, 0, cam, 0);
             }
+
+            AttachPost(cam, arena != null && arena.Info != null && arena.Info.Kind == cfg.Arena ? cfg.Theme : 0);
+            Fx.FollowEmbers(cam.transform);
 
             var controls = gameObject.AddComponent<TouchControls>();
             var match = MatchDirector.Begin(cfg, arena, controls, sceneRoot);

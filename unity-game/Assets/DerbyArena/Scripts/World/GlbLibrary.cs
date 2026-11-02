@@ -8,6 +8,16 @@ using UnityEngine.Networking;
 
 namespace DerbyArena.World
 {
+    /// <summary>Import options. Different options for the same file produce a separate shared template.</summary>
+    public sealed class GlbOptions
+    {
+        public string Key = "";
+        public bool VertexColors;
+        public bool Recolor;
+        public Color Paint = Color.white;
+        public float EmissionBoost = 1f;
+    }
+
     /// <summary>
     /// Loads GLB files from StreamingAssets once, builds a template hierarchy under a persistent
     /// inactive holder and hands out clones. Meshes, materials and textures are shared, so five
@@ -19,6 +29,7 @@ namespace DerbyArena.World
         static Transform holder;
         static readonly Dictionary<string, GameObject> templates = new Dictionary<string, GameObject>();
         static readonly Dictionary<string, string> failures = new Dictionary<string, string>();
+        static readonly Dictionary<string, byte[]> bytesCache = new Dictionary<string, byte[]>();
         static readonly HashSet<string> loading = new HashSet<string>();
 
         static void Ensure()
@@ -39,35 +50,48 @@ namespace DerbyArena.World
             return path.Contains("://") ? path : "file://" + path;
         }
 
-        public static bool IsReady(string relativePath)
+        static string KeyOf(string relativePath, GlbOptions options)
         {
-            return templates.ContainsKey(relativePath) || failures.ContainsKey(relativePath);
+            return options == null || string.IsNullOrEmpty(options.Key) ? relativePath : relativePath + "#" + options.Key;
+        }
+
+        public static bool IsReady(string relativePath, GlbOptions options)
+        {
+            string key = KeyOf(relativePath, options);
+            return templates.ContainsKey(key) || failures.ContainsKey(key);
+        }
+
+        public static void Spawn(string relativePath, Transform parent, Action<GameObject, string> done)
+        {
+            Spawn(relativePath, null, parent, done);
         }
 
         /// <summary>Starts loading if needed. Callback receives a fresh clone (or null + error).</summary>
-        public static void Spawn(string relativePath, Transform parent, Action<GameObject, string> done)
+        public static void Spawn(string relativePath, GlbOptions options, Transform parent, Action<GameObject, string> done)
         {
             Ensure();
-            instance.StartCoroutine(instance.SpawnRoutine(relativePath, parent, done));
+            instance.StartCoroutine(instance.SpawnRoutine(relativePath, options, parent, done));
         }
 
-        public static void Preload(string relativePath)
+        public static void Preload(string relativePath, GlbOptions options)
         {
             Ensure();
-            if (IsReady(relativePath) || loading.Contains(relativePath)) return;
-            instance.StartCoroutine(instance.Load(relativePath));
+            string key = KeyOf(relativePath, options);
+            if (templates.ContainsKey(key) || failures.ContainsKey(key) || loading.Contains(key)) return;
+            instance.StartCoroutine(instance.Load(relativePath, options));
         }
 
-        IEnumerator SpawnRoutine(string relativePath, Transform parent, Action<GameObject, string> done)
+        IEnumerator SpawnRoutine(string relativePath, GlbOptions options, Transform parent, Action<GameObject, string> done)
         {
-            if (!IsReady(relativePath))
+            string key = KeyOf(relativePath, options);
+            if (!templates.ContainsKey(key) && !failures.ContainsKey(key))
             {
-                if (!loading.Contains(relativePath)) yield return Load(relativePath);
-                while (loading.Contains(relativePath)) yield return null;
+                if (!loading.Contains(key)) yield return Load(relativePath, options);
+                while (loading.Contains(key)) yield return null;
             }
 
             GameObject template;
-            if (templates.TryGetValue(relativePath, out template) && template != null)
+            if (templates.TryGetValue(key, out template) && template != null)
             {
                 if (parent == null)
                 {
@@ -85,29 +109,35 @@ namespace DerbyArena.World
             else
             {
                 string err;
-                failures.TryGetValue(relativePath, out err);
+                failures.TryGetValue(key, out err);
                 if (done != null) done(null, err ?? "unknown error");
             }
         }
 
-        IEnumerator Load(string relativePath)
+        IEnumerator Load(string relativePath, GlbOptions options)
         {
-            loading.Add(relativePath);
-            byte[] bytes = null;
+            string key = KeyOf(relativePath, options);
+            loading.Add(key);
+            byte[] bytes;
             string error = null;
-            using (var req = UnityWebRequest.Get(UrlOf(relativePath)))
+            if (!bytesCache.TryGetValue(relativePath, out bytes))
             {
-                yield return req.SendWebRequest();
-                if (req.result == UnityWebRequest.Result.Success && req.downloadHandler != null)
-                    bytes = req.downloadHandler.data;
-                else
-                    error = req.error;
+                using (var req = UnityWebRequest.Get(UrlOf(relativePath)))
+                {
+                    yield return req.SendWebRequest();
+                    if (req.result == UnityWebRequest.Result.Success && req.downloadHandler != null)
+                        bytes = req.downloadHandler.data;
+                    else
+                        error = req.error;
+                }
+                // keep raw bytes only while other variants of the same file may still be requested
+                if (bytes != null && options != null) bytesCache[relativePath] = bytes;
             }
             yield return null;
 
             if (bytes == null || bytes.Length < 20)
             {
-                failures[relativePath] = "okunamadı: " + error;
+                failures[key] = "okunamadı: " + error;
                 Debug.LogError("DERBY: GLB could not be read: " + relativePath + " | " + error);
             }
             else
@@ -116,18 +146,18 @@ namespace DerbyArena.World
                 root.transform.SetParent(holder, false);
                 try
                 {
-                    MiniGlb.Build(bytes, root.transform);
-                    templates[relativePath] = root;
+                    MiniGlb.Build(bytes, root.transform, options);
+                    templates[key] = root;
                 }
                 catch (Exception ex)
                 {
                     Destroy(root);
-                    failures[relativePath] = ex.Message;
-                    Debug.LogError("DERBY: GLB import failed: " + relativePath + " | " + ex);
+                    failures[key] = ex.Message;
+                    Debug.LogError("DERBY: GLB import failed: " + key + " | " + ex);
                 }
             }
-            DerbyStartupDiagnostics.Report("GLB " + relativePath, templates.ContainsKey(relativePath) ? "tamam" : "HATA");
-            loading.Remove(relativePath);
+            DerbyStartupDiagnostics.Report("GLB " + key, templates.ContainsKey(key) ? "tamam" : "HATA");
+            loading.Remove(key);
         }
     }
 }

@@ -40,6 +40,7 @@ namespace DerbyArena.Vehicles
         Vector3[] anchors = new Vector3[4];
         float[] hitDist = new float[4];
         float[] lastComp = new float[4];
+        bool[] wheelHit = new bool[4];
         float radius;
         Transform[] wheels;
         Quaternion[] wheelBase;
@@ -111,7 +112,7 @@ namespace DerbyArena.Vehicles
         public void FitHull(Bounds local)
         {
             if (Hull == null) return;
-            float bottom = Mathf.Max(local.min.y + 0.35f, radius * 0.95f);
+            float bottom = Mathf.Max(local.min.y + 0.4f, radius * 1.05f);
             float top = Mathf.Min(local.max.y, bottom + 1.3f * Spec.Scale);
             if (top - bottom < 0.4f) top = bottom + 0.6f;
             Hull.size = new Vector3(local.size.x * 0.92f, top - bottom, local.size.z * 0.94f);
@@ -141,7 +142,7 @@ namespace DerbyArena.Vehicles
             Vector3 up = transform.up;
             float maxLen = Rest + radius;
             float k = Body.mass * -Physics.gravity.y / 4f / RestCompression;
-            float c = 2f * Mathf.Sqrt(k * Body.mass / 4f) * 0.6f;
+            float c = 2f * Mathf.Sqrt(k * Body.mass / 4f) * 0.75f;
             int grounded = 0;
             Vector3 normalSum = Vector3.zero;
 
@@ -157,12 +158,14 @@ namespace DerbyArena.Vehicles
                     Body.AddForceAtPosition(up * force, origin);
                     lastComp[i] = comp;
                     hitDist[i] = hit.distance;
+                    wheelHit[i] = true;
                     normalSum += hit.normal;
                     grounded++;
                 }
                 else
                 {
                     lastComp[i] = 0f;
+                    wheelHit[i] = false;
                     hitDist[i] = Mathf.MoveTowards(hitDist[i], maxLen, dt * 3f);
                 }
             }
@@ -273,6 +276,17 @@ namespace DerbyArena.Vehicles
                 float yaw = i < 2 ? visualSteer : 0f;
                 wheels[i].localRotation = Quaternion.Euler(spin, yaw, 0f) * wheelBase[i];
             }
+        }
+
+        /// <summary>World-space tyre contact point of wheel i (FL, FR, RL, RR).</summary>
+        public Vector3 WheelContact(int i)
+        {
+            return transform.TransformPoint(anchors[i] + Vector3.down * hitDist[i]);
+        }
+
+        public bool WheelGrounded(int i)
+        {
+            return i >= 0 && i < 4 && wheelHit[i];
         }
 
         public float PlanarSpeed()

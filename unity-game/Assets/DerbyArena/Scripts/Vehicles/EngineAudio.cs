@@ -9,12 +9,14 @@ namespace DerbyArena.Vehicles
     {
         public float Volume = 0.35f;
         ArcadeCar car;
+        VehicleHealth hp;
         AudioSource src;
         float dustTimer;
 
         void Start()
         {
             car = GetComponent<ArcadeCar>();
+            hp = GetComponent<VehicleHealth>();
             src = gameObject.AddComponent<AudioSource>();
             src.clip = SynthAudio.Engine();
             src.loop = true;
@@ -31,7 +33,6 @@ namespace DerbyArena.Vehicles
         void Update()
         {
             if (car == null || src == null) return;
-            var hp = GetComponent<VehicleHealth>();
             if (hp != null && hp.Dead)
             {
                 src.volume = Mathf.MoveTowards(src.volume, 0f, Time.deltaTime);

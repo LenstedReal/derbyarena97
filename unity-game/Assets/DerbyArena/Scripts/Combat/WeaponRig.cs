@@ -108,7 +108,7 @@ namespace DerbyArena.Combat
             Vector3 origin = Visual != null ? Visual.Muzzle() + Vector3.up * 0.25f : transform.position + Vector3.up * 1.8f;
             Vector3 dir = aimPoint - origin;
             if (dir.sqrMagnitude < 0.01f) dir = transform.forward;
-            Projectiles.Fire(origin, dir.normalized, Owner, target, 42f * DamageMul);
+            Projectiles.Fire(origin, dir.normalized, Owner, target, (Spec != null ? Spec.RocketDamage : 42f) * DamageMul);
             return true;
         }
     }

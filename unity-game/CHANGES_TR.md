@@ -1,3 +1,52 @@
+# DERBY ARENA / BLACKOUT RUN — v1.3.0 (versionCode 130)
+
+Paket kimliği aynı: `com.lenstedreal.derbyarena`. Unity 6000.3.27f1, Built-in RP. 1.2.0 üzerine eklendi; yeniden yazım yok.
+
+## Videolardan tespit edilip düzeltilenler
+| # | Görülen | Düzeltme |
+|---|---|---|
+| 1 | Yıkım arenasında (Kolezyum) seyirci yok | Kotlin `crowd.glb`: 24 robot seyirci grubu, köşe renkli shader, dalga animasyonu, imha ve sert çarpmada tezahürat sesi |
+| 2 | Arena içi engebeli, araç takılıyor | Kolezyum içindeki moloz, beton, bariyer, lastik ve direk yığını ("Props") ile mesh çarpıştırıcısı kaldırıldı. Zemin düz. 6 hurda araçtan 4'ü duvar dibine (çaprazlara) siper olarak taşındı, 2'si gizlendi |
+| 3 | Spillway borularının içinden geçiliyor | 6 eğimli boruya yönlü kutu çarpıştırıcı ve rampa olmasın diye alt blok eklendi |
+| 4 | Bölüm 10 patronu çok zor | Can 744 → 460 (bölüm 1), eskortsuz. Roket aralığı 3,5 → 5,5 sn. Şok dalgası %50 yerine %40 canın altında, uyarısı 1,2 → 1,5 sn, hasarı 26 → 18 × zorluk |
+| 5 | Can ~10 sn'de 218 → 21 düşüyor | Saldırı jetonu: aynı anda en fazla 2 düşman ateş eder (bölüm 3'te 3, bölüm 5'te 4). Ateş ritmi 0,9–1,5 sn açık / 1,3–2,4 sn kapalı. Düşman silah hasarı ve çarpma hasarı yeniden dengelendi |
+| 6 | Çarpışmalar çok can götürüyor | Taban `(hız−6)×2,4`, 5–34 aralığı (eski 3,2 ve 6–48). Oyuncu hedefse ×0,75, oyuncu çarparsa ×1,35. Kendine hasar %20–25 |
+| 7 | Araçlar kara siluet | Araç tipine göre boya rengi, gövde yansıma ışığı, emisyon artışı. Yalnız araçları aydınlatan dolgu ışığı (katman 9) |
+| 8 | Kırmızı hasar vinyeti ekranı kapatıyor | En fazla 0,45 (eski 0,75). Düşük can nabzı 0,12–0,2 |
+| 9 | Siyah duman görüşü kapatıyor | Daha açık, küçük ve kısa ömürlü duman |
+| 10 | Hep aynı iki görev (yıkım / hücre) | 3 yeni görev: **Kontrol Noktası** (bölüm 4), **Hayatta Kal** (13), **Son Kalan** (daralan bölge, 15) |
+| 11 | Bölüm ilerledikçe yenilik yok | Her bölümün kendi özelliği var: asit havuzları (3), gece ve farlar (4), elit mor rakipler (4–5) |
+| 12 | Uygulama ikonu Unity varsayılanı | Derby Arena görseli: Android uyarlanabilir (ön plan maske güvenli alanında, taşmaz), yuvarlak, eski tip ve iOS |
+| 13 | Yükleme ekranı boş | Anahtar görsel, görev türü rozeti, ipucu |
+| 14 | Son düşmanı bulmak zor | Ekran dışı hedef oku. Son 2 rakipte en yakın düşmanı gösterir |
+| 15 | Düşman canı görünmüyor | Düşman üstünde can çubukları (8'lik havuz), elitler mor |
+| 16 | Vuruş hissi zayıf | Araca isabet flaşı (MaterialPropertyBlock, materyal kopyası yok) ve patlama şok halkası |
+| 17 | Görsel kalite | Bloom, ACES ton eşleme, tema renk düzeltmesi, vinyet (OnRenderImage; Orta ve Yüksek kalitede) |
+| 18 | Gölge yok, araç havada gibi | Araç altında yumuşak blob gölge, drift ve el freninde lastik izi |
+| 19 | Hız hissi | Nitro egzoz alevi, gövde yalpası (±5°) ve yunuslama (±3°), havada süzülen korlar |
+| 20 | Kolezyum cansız | Bariyer üstünde 8 titreşen mangal, 4'ünde ışık var |
+| 21 | Spillway düz ve gri | Duvar boyunca neon şeritler |
+| 22 | Maç başı ani | Geri sayımda kamera önden arkaya süzülür |
+| 23 | Düşmanlar üst üste yığılıyor | Ayrışma kuvveti, bölge farkındalığı |
+| 24 | HUD her karede metin yeniliyor | Metin yalnız değişince atanıyor (Canvas yeniden kurulmuyor). Bileşen önbellekleri (motor sesi, nişangâh) |
+| 25 | Aynı mesaj üst üste | 1,5 sn içinde tekrar eden mesaj bastırılıyor |
+| 26 | Kalite seçimi yok gibi | İlk açılışta cihaz belleği, shader seviyesi ve HDR desteğine göre otomatik kalite. Kullanıcı değiştirirse o kalır |
+| 27 | Hızlı bitiş yıldızı her görevde anlamsız | 2. yıldız görev türüne göre: Hayatta Kal'da imha hedefi, diğerlerinde par süresi |
+| 28 | Bölüm kartları hep "REAKTÖR/YIKIM" | 6 tür renkli etiket, bölüm özellik satırı, detayda 2. yıldız koşulu |
+| 29 | Süspansiyon sekmesi | Sönüm 0,6 → 0,75, gövde çarpıştırıcısı yerden biraz yükseltildi |
+| 30 | Roket hasarı sabit 42 | Araca özel (`RocketDamage`): oyuncu 48, avcı 18, patron 20 |
+
+## Kampanya planı (50 bölüm)
+`R` reaktör, `D` yıkım, `C` kontrol noktası, `S` hayatta kal, `L` son kalan, `B` patron.
+1: `RDRCDRCDRB` · 2: `RDSCLRDSCB` · 3: `SLRCDLRSCB` · 4: `LRCSDLCRSB` · 5: `RLSCDLRSCB`.
+Patron canı bölüme göre 460 / 620 / 780 / 940 / 1120.
+
+## Yeni dosyalar
+`World/Crowd.cs`, `World/PostFx.cs`, `Shaders/DerbyPost.shader`, `Shaders/DerbyVertexLit.shader`, `Icons/*.png`, `Resources/Derby/keyart.jpg`, `StreamingAssets/Models/arena/crowd.glb`.
+Dosya silinmedi.
+
+---
+
 # DERBY ARENA / BLACKOUT RUN — v1.2.0 (versionCode 120)
 
 Paket kimliği korundu: `com.lenstedreal.derbyarena` (Android + iOS). Unity 6000.3.27f1, Built-in render pipeline.

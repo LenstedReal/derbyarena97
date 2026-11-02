@@ -6,6 +6,7 @@ namespace DerbyArena.Audio
     public static class SynthAudio
     {
         const int Rate = 22050;
+        static AudioClip cheer, gate;
         static AudioClip engine, shot, hit, crash, explosion, rocket, pickup, cell, click, beep, go, overheat, win, lose, alarm, ambience;
         static System.Random rng = new System.Random(1234);
 
@@ -161,6 +162,28 @@ namespace DerbyArena.Audio
         public static AudioClip Overheat() { if (overheat == null) overheat = Tones("overheat", new[] { 400f, 300f }, 0.09f, 0.45f); return overheat; }
         public static AudioClip Win() { if (win == null) win = Tones("win", new[] { 523f, 659f, 784f, 1046f, 1318f }, 0.11f, 0.6f); return win; }
         public static AudioClip Lose() { if (lose == null) lose = Tones("lose", new[] { 440f, 349f, 262f }, 0.2f, 0.55f); return lose; }
+        public static AudioClip Gate() { if (gate == null) gate = Tones("gate", new[] { 784f, 1175f }, 0.08f, 0.55f); return gate; }
+
+        /// <summary>Stadium roar: band-limited noise swell with a few chant formants.</summary>
+        public static AudioClip Cheer()
+        {
+            if (cheer != null) return cheer;
+            var d = Buffer(1.6f);
+            float lp = 0f, lp2 = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = (float)i / d.Length;
+                lp += (Noise() - lp) * 0.22f;
+                lp2 += (lp - lp2) * 0.3f;
+                float env = Mathf.Sin(Mathf.PI * Mathf.Clamp01(t * 1.15f)) * (0.85f + 0.15f * Mathf.Sin(t * 40f));
+                float formant = Mathf.Sin(2f * Mathf.PI * 310f * i / Rate) * 0.08f + Mathf.Sin(2f * Mathf.PI * 470f * i / Rate) * 0.05f;
+                d[i] = (lp2 * 1.6f + formant * Mathf.Abs(lp)) * env;
+            }
+            Normalize(d, 0.7f);
+            cheer = Make("cheer", d);
+            return cheer;
+        }
+
         public static AudioClip Alarm() { if (alarm == null) alarm = Tones("alarm", new[] { 880f, 660f, 880f, 660f }, 0.12f, 0.45f); return alarm; }
 
         /// <summary>Low industrial drone with slow beating, loopable.</summary>

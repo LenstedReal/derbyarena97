@@ -179,4 +179,166 @@ namespace DerbyArena.Mission
             ring.localScale = new Vector3(s, 1f, s);
         }
     }
+
+    /// <summary>Checkpoint gate: two glowing pylons and an overhead beam. Passed when the player drives between them.</summary>
+    public sealed class CheckpointGate : MonoBehaviour
+    {
+        public const float Width = 9f;
+        public const float DetectRadius = 5.2f;
+        public int Index;
+        public int State { get; private set; } = -1;   // 0 future, 1 next, 2 passed
+        Material mat;
+        Transform beam;
+        Transform arrow;
+
+        public static CheckpointGate Create(Transform parent, Vector3 pos, float yaw, int index)
+        {
+            var go = new GameObject("Gate" + index);
+            go.transform.SetParent(parent, false);
+            go.transform.position = pos;
+            go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            var g = go.AddComponent<CheckpointGate>();
+            g.Index = index;
+            g.mat = Mats.Glow(new Color(1f, 0.75f, 0.2f), 2.5f);
+            var dark = Mats.Lit(new Color(0.08f, 0.08f, 0.09f), 0.5f, 0.6f, Color.black, 0f);
+            var cyl = MeshFactory.UnitCylinder();
+            var cube = MeshFactory.UnitCube();
+            for (int s = -1; s <= 1; s += 2)
+            {
+                float x = s * Width * 0.5f;
+                MeshFactory.Make("Base", cyl, dark, go.transform, new Vector3(x, 0.2f, 0f), new Vector3(0.9f, 0.4f, 0.9f));
+                var pylon = MeshFactory.Make("Pylon", cube, g.mat, go.transform, new Vector3(x, 2.4f, 0f), new Vector3(0.35f, 4.4f, 0.35f));
+                pylon.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            var b = MeshFactory.Make("Beam", cube, g.mat, go.transform, new Vector3(0f, 4.6f, 0f), new Vector3(Width, 0.22f, 0.22f));
+            b.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            g.beam = b.transform;
+            var a = MeshFactory.Make("Arrow", MeshFactory.UnitRing(), g.mat, go.transform, new Vector3(0f, 0.08f, 0f), new Vector3(Width * 0.45f, 1f, Width * 0.45f));
+            a.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            g.arrow = a.transform;
+            g.SetState(0);
+            return g;
+        }
+
+        public void SetState(int state)
+        {
+            if (State == state) return;
+            State = state;
+            if (state == 2) { gameObject.SetActive(false); return; }
+            gameObject.SetActive(true);
+            if (mat == null) return;
+            Color c = state == 1 ? new Color(1f, 0.78f, 0.22f) : new Color(0.35f, 0.3f, 0.25f);
+            mat.color = c * 0.3f;
+            if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", c * (state == 1 ? 2.6f : 0.5f));
+            if (arrow != null) arrow.gameObject.SetActive(state == 1);
+        }
+
+        public bool Reached(Vector3 p)
+        {
+            Vector3 d = p - transform.position; d.y = 0f;
+            return d.sqrMagnitude < DetectRadius * DetectRadius;
+        }
+
+        void Update()
+        {
+            if (State != 1) return;
+            float s = 1f + 0.08f * Mathf.Sin(Time.time * 6f);
+            if (arrow != null) arrow.localScale = new Vector3(Width * 0.45f * s, 1f, Width * 0.45f * s);
+            if (beam != null) beam.localScale = new Vector3(Width, 0.22f * s, 0.22f * s);
+        }
+
+        public void Pass()
+        {
+            Fx.Burst(transform.position + Vector3.up * 2.5f, new Color(1f, 0.8f, 0.3f), 24);
+            Fx.Ring(transform.position + Vector3.up * 0.15f, 6f, new Color(1f, 0.75f, 0.25f));
+            AudioHub.Play2D(SynthAudio.Gate(), 0.75f, 1f);
+            SetState(2);
+        }
+    }
+
+    /// <summary>Last Stand shrinking zone: ground ring plus a fence of glowing pillars.</summary>
+    public sealed class ZoneRing : MonoBehaviour
+    {
+        const int Pillars = 24;
+        public float Radius { get; private set; }
+        Transform ground;
+        Transform[] pillars;
+
+        public static ZoneRing Create(Transform parent, Vector3 center, float radius)
+        {
+            var go = new GameObject("ZoneRing");
+            go.transform.SetParent(parent, false);
+            go.transform.position = center;
+            var z = go.AddComponent<ZoneRing>();
+            var red = Mats.Glow(new Color(1f, 0.18f, 0.08f), 2.4f);
+            var gr = MeshFactory.Make("Ground", MeshFactory.UnitRing(), red, go.transform, new Vector3(0f, 0.07f, 0f), Vector3.one);
+            gr.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            z.ground = gr.transform;
+            z.pillars = new Transform[Pillars];
+            var cube = MeshFactory.UnitCube();
+            for (int i = 0; i < Pillars; i++)
+            {
+                var p = MeshFactory.Make("Pillar", cube, red, go.transform, Vector3.zero, new Vector3(0.25f, 3.2f, 0.25f));
+                p.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                z.pillars[i] = p.transform;
+            }
+            z.SetRadius(radius);
+            return z;
+        }
+
+        public void SetRadius(float r)
+        {
+            Radius = r;
+            if (ground != null) ground.localScale = new Vector3(r, 1f, r);
+            if (pillars == null) return;
+            for (int i = 0; i < pillars.Length; i++)
+            {
+                float a = (i + 0.5f) / pillars.Length * Mathf.PI * 2f;
+                pillars[i].localPosition = new Vector3(Mathf.Cos(a) * r, 1.6f, Mathf.Sin(a) * r);
+            }
+        }
+
+        public bool Outside(Vector3 p)
+        {
+            Vector3 d = p - transform.position; d.y = 0f;
+            return d.sqrMagnitude > Radius * Radius;
+        }
+    }
+
+    /// <summary>Toxic pool: a flat glowing disc that slowly hurts any vehicle sitting in it.</summary>
+    public sealed class AcidPool : MonoBehaviour
+    {
+        public float Radius = 3.2f;
+        float bubble;
+
+        public static AcidPool Create(Transform parent, Vector3 pos, float radius)
+        {
+            var go = new GameObject("AcidPool");
+            go.transform.SetParent(parent, false);
+            go.transform.position = pos;
+            var a = go.AddComponent<AcidPool>();
+            a.Radius = radius;
+            var green = new Color(0.45f, 1f, 0.15f);
+            var disc = MeshFactory.Make("Disc", MeshFactory.UnitCylinder(), Mats.Glow(green, 1.3f), go.transform, new Vector3(0f, 0.03f, 0f), new Vector3(radius * 2f, 0.02f, radius * 2f));
+            disc.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var rim = MeshFactory.Make("Rim", MeshFactory.UnitRing(), Mats.Glow(green, 2.6f), go.transform, new Vector3(0f, 0.06f, 0f), new Vector3(radius, 1f, radius));
+            rim.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return a;
+        }
+
+        public bool Contains(Vector3 p)
+        {
+            Vector3 d = p - transform.position; d.y = 0f;
+            return d.sqrMagnitude < Radius * Radius;
+        }
+
+        void Update()
+        {
+            bubble -= Time.deltaTime;
+            if (bubble > 0f) return;
+            bubble = 0.25f;
+            Vector2 r = Random.insideUnitCircle * Radius * 0.85f;
+            Fx.Glow(transform.position + new Vector3(r.x, 0.1f, r.y), Vector3.up * Random.Range(0.6f, 1.4f), new Color(0.5f, 1f, 0.2f), Random.Range(0.15f, 0.3f), Random.Range(0.4f, 0.8f));
+        }
+    }
 }

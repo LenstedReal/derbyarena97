@@ -11,7 +11,14 @@ namespace DerbyArena.Combat
     {
         static Fx inst;
 
-        ParticleSystem sparks, fire, smoke, dust, shards;
+        ParticleSystem sparks, fire, smoke, dust, shards, glow, embers;
+        Transform[] rings;
+        Material[] ringMats;
+        float[] ringLife, ringMax, ringRadius;
+        Color[] ringColor;
+        int ringNext;
+        Transform follow;
+        float emberTimer;
         LineRenderer[] tracers;
         float[] tracerLife;
         int tracerNext;
@@ -96,12 +103,38 @@ namespace DerbyArena.Combat
             Fade(fire, new Color(1f, 0.85f, 0.5f), new Color(0.8f, 0.2f, 0.05f));
             smoke = MakeSystem("Smoke", soft, quality == 0 ? 200 : 420, -0.05f, 0.6f);
             SizeCurve(smoke, 0.5f, 2.4f);
-            Fade(smoke, new Color(0.25f, 0.24f, 0.23f), new Color(0.12f, 0.12f, 0.12f));
+            Fade(smoke, new Color(0.42f, 0.4f, 0.38f), new Color(0.3f, 0.29f, 0.28f));
             dust = MakeSystem("Dust", soft, 260, -0.02f, 1.2f);
             SizeCurve(dust, 0.6f, 2.2f);
             Fade(dust, new Color(0.62f, 0.58f, 0.52f), new Color(0.5f, 0.47f, 0.42f));
             shards = MakeSystem("Shards", add, 200, 2f, 0f);
             SizeCurve(shards, 1f, 0.3f);
+            glow = MakeSystem("Glow", add, 260, 0f, 1.5f);
+            SizeCurve(glow, 1f, 0.15f);
+            Fade(glow, Color.white, new Color(1f, 0.6f, 0.3f));
+            if (quality > 0)
+            {
+                embers = MakeSystem("Embers", add, 160, -0.03f, 0.4f);
+                SizeCurve(embers, 0.4f, 1f);
+                Fade(embers, new Color(1f, 0.7f, 0.35f), new Color(1f, 0.35f, 0.1f));
+            }
+
+            int ringCount = quality == 0 ? 3 : 6;
+            rings = new Transform[ringCount];
+            ringMats = new Material[ringCount];
+            ringLife = new float[ringCount];
+            ringMax = new float[ringCount];
+            ringRadius = new float[ringCount];
+            ringColor = new Color[ringCount];
+            for (int i = 0; i < ringCount; i++)
+            {
+                ringMats[i] = Mats.Glow(Color.white, 2f);
+                var rg = MeshFactory.Make("ShockRing", MeshFactory.UnitRing(), ringMats[i], transform, Vector3.zero, Vector3.one);
+                var mr = rg.GetComponent<MeshRenderer>();
+                if (mr != null) mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                rg.SetActive(false);
+                rings[i] = rg.transform;
+            }
 
             tracers = new LineRenderer[24];
             tracerLife = new float[tracers.Length];
@@ -180,7 +213,7 @@ namespace DerbyArena.Combat
         {
             if (inst == null) return;
             Vector3 v = Vector3.up * Random.Range(1.2f, 2.4f) + Random.insideUnitSphere * 0.5f;
-            Emit(inst.smoke, pos, v, Random.Range(0.8f, 1.3f) * scale, Random.Range(1.4f, 2.2f), new Color32(60, 58, 56, 200));
+            Emit(inst.smoke, pos, v, Random.Range(0.55f, 0.9f) * scale, Random.Range(1.0f, 1.6f), new Color32(92, 88, 84, 120));
         }
 
         public static void Dust(Vector3 pos, Vector3 vel)
@@ -212,10 +245,49 @@ namespace DerbyArena.Combat
             for (int i = 0; i < smokeN; i++)
             {
                 Vector3 v = Random.onUnitSphere * Random.Range(1f, 3.5f) * size + Vector3.up * 2f;
-                Emit(inst.smoke, pos + Random.insideUnitSphere * size, v, Random.Range(1.5f, 2.6f) * size, Random.Range(1.6f, 2.8f), new Color32(45, 42, 40, 220));
+                Emit(inst.smoke, pos + Random.insideUnitSphere * size, v, Random.Range(1.2f, 2.0f) * size, Random.Range(1.2f, 2.0f), new Color32(80, 76, 72, 150));
             }
+            Ring(pos + Vector3.up * 0.2f, 7f * size, new Color(1f, 0.6f, 0.25f));
             Sparks(pos, Vector3.up, Mathf.RoundToInt(30 * size));
             Flash(pos + Vector3.up, new Color(1f, 0.55f, 0.2f), 6f * size, 14f * size);
+        }
+
+        /// <summary>Nitro exhaust flame: short additive white-hot streak behind the car.</summary>
+        public static void Nitro(Vector3 pos, Vector3 backDir)
+        {
+            if (inst == null) return;
+            Emit(inst.glow, pos, backDir * Random.Range(5f, 8f) + Random.insideUnitSphere * 0.4f, Random.Range(0.35f, 0.55f), Random.Range(0.08f, 0.16f), new Color32(120, 200, 255, 255));
+            Emit(inst.glow, pos, backDir * 3f, 0.7f, 0.05f, new Color32(255, 240, 220, 255));
+        }
+
+        /// <summary>Generic glow spark (pickups, gates, hit flashes).</summary>
+        public static void Glow(Vector3 pos, Vector3 vel, Color color, float size, float life)
+        {
+            if (inst == null) return;
+            Emit(inst.glow, pos, vel, size, life, color);
+        }
+
+        /// <summary>Expanding flat shockwave ring on the ground.</summary>
+        public static void Ring(Vector3 pos, float radius, Color color)
+        {
+            if (inst == null || inst.rings == null || inst.rings.Length == 0) return;
+            int i = inst.ringNext;
+            inst.ringNext = (i + 1) % inst.rings.Length;
+            var t = inst.rings[i];
+            t.position = pos;
+            t.rotation = Quaternion.identity;
+            t.localScale = Vector3.one * 0.5f;
+            t.gameObject.SetActive(true);
+            inst.ringLife[i] = 0.45f;
+            inst.ringMax[i] = 0.45f;
+            inst.ringRadius[i] = radius;
+            inst.ringColor[i] = color;
+        }
+
+        /// <summary>Ambient embers drift around this transform (the camera).</summary>
+        public static void FollowEmbers(Transform target)
+        {
+            if (inst != null) inst.follow = target;
         }
 
         public static void Tracer(Vector3 a, Vector3 b, Color color)
@@ -250,6 +322,33 @@ namespace DerbyArena.Combat
         void Update()
         {
             float dt = Time.deltaTime;
+            for (int i = 0; i < rings.Length; i++)
+            {
+                if (ringLife[i] <= 0f) continue;
+                ringLife[i] -= dt;
+                float k = 1f - Mathf.Clamp01(ringLife[i] / ringMax[i]);
+                float r = Mathf.Lerp(0.5f, ringRadius[i], 1f - (1f - k) * (1f - k));
+                rings[i].localScale = new Vector3(r, 1f, r);
+                Color c = ringColor[i] * (1.8f * (1f - k));
+                c.a = 1f - k;
+                var rm = ringMats[i];
+                if (rm != null)
+                {
+                    rm.color = c;
+                    if (rm.HasProperty("_EmissionColor")) rm.SetColor("_EmissionColor", c);
+                }
+                if (ringLife[i] <= 0f) rings[i].gameObject.SetActive(false);
+            }
+            if (embers != null && follow != null)
+            {
+                emberTimer -= dt;
+                if (emberTimer <= 0f)
+                {
+                    emberTimer = 0.09f / density;
+                    Vector3 p = follow.position + follow.forward * Random.Range(4f, 18f) + new Vector3(Random.Range(-9f, 9f), Random.Range(-2f, 3f), Random.Range(-9f, 9f));
+                    Emit(embers, p, new Vector3(Random.Range(-0.4f, 0.4f), Random.Range(0.3f, 0.9f), Random.Range(-0.4f, 0.4f)), Random.Range(0.05f, 0.11f), Random.Range(2.5f, 4f), new Color32(255, 170, 90, 255));
+                }
+            }
             for (int i = 0; i < tracers.Length; i++)
             {
                 if (tracerLife[i] <= 0f) continue;

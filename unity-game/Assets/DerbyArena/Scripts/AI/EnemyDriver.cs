@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DerbyArena.Combat;
 using DerbyArena.Vehicles;
 using DerbyArena.World;
@@ -21,6 +22,45 @@ namespace DerbyArena.AI
         public float AimError = 6f;
         public float Aggression = 1f;
         public bool Active;
+        public int Chapter = 1;
+        public float DamageScale = 1f;
+        /// <summary>When &gt; 0 the driver keeps its target inside this circle (Last Stand zone).</summary>
+        public float ZoneRadius;
+        public Vector3 ZoneCenter;
+
+        // ---- attack tokens: only a few enemies may shoot at the player at the same time ----
+        public static int MaxShooters = 2;
+        static int shooters;
+        static readonly List<EnemyDriver> all = new List<EnemyDriver>();
+        bool holdsToken;
+
+        public static void ResetTokens(int max)
+        {
+            MaxShooters = Mathf.Max(1, max);
+            shooters = 0;
+            for (int i = 0; i < all.Count; i++) if (all[i] != null) all[i].holdsToken = false;
+        }
+
+        bool IsBoss { get { return Car != null && Car.Spec != null && Car.Spec.Role == DriverRole.Boss; } }
+
+        bool AcquireToken()
+        {
+            if (IsBoss || holdsToken) return true;
+            if (shooters >= MaxShooters) return false;
+            shooters++;
+            holdsToken = true;
+            return true;
+        }
+
+        void ReleaseToken()
+        {
+            if (!holdsToken) return;
+            holdsToken = false;
+            shooters = Mathf.Max(0, shooters - 1);
+        }
+
+        void OnEnable() { if (!all.Contains(this)) all.Add(this); }
+        void OnDisable() { all.Remove(this); ReleaseToken(); }
 
         enum Mode { Pursue, Recover }
         Mode mode = Mode.Pursue;
@@ -52,6 +92,8 @@ namespace DerbyArena.AI
             if (Car == null || Health == null) return;
             if (Health.Dead || !Active || Player == null)
             {
+                ReleaseToken();
+                bursting = false;
                 Car.Throttle = 0f; Car.Brake = Health.Dead ? 0f : 1f; Car.Steer = 0f; Car.NitroHeld = false; Car.Handbrake = false;
                 return;
             }
@@ -118,6 +160,24 @@ namespace DerbyArena.AI
 
             if (Arena != null && !Arena.Inside(targetPoint))
                 targetPoint = Vector3.Lerp(targetPoint, Arena.Center, 0.5f);
+            if (ZoneRadius > 0f)
+            {
+                Vector3 fromZone = targetPoint - ZoneCenter; fromZone.y = 0f;
+                float lim = Mathf.Max(2f, ZoneRadius - 3f);
+                if (fromZone.magnitude > lim) targetPoint = ZoneCenter + fromZone.normalized * lim;
+            }
+
+            // separation: don't stack on other enemies (prevents conga lines and pile-ups)
+            Vector3 push = Vector3.zero;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var o = all[i];
+                if (o == null || o == this || o.Health == null || o.Health.Dead) continue;
+                Vector3 d = me - o.transform.position; d.y = 0f;
+                float m = d.magnitude;
+                if (m > 0.01f && m < 7f) push += d / m * (7f - m);
+            }
+            if (push.sqrMagnitude > 0.01f) targetPoint += Vector3.ClampMagnitude(push, 8f);
 
             float speed = Mathf.Abs(Car.ForwardSpeed);
             if (mode == Mode.Recover)
@@ -220,8 +280,18 @@ namespace DerbyArena.AI
             burstTimer -= dt;
             if (burstTimer <= 0f)
             {
-                bursting = !bursting;
-                burstTimer = bursting ? Random.Range(0.8f, 1.6f) : Random.Range(0.7f, 1.6f) / Mathf.Max(0.5f, Aggression);
+                if (bursting)
+                {
+                    bursting = false;
+                    ReleaseToken();
+                    burstTimer = Random.Range(1.3f, 2.4f) / Mathf.Max(0.5f, Aggression);
+                }
+                else if (hasLos && dist < Car.Spec.GunRange && AcquireToken())
+                {
+                    bursting = true;
+                    burstTimer = Random.Range(0.9f, 1.5f);
+                }
+                else burstTimer = Random.Range(0.3f, 0.7f);
             }
 
             Vector3 muzzleDir = Visual != null ? Visual.MuzzleDirection() : transform.forward;
@@ -240,17 +310,18 @@ namespace DerbyArena.AI
                 float minD = boss ? 8f : 12f;
                 if (rocketTimer <= 0f && dist > minD && dist < 44f)
                 {
-                    float cd = boss ? (Health.Fraction < 0.33f ? 2.2f : 3.5f) : Random.Range(4.5f, 6.5f);
+                    float bossCd = Chapter <= 1 ? 5.5f : (Chapter == 2 ? 4.6f : 3.8f);
+                    float cd = boss ? (Health.Fraction < 0.33f ? bossCd * 0.7f : bossCd) : Random.Range(5f, 7.5f);
                     if (Weapons.TryFireRocket(aim, Player.transform, 0.5f)) rocketTimer = cd;
                 }
             }
 
-            if (Car.Spec.Role == DriverRole.Boss && Health.Fraction < 0.5f)
+            if (Car.Spec.Role == DriverRole.Boss && Health.Fraction < 0.4f)
             {
                 shockTimer -= dt;
                 if (shockTimer <= 0f && dist < 14f)
                 {
-                    shockTimer = Health.Fraction < 0.25f ? 5f : 7.5f;
+                    shockTimer = Health.Fraction < 0.2f ? 6f : 8.5f;
                     StartCoroutine(Shockwave());
                 }
             }
@@ -260,7 +331,7 @@ namespace DerbyArena.AI
         {
             var ring = MeshFactory.Make("ShockTelegraph", MeshFactory.UnitRing(), Mats.Glow(new Color(1f, 0.15f, 0.05f), 2.5f), null, transform.position + Vector3.up * 0.15f, Vector3.one);
             DerbyArena.Audio.AudioHub.PlayAt(DerbyArena.Audio.SynthAudio.Alarm(), transform.position, 0.8f, 1f);
-            const float windup = 1.2f;
+            float windup = Chapter <= 2 ? 1.5f : 1.2f;
             const float radius = 9f;
             float t = 0f;
             while (t < windup && !Health.Dead)
@@ -275,7 +346,8 @@ namespace DerbyArena.AI
             {
                 Fx.Explosion(transform.position + Vector3.up * 0.5f, 1.6f);
                 DerbyArena.Audio.AudioHub.PlayAt(DerbyArena.Audio.SynthAudio.Explosion(), transform.position, 1f, 0.7f);
-                Projectiles.Blast(transform.position, radius, 26f, Health, true);
+                Projectiles.Blast(transform.position, radius, 18f * DamageScale, Health, true);
+                Fx.Ring(transform.position + Vector3.up * 0.2f, radius, new Color(1f, 0.3f, 0.1f));
             }
             Destroy(ring);
         }
