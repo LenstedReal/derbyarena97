@@ -36,6 +36,7 @@ namespace DerbyArena.Core
         public bool AcidPools;
         public bool Night;
         public string Hint;
+        public string BossName = "";
 
         public string ObjectiveLine
         {
@@ -43,12 +44,12 @@ namespace DerbyArena.Core
             {
                 switch (Kind)
                 {
-                    case ObjectiveKind.Reactor: return Cells + " reaktör hücresini topla ve tahliye bölgesine ulaş";
-                    case ObjectiveKind.Demolition: return "Arenadaki tüm rakipleri imha et";
-                    case ObjectiveKind.Checkpoint: return Gates + " kontrol noktasından sırayla geç";
-                    case ObjectiveKind.Survival: return Mathf.RoundToInt(TimeLimit) + " saniye hayatta kal";
-                    case ObjectiveKind.LastStand: return "Daralan bölgede son hayatta kalan sen ol";
-                    default: return "Patron aracını yok et";
+                    case ObjectiveKind.Reactor: return Loc.T(Cells + " reaktör hücresini topla ve tahliye bölgesine ulaş", "Collect " + Cells + " reactor cells and reach the extraction zone");
+                    case ObjectiveKind.Demolition: return Loc.T("Arenadaki tüm rakipleri imha et", "Destroy every rival in the arena");
+                    case ObjectiveKind.Checkpoint: return Loc.T(Gates + " kontrol noktasından sırayla geç", "Pass " + Gates + " checkpoints in order");
+                    case ObjectiveKind.Survival: return Loc.T(Mathf.RoundToInt(TimeLimit) + " saniye hayatta kal", "Survive for " + Mathf.RoundToInt(TimeLimit) + " seconds");
+                    case ObjectiveKind.LastStand: return Loc.T("Daralan bölgede son hayatta kalan sen ol", "Be the last one standing in the shrinking zone");
+                    default: return Loc.T("Patron aracını yok et", "Destroy the boss vehicle");
                 }
             }
         }
@@ -57,9 +58,9 @@ namespace DerbyArena.Core
         {
             get
             {
-                if (Kind == ObjectiveKind.Survival) return "En az " + KillTarget + " imha";
+                if (Kind == ObjectiveKind.Survival) return Loc.T("En az " + KillTarget + " imha", "At least " + KillTarget + " kills");
                 int t = Mathf.RoundToInt(ParTime);
-                return "Hızlı bitiş (" + (t / 60) + ":" + (t % 60).ToString("00") + ")";
+                return Loc.T("Hızlı bitiş (", "Fast finish (") + (t / 60) + ":" + (t % 60).ToString("00") + ")";
             }
         }
 
@@ -67,12 +68,12 @@ namespace DerbyArena.Core
         {
             switch (k)
             {
-                case ObjectiveKind.Reactor: return "REAKTÖR";
-                case ObjectiveKind.Demolition: return "YIKIM";
-                case ObjectiveKind.Checkpoint: return "KONTROL";
-                case ObjectiveKind.Survival: return "HAYATTA KAL";
-                case ObjectiveKind.LastStand: return "SON KALAN";
-                default: return "PATRON";
+                case ObjectiveKind.Reactor: return Loc.T("REAKTÖR", "REACTOR");
+                case ObjectiveKind.Demolition: return Loc.T("YIKIM", "DEMOLITION");
+                case ObjectiveKind.Checkpoint: return Loc.T("KONTROL", "CHECKPOINT");
+                case ObjectiveKind.Survival: return Loc.T("HAYATTA KAL", "SURVIVAL");
+                case ObjectiveKind.LastStand: return Loc.T("SON KALAN", "LAST STAND");
+                default: return Loc.T("PATRON", "BOSS");
             }
         }
     }
@@ -84,15 +85,16 @@ namespace DerbyArena.Core
     /// </summary>
     public static class Campaign
     {
+        // To add a season in an update: append a Plan string, its names/features/boss below, and raise
+        // Total by 10. Saves resize automatically (SaveData.Sanitize), progress is kept.
         public const int Total = 50;
         public const int PerChapter = 10;
+        public const int Seasons = Total / PerChapter;
 
-        public static readonly string[] ChapterNames =
-        {
-            "ACEMİ KOLEZYUM", "HURDA ÇORAKLIK", "ZEHİRLİ DÖKÜMHANE", "GECE SİBER-RİNG", "DEMİR KIYAMET"
-        };
+        static readonly string[] ChapterNamesTr = { "ACEMİ KOLEZYUM", "HURDA ÇORAKLIK", "ZEHİRLİ DÖKÜMHANE", "GECE SİBER-RİNG", "DEMİR KIYAMET" };
+        static readonly string[] ChapterNamesEn = { "ROOKIE COLOSSEUM", "SCRAP BADLANDS", "TOXIC FOUNDRY", "NIGHT CYBER RING", "IRON APOCALYPSE" };
 
-        public static readonly string[] ChapterFeatures =
+        static readonly string[] ChapterFeaturesTr =
         {
             "Reaktör, yıkım ve kontrol noktası görevleri",
             "Yeni: Hayatta Kal ve daralan bölgeli Son Kalan",
@@ -100,6 +102,29 @@ namespace DerbyArena.Core
             "Yeni: gece yarışları, farlar ve neon",
             "Yeni: elit rakipler, en zor patron"
         };
+        static readonly string[] ChapterFeaturesEn =
+        {
+            "Reactor, demolition and checkpoint missions",
+            "New: Survival and Last Stand with a shrinking zone",
+            "New: acid pools, smarter rivals",
+            "New: night races, headlights and neon",
+            "New: elite rivals, the toughest boss"
+        };
+
+        /// <summary>Season (1-based) name in the current language.</summary>
+        public static string ChapterName(int chapter)
+        {
+            int i = Mathf.Clamp(chapter - 1, 0, ChapterNamesTr.Length - 1);
+            return Loc.T(ChapterNamesTr[i], ChapterNamesEn[i]);
+        }
+
+        public static string ChapterFeature(int chapter)
+        {
+            int i = Mathf.Clamp(chapter - 1, 0, ChapterFeaturesTr.Length - 1);
+            return Loc.T(ChapterFeaturesTr[i], ChapterFeaturesEn[i]);
+        }
+
+        public static bool AllCleared { get { return Save.Data.Stars[Total] > 0; } }
 
         static readonly string[] BossNames =
         {
@@ -210,14 +235,15 @@ namespace DerbyArena.Core
 
             switch (c.Kind)
             {
-                case ObjectiveKind.Boss: c.Title = "PATRON: " + BossNames[c.Chapter - 1]; break;
-                case ObjectiveKind.Demolition: c.Title = "YIKIM DERBİSİ"; break;
-                case ObjectiveKind.Checkpoint: c.Title = "KONTROL NOKTASI"; break;
-                case ObjectiveKind.Survival: c.Title = "HAYATTA KAL"; break;
-                case ObjectiveKind.LastStand: c.Title = "SON KALAN"; break;
-                default: c.Title = "REAKTÖR HATTI"; break;
+                case ObjectiveKind.Boss: c.Title = Loc.T("PATRON: ", "BOSS: ") + BossNames[c.Chapter - 1]; break;
+                case ObjectiveKind.Demolition: c.Title = Loc.T("YIKIM DERBİSİ", "DEMOLITION DERBY"); break;
+                case ObjectiveKind.Checkpoint: c.Title = Loc.T("KONTROL NOKTASI", "CHECKPOINT RUN"); break;
+                case ObjectiveKind.Survival: c.Title = Loc.T("HAYATTA KAL", "SURVIVAL"); break;
+                case ObjectiveKind.LastStand: c.Title = Loc.T("SON KALAN", "LAST STAND"); break;
+                default: c.Title = Loc.T("REAKTÖR HATTI", "REACTOR RUN"); break;
             }
-            c.Subtitle = "SEZON " + c.Chapter + " · " + ChapterNames[c.Chapter - 1];
+            c.BossName = c.Boss ? BossNames[c.Chapter - 1] : "";
+            c.Subtitle = Loc.T("SEZON ", "SEASON ") + c.Chapter + " · " + ChapterName(c.Chapter);
             c.Hint = HintFor(n);
             return c;
         }
@@ -226,18 +252,18 @@ namespace DerbyArena.Core
         {
             switch (n)
             {
-                case 1: return "Direksiyonu çevirerek sür. Mavi ışık sütunlarındaki hücreleri topla.";
-                case 2: return "Çarpmak da hasar verir: hızlı bindir, rakibin yan tarafına vur.";
-                case 3: return "ATEŞ en yakın rakibe otomatik nişan alır. Silah ısınırsa biraz bekle.";
-                case 4: return "Kontrol noktaları sırayla yanar. Her geçiş süreye +5 saniye ekler.";
-                case 5: return "DRİFT tuşuyla keskin dön, NİTRO ile kaç ya da bindir.";
-                case 6: return "ROKET ağır hasar verir. Turuncu sandıklar roket verir.";
-                case 10: return "Patron yarı canın altına inince şok dalgası atar. Kırmızı halkadan uzak dur.";
-                case 13: return "Hayatta Kal: süre bitene kadar ayakta kal. Rakipler dalgalar hâlinde gelir.";
-                case 15: return "Son Kalan: bölge daralır, dışında kalan herkes hasar alır. Merkeze yakın kal.";
-                case 21: return "Yeşil asit havuzları araçları eritir. Rakipleri içine it!";
-                case 31: return "Gece yarışı: farların yolu aydınlatır, neon şeritleri takip et.";
-                case 41: return "Elit rakipler (mor) daha dayanıklı ve isabetlidir.";
+                case 1: return Loc.T("Direksiyonu çevirerek sür. Mavi ışık sütunlarındaki hücreleri topla.", "Turn the wheel to steer. Collect the cells under the blue light beams.");
+                case 2: return Loc.T("Çarpmak da hasar verir: hızlı bindir, rakibin yan tarafına vur.", "Ramming hurts too: hit fast and aim for the rival's side.");
+                case 3: return Loc.T("ATEŞ en yakın rakibe otomatik nişan alır. Silah ısınırsa biraz bekle.", "FIRE auto-aims at the nearest rival. If the gun overheats, wait a moment.");
+                case 4: return Loc.T("Kontrol noktaları sırayla yanar. Her geçiş süreye +5 saniye ekler.", "Checkpoints light up in order. Each one adds +5 seconds.");
+                case 5: return Loc.T("DRİFT tuşuyla keskin dön, NİTRO ile kaç ya da bindir.", "Use DRIFT for sharp turns, NITRO to escape or ram.");
+                case 6: return Loc.T("ROKET ağır hasar verir. Turuncu sandıklar roket verir.", "ROCKETS hit hard. Orange crates refill them.");
+                case 10: return Loc.T("Patron güçsüzleşince şok dalgası atar. Kırmızı halkadan uzak dur.", "When the boss weakens it fires a shockwave. Keep out of the red ring.");
+                case 13: return Loc.T("Hayatta Kal: süre bitene kadar ayakta kal. Rakipler dalgalar hâlinde gelir.", "Survival: stay alive until the timer ends. Rivals come in waves.");
+                case 15: return Loc.T("Son Kalan: bölge daralır, dışında kalan herkes hasar alır. Merkeze yakın kal.", "Last Stand: the zone shrinks and hurts anyone outside. Stay near the center.");
+                case 21: return Loc.T("Yeşil asit havuzları araçları eritir. Rakipleri içine it!", "Green acid pools melt cars. Push your rivals in!");
+                case 31: return Loc.T("Gece yarışı: farların yolu aydınlatır, neon şeritleri takip et.", "Night race: your headlights light the way, follow the neon strips.");
+                case 41: return Loc.T("Elit rakipler (mor) daha dayanıklı ve isabetlidir.", "Elite rivals (purple) are tougher and more accurate.");
                 default: return null;
             }
         }

@@ -1,3 +1,16 @@
+# DERBY ARENA — v1.5.0 (versionCode 150)
+
+| # | Yeni | Ayrıntı |
+|---|---|---|
+| 1 | **İngilizce dil desteği** | Tüm menü, HUD, görev, ipucu, sonuç ve mesaj metinleri Türkçe + İngilizce. İlk açılışta **DİL SEÇ / CHOOSE LANGUAGE** ekranı (telefon dili önceden seçili). Ana menüde DİL düğmesi ve Ayarlar'da DİL satırı |
+| 2 | **Yol haritası bilgi kutusu** | Ana menüde "YENİ SEZON · YOL HARİTASI" rozeti ve Bölümler'de "YAKINDA · YOL HARİTASI" sekmesi. Sezon 6 (yakında), yeni araçlar ve kaplamalar (planlandı). Çevrim içi PvP ve Battle Royale hedefi (oyun ilgi görür ve küresel puanı yükselirse). Yıldız ilerlemesi ve PUAN VER düğmesi (Google Play sayfasını açar) |
+| 3 | Oyun bitmiş gibi davranmıyor | Son bölüm bitince "TÜM BÖLÜMLER TAMAM! Yeni sezon bir sonraki güncellemede". Kampanya yeni sezon eklenecek şekilde düzenlendi; kayıtlar korunur |
+| 4 | **Kare hızı seçeneği** | 30 / 60 / 90 / 120 FPS (yüksek tazelemeli telefonlar için); fizik 60 Hz'de sabit, enterpolasyonlu |
+| 5 | Kayıptan sonra ipucu | Sonuç ekranı, bir sonraki denemede rakiplerin zayıflayacağını söyler |
+| 6 | Google Play hazırlığı | `StoreListing/`: TR + EN mağaza metinleri, iki dilli gizlilik politikası, 512 ikon, 1024×500 görsel. AAB adımları `BUILD_TR.md` içinde |
+
+---
+
 # DERBY ARENA — v1.4.0 (versionCode 140)
 
 Paket kimliği aynı: `com.lenstedreal.derbyarena`. 1.3.0'daki kötüleşmeler geri alındı ve kök nedenlerinden düzeltildi.

@@ -274,7 +274,7 @@ namespace DerbyArena.World
                 MeshFactory.SolidBox("BridgeDeck", root, new Vector3(0f, 4.6f, 0f), new Vector3(28f, 0.4f, 3.2f), Quaternion.identity, steel);
             }
 
-            Status = loaded + "/" + SpillParts.Length + " parça, " + (Time.realtimeSinceStartup - t0).ToString("0.0") + " sn";
+            Status = loaded + "/" + SpillParts.Length + Loc.T(" parça, ", " parts, ") + (Time.realtimeSinceStartup - t0).ToString("0.0") + Loc.T(" sn", " s");
             DerbyStartupDiagnostics.Report("Arena", Status);
             Ready = true;
         }
@@ -489,11 +489,11 @@ namespace DerbyArena.World
                 if (fr != null) fr.enabled = false;
                 Crowd.Spawn(root, quality);
                 BuildColosseumObstacles(arena);
-                Status = "Kolezyum yüklendi, " + (Time.realtimeSinceStartup - t0).ToString("0.0") + " sn";
+                Status = Loc.T("Kolezyum yüklendi, ", "Colosseum loaded, ") + (Time.realtimeSinceStartup - t0).ToString("0.0") + Loc.T(" sn", " s");
             }
             else
             {
-                Status = "Kolezyum modeli yüklenemedi (" + error + "), basit arena";
+                Status = Loc.T("Kolezyum modeli yüklenemedi (", "Colosseum model failed to load (") + error + Loc.T("), basit arena", "), simple arena");
                 var stone = Mats.Lit(new Color(0.45f, 0.42f, 0.38f), 0.85f, 0f, Color.black, 0f);
                 var cyl = MeshFactory.UnitCylinder();
                 for (int i = 0; i < 24; i++)

@@ -117,7 +117,7 @@ namespace DerbyArena.Vehicles
             GunDamage *= 1.15f;
             TopSpeed *= 1.05f;
             ScrapValue = Mathf.RoundToInt(ScrapValue * 1.6f);
-            DisplayName = "Elit " + DisplayName;
+            DisplayName = DerbyArena.Core.Loc.T("Elit ", "Elite ") + DisplayName;
             Paint = new Color(0.3f, 0.1f, 0.42f);
             Accent = new Color(0.7f, 0.3f, 1f);
         }

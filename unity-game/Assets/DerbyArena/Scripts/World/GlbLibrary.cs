@@ -137,7 +137,7 @@ namespace DerbyArena.World
 
             if (bytes == null || bytes.Length < 20)
             {
-                failures[key] = "okunamadı: " + error;
+                failures[key] = Loc.T("okunamadı: ", "unreadable: ") + error;
                 Debug.LogError("DERBY: GLB could not be read: " + relativePath + " | " + error);
             }
             else

@@ -1,3 +1,15 @@
+# Test raporu — v1.5.0
+
+| Test | Sonuç |
+|---|---|
+| `validate_derby.py`: 184 kontrol | 184 PASS / 0 FAIL |
+| Roslyn C# 9 sözdizimi (36 dosya) | 0 hata |
+| Roslyn anlamsal derleme (Unity DLL'leri olmadan; yalnız Unity türlerinden kaynaklananlar ayıklandı): projenin kendi kodundaki ad, metot, argüman sayısı ve kapsam hataları | 0 hata |
+| Çevrilmemiş metin taraması (Loc.T dışında Türkçe görünen metin) | yalnız iki dilli dil seçim ekranı ve çeviri tabloları |
+| Unity derlemesi ve cihaz testi | **bekliyor** (Build Automation + telefon) |
+
+---
+
 # Test raporu — v1.4.0
 
 | Test | Sonuç |

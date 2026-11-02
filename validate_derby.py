@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unity-independent static checks for Derby Arena 1.4.0. Not a substitute for a Unity compile or device test."""
+"""Unity-independent static checks for Derby Arena 1.5.0. Not a substitute for a Unity compile or device test."""
 from pathlib import Path
 import json, re, struct, sys
 
@@ -74,7 +74,7 @@ for old in ['WheelDrive', 'MissionDirector', 'SpillwayBuilder', 'GltfVehicleVisu
 for cls in ['DerbyBootstrap', 'GameFlow', 'Campaign', 'SaveData', 'ArcadeCar', 'VehicleHealth', 'VehicleVisual', 'WeaponRig', 'Projectiles', 'Fx',
             'EnemyDriver', 'MatchDirector', 'PlayerDriver', 'Pickup', 'ReactorCell', 'ExtractionPad', 'ArenaLoader', 'GlbLibrary', 'MiniGlb',
             'ObjMesh', 'HudController', 'MenuController', 'TouchControls', 'UiKit', 'ChaseCamera', 'SynthAudio', 'AudioHub',
-            'CheckpointGate', 'ZoneRing', 'AcidPool', 'Crowd', 'PostFx', 'Brazier', 'GlbOptions']:
+            'CheckpointGate', 'ZoneRing', 'AcidPool', 'Crowd', 'PostFx', 'Brazier', 'GlbOptions', 'Loc']:
     check(cls in names, 'Type exists: ' + cls)
 
 boot = text(SCRIPTS / 'Core/DerbyBootstrap.cs')
@@ -88,7 +88,14 @@ check('public const int Total = 50;' in camp, '50-level campaign')
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
-check('Version = "1.4.0"' in diag, 'Runtime version 1.4.0')
+check('Version = "1.5.0"' in diag, 'Runtime version 1.5.0')
+loc = text(SCRIPTS / 'Core/Loc.cs')
+check('public static string T(string turkish, string english)' in loc and 'SystemLanguage.Turkish' in loc, 'Turkish / English localisation (device language preselects)')
+menu = text(SCRIPTS / 'UI/MenuController.cs')
+check('BuildLanguage()' in menu and '"language"' in menu and 'LanguageChosen' in menu, 'Language picker on first launch + settings row')
+check('BuildUpcomingSeason()' in menu and 'PvP' in menu and 'OpenStorePage' in menu, 'Roadmap info box: next season, planned cars, online PvP goal, rate button')
+for f in ['UI/HudController.cs', 'Mission/MatchDirector.cs', 'UI/MenuController.cs', 'Core/Campaign.cs']:
+    check(text(SCRIPTS / f).count('Loc.T(') >= 10, 'Localised strings in ' + f)
 
 editor = text(ROOT / 'Assets/DerbyArena/Editor/UrpAndPlayerSetup.cs')
 for mat in ['RuntimeLit.mat', 'RuntimeLitNormal.mat', 'RuntimeLitEmissive.mat', 'RuntimeLitGlass.mat', 'RuntimeFx.mat', 'RuntimeFxAdd.mat', 'RuntimeSky.mat']:
@@ -97,7 +104,7 @@ check('stripEngineCode = false' in editor, 'Engine code stripping disabled (Caps
 check('KeepFogVariants();' in editor, 'Fog shader variants kept')
 check('"com.lenstedreal.derbyarena"' in editor, 'Package id preserved')
 check((ROOT / 'Assets/link.xml').exists(), 'link.xml present')
-check('Version = "1.4.0"' in editor and 'VersionCode = 140' in editor, 'Player version 1.4.0 / code 140')
+check('Version = "1.5.0"' in editor and 'VersionCode = 150' in editor, 'Player version 1.5.0 / code 150')
 icons_hook = text(ROOT / 'Assets/DerbyArena/Editor/DerbyAndroidIcons.cs')
 check('IPostGenerateGradleAndroidProject' in icons_hook and '#if UNITY_EDITOR && UNITY_ANDROID' in icons_hook, 'Android launcher icons written into the Gradle project (guarded for iOS builds)')
 check('SaveAndReimport' not in editor, 'No asset re-import during the build (silently skipped the icons in 1.3.0)')
@@ -158,7 +165,7 @@ for s in ['asphalt', 'concrete', 'steel']:
         check((MODELS / 'spillway' / f'{s}_{k}.png').exists(), f'Spillway texture: {s}_{k}')
 
 fails = [r for r in res if r[0] == 'FAIL']
-print('DERBY ARENA 1.4.0 STATIC VALIDATION (Unity-independent)')
+print('DERBY ARENA 1.5.0 STATIC VALIDATION (Unity-independent)')
 for st, label, detail in res:
     if st == 'FAIL' or '-v' in sys.argv: print(f'[{st}] {label}' + (f' — {detail}' if detail else ''))
 print(f'\nSummary: {len(res) - len(fails)} PASS, {len(fails)} FAIL')

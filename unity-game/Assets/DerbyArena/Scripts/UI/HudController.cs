@@ -159,7 +159,7 @@ namespace DerbyArena.UI
             UiKit.Label("Text", lt, match.Config.Title, 64, UiKit.Amber, TextAnchor.MiddleCenter, true);
             var ls = UiKit.Rect("Sub", info);
             UiKit.Stretch(ls, 0f, 0.58f, 1f, 0.66f);
-            UiKit.Label("Text", ls, "BÖLÜM " + match.Config.Number + "  ·  " + match.Config.Subtitle, 28, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+            UiKit.Label("Text", ls, Loc.T("BÖLÜM ", "LEVEL ") + match.Config.Number + "  ·  " + match.Config.Subtitle, 28, UiKit.TextDim, TextAnchor.MiddleCenter, false);
             var lo = UiKit.Rect("Objective", info);
             UiKit.Stretch(lo, 0f, 0.42f, 1f, 0.56f);
             UiKit.Label("Text", lo, match.Config.ObjectiveLine, 32, Color.white, TextAnchor.MiddleCenter, false);
@@ -167,14 +167,14 @@ namespace DerbyArena.UI
             {
                 var lh = UiKit.Rect("Hint", info);
                 UiKit.Stretch(lh, 0f, 0.24f, 1f, 0.4f);
-                UiKit.Label("Text", lh, "İPUCU: " + match.Config.Hint, 26, UiKit.Cyan, TextAnchor.MiddleCenter, false);
+                UiKit.Label("Text", lh, Loc.T("İPUCU: ", "TIP: ") + match.Config.Hint, 26, UiKit.Cyan, TextAnchor.MiddleCenter, false);
             }
             var barBg = UiKit.Bar(info, UiKit.Amber, out loadingFill);
             UiKit.Stretch(barBg.rectTransform, 0.1f, 0.1f, 0.9f, 0.14f);
             loadingFill.fillAmount = 0f;
             var ll = UiKit.Rect("Status", info);
             UiKit.Stretch(ll, 0f, 0.01f, 1f, 0.09f);
-            loadingText = UiKit.Label("Text", ll, "YÜKLENİYOR", 26, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+            loadingText = UiKit.Label("Text", ll, Loc.T("YÜKLENİYOR", "LOADING"), 26, UiKit.TextDim, TextAnchor.MiddleCenter, false);
         }
 
         void BuildTopLeft()
@@ -214,13 +214,13 @@ namespace DerbyArena.UI
             var ni = UiKit.Bar(bars, UiKit.Cyan, out nitroFill);
             UiKit.Place(ni.rectTransform, 0f, 1f, 330f, 34f, 0f, 1f);
             ni.rectTransform.anchoredPosition = new Vector2(0f, -60f);
-            var nl = UiKit.Label("Text", ni.transform, "NİTRO", 22, Color.white, TextAnchor.MiddleLeft, true);
+            var nl = UiKit.Label("Text", ni.transform, Loc.T("NİTRO", "NITRO"), 22, Color.white, TextAnchor.MiddleLeft, true);
             nl.rectTransform.offsetMin = new Vector2(14f, 0f);
 
             var he = UiKit.Bar(bars, UiKit.Amber, out heatFill);
             UiKit.Place(he.rectTransform, 0f, 1f, 330f, 34f, 0f, 1f);
             he.rectTransform.anchoredPosition = new Vector2(0f, -102f);
-            heatText = UiKit.Label("Text", he.transform, "SİLAH", 22, Color.white, TextAnchor.MiddleLeft, true);
+            heatText = UiKit.Label("Text", he.transform, Loc.T("SİLAH", "WEAPON"), 22, Color.white, TextAnchor.MiddleLeft, true);
             heatText.rectTransform.offsetMin = new Vector2(14f, 0f);
         }
 
@@ -299,13 +299,13 @@ namespace DerbyArena.UI
             controls.LeftRect = leftImg.rectTransform;
             controls.RightRect = rightImg.rectTransform;
 
-            gasImg = Pedal("GAZ", 0.885f, 0.02f, 190f, 270f, new Color(0.15f, 0.7f, 0.32f));
-            brakeImg = Pedal("FREN", 0.745f, 0.02f, 170f, 190f, new Color(0.75f, 0.18f, 0.14f));
-            fireImg = RoundButton("ATEŞ", 0.86f, 0.58f, 230f, new Color(0.95f, 0.3f, 0.12f), 36);
-            rocketImg = RoundButton("ROKET", 0.71f, 0.5f, 150f, new Color(1f, 0.55f, 0.1f), 24);
+            gasImg = Pedal(Loc.T("GAZ", "GAS"), 0.885f, 0.02f, 190f, 270f, new Color(0.15f, 0.7f, 0.32f));
+            brakeImg = Pedal(Loc.T("FREN", "BRAKE"), 0.745f, 0.02f, 170f, 190f, new Color(0.75f, 0.18f, 0.14f));
+            fireImg = RoundButton(Loc.T("ATEŞ", "FIRE"), 0.86f, 0.58f, 230f, new Color(0.95f, 0.3f, 0.12f), 36);
+            rocketImg = RoundButton(Loc.T("ROKET", "ROCKET"), 0.71f, 0.5f, 150f, new Color(1f, 0.55f, 0.1f), 24);
             rocketText = rocketImg.GetComponentsInChildren<Text>()[0];
-            nitroImg = RoundButton("NİTRO", 0.615f, 0.27f, 140f, new Color(0.2f, 0.45f, 1f), 24);
-            driftImg = RoundButton("DRİFT", 0.62f, 0.1f, 125f, new Color(0.45f, 0.47f, 0.55f), 24);
+            nitroImg = RoundButton(Loc.T("NİTRO", "NITRO"), 0.615f, 0.27f, 140f, new Color(0.2f, 0.45f, 1f), 24);
+            driftImg = RoundButton(Loc.T("DRİFT", "DRIFT"), 0.62f, 0.1f, 125f, new Color(0.45f, 0.47f, 0.55f), 24);
 
             controls.GasRect = gasImg.rectTransform;
             controls.BrakeRect = brakeImg.rectTransform;
@@ -374,7 +374,7 @@ namespace DerbyArena.UI
             }
             else if (match.Phase == MatchPhase.Playing && match.Elapsed < 0.8f)
             {
-                countText.text = "BAŞLA!";
+                countText.text = Loc.T("BAŞLA!", "GO!");
                 countText.color = new Color(UiKit.Amber.r, UiKit.Amber.g, UiKit.Amber.b, 1f - match.Elapsed / 0.8f);
                 countText.rectTransform.localScale = Vector3.one * (1f + match.Elapsed);
             }
@@ -510,10 +510,10 @@ namespace DerbyArena.UI
             if (loadingFill != null) loadingFill.fillAmount = loadProgress;
             if (!done || loadProgress < 0.999f)
             {
-                SetText(loadingText, "YÜKLENİYOR  %" + Mathf.RoundToInt(loadProgress * 100f));
+                SetText(loadingText, Loc.T("YÜKLENİYOR  %" + Mathf.RoundToInt(loadProgress * 100f), "LOADING  " + Mathf.RoundToInt(loadProgress * 100f) + "%"));
                 return;
             }
-            SetText(loadingText, "HAZIR");
+            SetText(loadingText, Loc.T("HAZIR", "READY"));
             loadFade -= Time.unscaledDeltaTime / 0.3f;
             if (loadingGroup != null) loadingGroup.alpha = Mathf.Clamp01(loadFade);
             if (loadFade <= 0f) loadingPage.SetActive(false);
@@ -528,7 +528,7 @@ namespace DerbyArena.UI
                 hpFill.fillAmount = Mathf.Lerp(hpFill.fillAmount, f, 1f - Mathf.Exp(-12f * dt));
                 hpFill.color = f > 0.5f ? UiKit.Green : Color.Lerp(UiKit.Red, UiKit.Amber, f * 2f);
                 shieldFill.fillAmount = hp.Shield / Mathf.Max(1f, hp.ShieldMax);
-                SetText(hpText, Mathf.CeilToInt(hp.Current) + " / " + Mathf.CeilToInt(hp.Max) + (hp.Shield > 0.5f ? "   +" + Mathf.CeilToInt(hp.Shield) + " KALKAN" : ""));
+                SetText(hpText, Mathf.CeilToInt(hp.Current) + " / " + Mathf.CeilToInt(hp.Max) + (hp.Shield > 0.5f ? "   +" + Mathf.CeilToInt(hp.Shield) + Loc.T(" KALKAN", " SHIELD") : ""));
                 if (Time.time - hp.LastHitTime < 0.05f) damageFlash = Mathf.Min(0.45f, damageFlash + 0.16f);
             }
             damageFlash = Mathf.Max(0f, damageFlash - dt * 2.2f);
@@ -546,8 +546,8 @@ namespace DerbyArena.UI
             {
                 heatFill.fillAmount = w.Heat;
                 heatFill.color = w.Overheated ? (Mathf.Repeat(Time.unscaledTime * 4f, 1f) > 0.5f ? UiKit.Red : UiKit.Amber) : Color.Lerp(UiKit.Amber, UiKit.Red, w.Heat);
-                SetText(heatText, w.Overheated ? "AŞIRI ISINDI" : "SİLAH");
-                SetText(rocketText, "ROKET\n" + w.Rockets);
+                SetText(heatText, w.Overheated ? Loc.T("AŞIRI ISINDI", "OVERHEATED") : Loc.T("SİLAH", "WEAPON"));
+                SetText(rocketText, Loc.T("ROKET\n", "ROCKET\n") + w.Rockets);
             }
         }
 
@@ -563,49 +563,49 @@ namespace DerbyArena.UI
             {
                 if (match.ExtractionOpen)
                 {
-                    SetText(objText, "TAHLİYE BÖLGESİNDE BEKLE");
-                    SetText(progText, "TAHLİYE " + Mathf.FloorToInt(match.ExtractHold / MatchDirector.ExtractRequired * 100f) + "%");
+                    SetText(objText, Loc.T("TAHLİYE BÖLGESİNDE BEKLE", "HOLD IN THE EXTRACTION ZONE"));
+                    SetText(progText, Loc.T("TAHLİYE ", "EXTRACTION ") + Mathf.FloorToInt(match.ExtractHold / MatchDirector.ExtractRequired * 100f) + "%");
                     progText.color = UiKit.Green;
                 }
                 else
                 {
-                    SetText(objText, "REAKTÖR HÜCRELERİNİ TOPLA");
-                    SetText(progText, "HÜCRE " + match.CellsTaken + " / " + cfg.Cells);
+                    SetText(objText, Loc.T("REAKTÖR HÜCRELERİNİ TOPLA", "COLLECT THE REACTOR CELLS"));
+                    SetText(progText, Loc.T("HÜCRE ", "CELLS ") + match.CellsTaken + " / " + cfg.Cells);
                     progText.color = UiKit.Cyan;
                 }
             }
             else if (cfg.Kind == ObjectiveKind.Demolition)
             {
-                SetText(objText, "TÜM RAKİPLERİ İMHA ET");
+                SetText(objText, Loc.T("TÜM RAKİPLERİ İMHA ET", "DESTROY ALL RIVALS"));
                 int alive = match.AliveEnemies();
                 int pendingCount = Mathf.Max(0, match.TotalEnemies - match.Enemies.Count);
-                SetText(progText, "KALAN RAKİP " + (alive + pendingCount));
+                SetText(progText, Loc.T("KALAN RAKİP ", "RIVALS LEFT ") + (alive + pendingCount));
                 progText.color = UiKit.Amber;
             }
             else if (cfg.Kind == ObjectiveKind.Checkpoint)
             {
-                SetText(objText, "KAPILARDAN SIRAYLA GEÇ");
-                SetText(progText, "KAPI " + match.GatesPassed + " / " + match.Gates.Count);
+                SetText(objText, Loc.T("KAPILARDAN SIRAYLA GEÇ", "PASS THE GATES IN ORDER"));
+                SetText(progText, Loc.T("KAPI ", "GATE ") + match.GatesPassed + " / " + match.Gates.Count);
                 progText.color = UiKit.Amber;
             }
             else if (cfg.Kind == ObjectiveKind.Survival)
             {
-                SetText(objText, "SÜRE BİTENE KADAR HAYATTA KAL");
-                SetText(progText, "İMHA " + match.Kills + " / " + cfg.KillTarget);
+                SetText(objText, Loc.T("SÜRE BİTENE KADAR HAYATTA KAL", "SURVIVE UNTIL TIME RUNS OUT"));
+                SetText(progText, Loc.T("İMHA ", "KILLS ") + match.Kills + " / " + cfg.KillTarget);
                 progText.color = match.Kills >= cfg.KillTarget ? UiKit.Green : UiKit.Cyan;
             }
             else if (cfg.Kind == ObjectiveKind.LastStand)
             {
                 int aliveL = match.AliveEnemies();
                 int pendingL = Mathf.Max(0, match.TotalEnemies - match.Enemies.Count);
-                SetText(objText, match.PlayerOutsideZone ? "BÖLGE DIŞINDASIN! İÇERİ GİR" : "SON KALAN SEN OL");
-                SetText(progText, "KALAN RAKİP " + (aliveL + pendingL));
+                SetText(objText, match.PlayerOutsideZone ? Loc.T("BÖLGE DIŞINDASIN! İÇERİ GİR", "OUTSIDE THE ZONE! GET BACK IN") : Loc.T("SON KALAN SEN OL", "BE THE LAST ONE STANDING"));
+                SetText(progText, Loc.T("KALAN RAKİP ", "RIVALS LEFT ") + (aliveL + pendingL));
                 progText.color = UiKit.Amber;
             }
             else
             {
-                SetText(objText, "PATRONU YOK ET");
-                SetText(progText, "İMHA " + match.Kills);
+                SetText(objText, Loc.T("PATRONU YOK ET", "DESTROY THE BOSS"));
+                SetText(progText, Loc.T("İMHA ", "KILLS ") + match.Kills);
                 progText.color = UiKit.Amber;
             }
 
@@ -621,7 +621,7 @@ namespace DerbyArena.UI
             {
                 if (!bossBar.activeSelf) bossBar.SetActive(true);
                 bossFill.fillAmount = match.Boss.Fraction;
-                SetText(bossText, match.Config.Title.Replace("PATRON: ", ""));
+                SetText(bossText, string.IsNullOrEmpty(match.Config.BossName) ? match.Config.Title : match.Config.BossName);
             }
             else if (bossBar.activeSelf) bossBar.SetActive(false);
         }
@@ -729,12 +729,12 @@ namespace DerbyArena.UI
             UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 760f, 900f, 0.5f, 0.5f);
             var title = UiKit.Rect("Title", panel.transform);
             UiKit.Place(title, 0.5f, 1f, 700f, 110f, 0.5f, 1f);
-            UiKit.Label("Text", title, "DURAKLATILDI", 60, Color.white, TextAnchor.MiddleCenter, true);
+            UiKit.Label("Text", title, Loc.T("DURAKLATILDI", "PAUSED"), 60, Color.white, TextAnchor.MiddleCenter, true);
 
             float y = -130f;
-            AddPauseButton(panel.transform, "DEVAM ET", UiKit.Green, ref y, () => TogglePause());
-            AddPauseButton(panel.transform, "YENİDEN BAŞLAT", UiKit.Amber, ref y, () => GameFlow.Play(match.Config.Number));
-            AddPauseButton(panel.transform, "KONTROL: " + (Save.Data.ControlMode == 0 ? "DİREKSİYON" : "OKLAR"), UiKit.PanelLight, ref y, () =>
+            AddPauseButton(panel.transform, Loc.T("DEVAM ET", "RESUME"), UiKit.Green, ref y, () => TogglePause());
+            AddPauseButton(panel.transform, Loc.T("YENİDEN BAŞLAT", "RESTART"), UiKit.Amber, ref y, () => GameFlow.Play(match.Config.Number));
+            AddPauseButton(panel.transform, Loc.T("KONTROL: ", "CONTROLS: ") + (Save.Data.ControlMode == 0 ? Loc.T("DİREKSİYON", "WHEEL") : Loc.T("OKLAR", "ARROWS")), UiKit.PanelLight, ref y, () =>
             {
                 Save.Data.ControlMode = 1 - Save.Data.ControlMode;
                 Save.Write();
@@ -742,7 +742,7 @@ namespace DerbyArena.UI
                 Destroy(pausePage);
                 BuildPause();
             });
-            AddPauseButton(panel.transform, "SES: " + (Save.Data.Sound ? "AÇIK" : "KAPALI"), UiKit.PanelLight, ref y, () =>
+            AddPauseButton(panel.transform, Loc.T("SES: ", "SOUND: ") + (Save.Data.Sound ? Loc.T("AÇIK", "ON") : Loc.T("KAPALI", "OFF")), UiKit.PanelLight, ref y, () =>
             {
                 Save.Data.Sound = !Save.Data.Sound;
                 Save.Write();
@@ -750,7 +750,7 @@ namespace DerbyArena.UI
                 Destroy(pausePage);
                 BuildPause();
             });
-            AddPauseButton(panel.transform, "PARLAKLIK: %" + Mathf.RoundToInt(Save.Data.Brightness * 100f), UiKit.PanelLight, ref y, () =>
+            AddPauseButton(panel.transform, Loc.T("PARLAKLIK: %" + Mathf.RoundToInt(Save.Data.Brightness * 100f), "BRIGHTNESS: " + Mathf.RoundToInt(Save.Data.Brightness * 100f) + "%"), UiKit.PanelLight, ref y, () =>
             {
                 float nb = Save.Data.Brightness + 0.1f;
                 Save.Data.Brightness = nb > 1.45f ? 0.8f : nb;
@@ -759,7 +759,7 @@ namespace DerbyArena.UI
                 Destroy(pausePage);
                 BuildPause();
             });
-            AddPauseButton(panel.transform, "ANA MENÜ", UiKit.Red, ref y, () => GameFlow.ToMenu("home"));
+            AddPauseButton(panel.transform, Loc.T("ANA MENÜ", "MAIN MENU"), UiKit.Red, ref y, () => GameFlow.ToMenu("home"));
         }
 
         void AddPauseButton(Transform parent, string caption, Color color, ref float y, System.Action a)
@@ -818,11 +818,11 @@ namespace DerbyArena.UI
 
             var title = UiKit.Rect("Title", panel.transform);
             UiKit.Place(title, 0.5f, 1f, 860f, 120f, 0.5f, 1f);
-            UiKit.Label("Text", title, won ? "GÖREV TAMAM" : "KAYBETTİN", 72, won ? UiKit.Green : UiKit.Red, TextAnchor.MiddleCenter, true);
+            UiKit.Label("Text", title, won ? Loc.T("GÖREV TAMAM", "MISSION COMPLETE") : Loc.T("KAYBETTİN", "YOU LOST"), 72, won ? UiKit.Green : UiKit.Red, TextAnchor.MiddleCenter, true);
             var sub = UiKit.Rect("Sub", panel.transform);
             UiKit.Place(sub, 0.5f, 1f, 860f, 50f, 0.5f, 1f);
             sub.anchoredPosition = new Vector2(0f, -118f);
-            UiKit.Label("Text", sub, won ? ("BÖLÜM " + m.Config.Number + " · " + m.Config.Title) : m.LoseReason, 30, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+            UiKit.Label("Text", sub, won ? (Loc.T("BÖLÜM ", "LEVEL ") + m.Config.Number + " · " + m.Config.Title) : m.LoseReason, 30, UiKit.TextDim, TextAnchor.MiddleCenter, false);
 
             for (int i = 0; i < 3; i++)
             {
@@ -832,13 +832,13 @@ namespace DerbyArena.UI
                 s.rectTransform.anchoredPosition = new Vector2((i - 1) * 170f, i == 1 ? -255f : -245f);
             }
 
-            string stats = "SÜRE  " + FormatTime(m.Elapsed) + "     İMHA  " + m.Kills + "\n+" + m.Reward + " HURDA";
+            string stats = Loc.T("SÜRE  ", "TIME  ") + FormatTime(m.Elapsed) + Loc.T("     İMHA  ", "     KILLS  ") + m.Kills + "\n+" + m.Reward + Loc.T(" HURDA", " SCRAP");
             if (won)
             {
                 bool fast = m.Config.Kind == ObjectiveKind.Survival ? m.Kills >= m.Config.KillTarget : m.Elapsed <= m.Config.ParTime;
                 bool healthy = m.PlayerHealth != null && m.PlayerHealth.Fraction >= 0.5f;
-                stats += "\n\n" + m.Config.StarTwoLine + ": " + (fast ? "EVET" : "HAYIR")
-                       + "     Can %50 üstü: " + (healthy ? "EVET" : "HAYIR");
+                stats += "\n\n" + m.Config.StarTwoLine + ": " + (fast ? Loc.T("EVET", "YES") : Loc.T("HAYIR", "NO"))
+                       + Loc.T("     Can %50 üstü: ", "     Health above 50%: ") + (healthy ? Loc.T("EVET", "YES") : Loc.T("HAYIR", "NO"));
             }
             var st = UiKit.Rect("Stats", panel.transform);
             UiKit.Place(st, 0.5f, 1f, 820f, 200f, 0.5f, 1f);
@@ -848,16 +848,21 @@ namespace DerbyArena.UI
             float x = -270f;
             bool hasNext = won && m.Config.Number < Campaign.Total;
             int n = m.Config.Number;
-            if (hasNext) { ResultButton(panel.transform, "SONRAKİ", UiKit.Green, x, () => GameFlow.Play(n + 1)); x += 270f; }
-            ResultButton(panel.transform, "TEKRAR", UiKit.Amber, hasNext ? x : -135f, () => GameFlow.Play(n));
+            if (hasNext) { ResultButton(panel.transform, Loc.T("SONRAKİ", "NEXT"), UiKit.Green, x, () => GameFlow.Play(n + 1)); x += 270f; }
+            ResultButton(panel.transform, Loc.T("TEKRAR", "RETRY"), UiKit.Amber, hasNext ? x : -135f, () => GameFlow.Play(n));
             x += 270f;
-            ResultButton(panel.transform, "MENÜ", UiKit.PanelLight, hasNext ? x : 135f, () => GameFlow.ToMenu(won ? "levels" : "home"));
-            if (!won)
+            ResultButton(panel.transform, Loc.T("MENÜ", "MENU"), UiKit.PanelLight, hasNext ? x : 135f, () => GameFlow.ToMenu(won ? "levels" : "home"));
+            if (!won || n >= Campaign.Total)
             {
                 var hint = UiKit.Rect("Tip", panel.transform);
                 UiKit.Place(hint, 0.5f, 0f, 820f, 60f, 0.5f, 0f);
                 hint.anchoredPosition = new Vector2(0f, 26f);
-                UiKit.Label("Text", hint, "Garajda zırh ve motor yükselt, sonra tekrar dene.", 26, UiKit.Cyan, TextAnchor.MiddleCenter, false);
+                string tip = won
+                    ? Loc.T("TÜM BÖLÜMLER TAMAM! Yeni sezon bir sonraki güncellemede geliyor.", "ALL LEVELS CLEARED! A new season is coming in the next update.")
+                    : (m.Assist < 3
+                        ? Loc.T("Bir sonraki denemede rakipler biraz zayıflar. Garajda da yükseltme yapabilirsin.", "Rivals get a little weaker on your next try. You can also upgrade in the garage.")
+                        : Loc.T("Garajda zırh ve motor yükselt, sonra tekrar dene.", "Upgrade armor and engine in the garage, then try again."));
+                UiKit.Label("Text", hint, tip, 26, won ? UiKit.Amber : UiKit.Cyan, TextAnchor.MiddleCenter, false);
             }
         }
 

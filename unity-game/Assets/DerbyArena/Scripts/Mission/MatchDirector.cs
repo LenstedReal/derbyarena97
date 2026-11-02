@@ -218,7 +218,7 @@ namespace DerbyArena.Mission
             if (cam != null) cam.Intro(2.6f);
             AudioHub.Ambience(0.35f);
             Say(Config.Title, UiKit.Amber);
-            if (Assist > 0) Say("KOLAYLAŞTIRILDI · " + (Assist + 1) + ". DENEME", UiKit.Cyan);
+            if (Assist > 0) Say(Loc.T("KOLAYLAŞTIRILDI · " + (Assist + 1) + ". DENEME", "EASIER NOW · ATTEMPT " + (Assist + 1)), UiKit.Cyan);
         }
 
         EnemyKind NextSurvivalKind()
@@ -341,7 +341,7 @@ namespace DerbyArena.Mission
             {
                 Fx.Burst(pos + Vector3.up, new Color(1f, 0.3f, 0.2f), 12);
                 if (Config.Kind != ObjectiveKind.Survival || kind == EnemyKind.WarRig)
-                    Say(kind == EnemyKind.WarRig ? "PATRON GELDİ!" : "YENİ RAKİP: " + spec.DisplayName.ToUpperInvariant(), UiKit.Red);
+                    Say(kind == EnemyKind.WarRig ? Loc.T("PATRON GELDİ!", "THE BOSS IS HERE!") : Loc.T("YENİ RAKİP: ", "NEW RIVAL: ") + spec.DisplayName.ToUpperInvariant(), UiKit.Red);
             }
         }
 
@@ -363,7 +363,7 @@ namespace DerbyArena.Mission
             if (killer == PlayerHealth || killer == null)
             {
                 Kills++;
-                Say("İMHA! +" + scrap, UiKit.Amber);
+                Say(Loc.T("İMHA! +", "DESTROYED! +") + scrap, UiKit.Amber);
                 Haptics(false);
             }
             StartCoroutine(Sink(victim.gameObject, 9f));
@@ -384,7 +384,7 @@ namespace DerbyArena.Mission
                 return;
             }
             if (Config.Kind == ObjectiveKind.LastStand && AliveEnemies() > 0)
-                Say(AliveEnemies() + " RAKİP KALDI", UiKit.Amber);
+                Say(AliveEnemies() + Loc.T(" RAKİP KALDI", " RIVALS LEFT"), UiKit.Amber);
             if (pending.Count > 0 && Config.Kind != ObjectiveKind.Reactor)
                 StartCoroutine(DelayedSpawn(1.5f));
         }
@@ -424,8 +424,8 @@ namespace DerbyArena.Mission
         {
             if (Phase != MatchPhase.Playing) return;
             LoseReason = killer != null && killer.GetComponent<ArcadeCar>() != null
-                ? killer.GetComponent<ArcadeCar>().Spec.DisplayName + " seni imha etti"
-                : "Aracın imha edildi";
+                ? killer.GetComponent<ArcadeCar>().Spec.DisplayName + Loc.T(" seni imha etti", " destroyed you")
+                : Loc.T("Aracın imha edildi", "Your car was destroyed");
             Lose();
             Haptics(true);
         }
@@ -454,7 +454,7 @@ namespace DerbyArena.Mission
             FreezeAll();
             AudioHub.Play2D(SynthAudio.Win(), 0.8f, 1f);
             Crowd.Cheer(1f);
-            Say("GÖREV TAMAM", UiKit.Green);
+            Say(Loc.T("GÖREV TAMAM", "MISSION COMPLETE"), UiKit.Green);
         }
 
         void Lose()
@@ -541,7 +541,7 @@ namespace DerbyArena.Mission
                     Win();
                     return;
                 }
-                LoseReason = "Süre doldu";
+                LoseReason = Loc.T("Süre doldu", "Time's up");
                 Lose();
                 return;
             }
@@ -558,7 +558,7 @@ namespace DerbyArena.Mission
             {
                 Vector3 safe = Arena.Info.ClosestSafePoint(pp);
                 PlayerCar.Teleport(safe, PlayerCar.transform.eulerAngles.y);
-                Say("Arenaya geri döndün", UiKit.TextDim);
+                Say(Loc.T("Arenaya geri döndün", "Back in the arena"), UiKit.TextDim);
             }
             foreach (var e in Enemies)
             {
@@ -599,7 +599,7 @@ namespace DerbyArena.Mission
             }
             TimeLeft += 5f;
             Gates[GatesPassed].SetState(1);
-            Say("KAPI " + GatesPassed + "/" + Gates.Count + "  +5 sn", UiKit.Amber);
+            Say(Loc.T("KAPI ", "GATE ") + GatesPassed + "/" + Gates.Count + Loc.T("  +5 sn", "  +5 s"), UiKit.Amber);
         }
 
         void TickZone(float dt)
@@ -608,7 +608,7 @@ namespace DerbyArena.Mission
             var info = Arena.Info;
             float r = Mathf.Lerp(info.ZoneStart, info.ZoneEnd, t * t * (3f - 2f * t));
             if (Mathf.Abs(r - Zone.Radius) > 0.01f) Zone.SetRadius(r);
-            if (Elapsed > ZoneDelay - 5f && Elapsed - dt <= ZoneDelay - 5f) Say("BÖLGE 5 SN İÇİNDE DARALIYOR", UiKit.Red);
+            if (Elapsed > ZoneDelay - 5f && Elapsed - dt <= ZoneDelay - 5f) Say(Loc.T("BÖLGE 5 SN İÇİNDE DARALIYOR", "ZONE SHRINKS IN 5 S"), UiKit.Red);
             PlayerOutsideZone = PlayerCar != null && Zone.Outside(PlayerCar.transform.position);
             foreach (var e in Enemies)
             {
@@ -626,7 +626,7 @@ namespace DerbyArena.Mission
             hazardTick = 0.5f;
             HazardDamage(PlayerHealth);
             foreach (var e in Enemies) if (e != null) HazardDamage(e.Health);
-            if (PlayerOutsideZone) Say("BÖLGE DIŞINDASIN!", UiKit.Red);
+            if (PlayerOutsideZone) Say(Loc.T("BÖLGE DIŞINDASIN!", "OUTSIDE THE ZONE!"), UiKit.Red);
         }
 
         void HazardDamage(VehicleHealth h)
@@ -644,10 +644,10 @@ namespace DerbyArena.Mission
         {
             switch (k)
             {
-                case PickupKind.Health: return "+ ONARIM";
-                case PickupKind.Nitro: return "+ NİTRO";
-                case PickupKind.Ammo: return "+3 ROKET";
-                default: return "+ KALKAN";
+                case PickupKind.Health: return Loc.T("+ ONARIM", "+ REPAIR");
+                case PickupKind.Nitro: return Loc.T("+ NİTRO", "+ NITRO");
+                case PickupKind.Ammo: return Loc.T("+3 ROKET", "+3 ROCKETS");
+                default: return Loc.T("+ KALKAN", "+ SHIELD");
             }
         }
 
@@ -669,13 +669,13 @@ namespace DerbyArena.Mission
                         {
                             ExtractionOpen = true;
                             Extraction.gameObject.SetActive(true);
-                            Say("TAHLİYE AÇILDI! Yeşil bölgeye git", UiKit.Green);
+                            Say(Loc.T("TAHLİYE AÇILDI! Yeşil bölgeye git", "EXTRACTION OPEN! Head to the green zone"), UiKit.Green);
                             AudioHub.Play2D(SynthAudio.Alarm(), 0.6f, 1f);
                             while (pending.Count > 0) SpawnEnemy(pending.Dequeue(), Enemies.Count);
                         }
                         else
                         {
-                            Say("HÜCRE " + CellsTaken + "/" + Config.Cells + "  +8 sn", UiKit.Cyan);
+                            Say(Loc.T("HÜCRE ", "CELL ") + CellsTaken + "/" + Config.Cells + Loc.T("  +8 sn", "  +8 s"), UiKit.Cyan);
                             if (pending.Count > 0) SpawnEnemy(pending.Dequeue(), Enemies.Count);
                         }
                     }

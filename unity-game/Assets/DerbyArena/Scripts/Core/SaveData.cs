@@ -23,7 +23,10 @@ namespace DerbyArena.Core
         public bool Haptics = true;
         public int Quality = 1;               // 0 low, 1 medium, 2 high
         public bool QualityChosen = false;    // false -> auto-detect once on first launch
-        public float Brightness = 1.1f;       // 0.8 .. 1.4, scales key light, ambient and sky
+        public int Language = 0;              // 0 Turkish, 1 English (see Loc)
+        public bool LanguageChosen = false;   // false -> language picker on first launch
+        public float Brightness = 1.1f;
+        public int FrameRate = 60;            // 30 / 60 / 90 / 120 (high-refresh phones)       // 0.8 .. 1.4, scales key light, ambient and sky
         public int[] Fails = new int[Campaign.Total + 1];   // losses per level -> automatic assist
     }
 
@@ -97,6 +100,8 @@ namespace DerbyArena.Core
             d.ControlMode = Mathf.Clamp(d.ControlMode, 0, 1);
             d.Sensitivity = Mathf.Clamp(d.Sensitivity, 0.5f, 1.8f);
             d.Quality = Mathf.Clamp(d.Quality, 0, 2);
+            d.Language = Mathf.Clamp(d.Language, 0, 1);
+            if (d.FrameRate != 30 && d.FrameRate != 60 && d.FrameRate != 90 && d.FrameRate != 120) d.FrameRate = 60;
         }
 
         /// <summary>First launch: pick a quality tier from the device (memory, shader level, HDR support).</summary>
@@ -125,15 +130,31 @@ namespace DerbyArena.Core
         public const int MaxLevel = 5;
         public const int Engine = 0, Armor = 1, Weapon = 2, Nitro = 3, Rockets = 4;
 
-        public static readonly string[] Names = { "MOTOR", "ZIRH", "SİLAH", "NİTRO", "ROKET" };
-        public static readonly string[] Descriptions =
+        public const int Count = 5;
+
+        public static string Name(int type)
         {
-            "Hız ve ivme +%5",
-            "Azami can +24",
-            "Makineli hasarı +%12",
-            "Nitro süresi ve dolum hızı",
-            "Başlangıç roketi +2"
-        };
+            switch (type)
+            {
+                case Engine: return Loc.T("MOTOR", "ENGINE");
+                case Armor: return Loc.T("ZIRH", "ARMOR");
+                case Weapon: return Loc.T("SİLAH", "WEAPON");
+                case Nitro: return Loc.T("NİTRO", "NITRO");
+                default: return Loc.T("ROKET", "ROCKETS");
+            }
+        }
+
+        public static string Description(int type)
+        {
+            switch (type)
+            {
+                case Engine: return Loc.T("Hız ve ivme +%5", "Speed and acceleration +5%");
+                case Armor: return Loc.T("Azami can +24", "Max health +24");
+                case Weapon: return Loc.T("Makineli hasarı +%12", "Machine gun damage +12%");
+                case Nitro: return Loc.T("Nitro süresi ve dolum hızı", "Nitro duration and recharge");
+                default: return Loc.T("Başlangıç roketi +2", "Starting rockets +2");
+            }
+        }
 
         public static int Cost(int type, int level) { return 120 + level * 140 + type * 10; }
         public static int Level(int type) { return Save.Data.Upgrades[type]; }

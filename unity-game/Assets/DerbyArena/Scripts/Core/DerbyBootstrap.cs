@@ -19,6 +19,7 @@ namespace DerbyArena.Core
         void Awake()
         {
             Save.Load();
+            Loc.AutoDetect();
             Time.timeScale = 1f;
             AudioListener.pause = false;
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
@@ -138,7 +139,7 @@ namespace DerbyArena.Core
         {
             int q = Save.Data.Quality;
             QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = 60;
+            Application.targetFrameRate = Save.Data.FrameRate;
             QualitySettings.shadows = q == 0 ? ShadowQuality.Disable : (q == 2 ? ShadowQuality.All : ShadowQuality.HardOnly);
             QualitySettings.shadowResolution = q == 2 ? ShadowResolution.High : ShadowResolution.Medium;
             QualitySettings.shadowDistance = q == 0 ? 0f : (q == 2 ? 60f : 45f);
