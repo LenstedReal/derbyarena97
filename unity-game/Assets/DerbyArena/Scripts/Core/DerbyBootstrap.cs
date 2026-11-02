@@ -148,6 +148,40 @@ namespace DerbyArena.Core
             QualitySettings.anisotropicFiltering = q == 0 ? AnisotropicFiltering.Disable : AnisotropicFiltering.Enable;
             QualitySettings.lodBias = q == 0 ? 0.7f : 1f;
             QualitySettings.softParticles = false;
+            QualitySettings.realtimeReflectionProbes = true;
+            CapResolution(q);
+        }
+
+        static int nativeW, nativeH;
+
+        /// <summary>
+        /// Renders at most 1080p (high), 900p (medium) or 720p (low) on the short side. 1440p+ phones were
+        /// rendering 2-3x more pixels than needed, which cost far more frame rate than any effect.
+        /// </summary>
+        static void CapResolution(int q)
+        {
+#if UNITY_ANDROID || UNITY_IOS
+            try
+            {
+                if (nativeW <= 0)
+                {
+                    nativeW = Display.main.systemWidth;
+                    nativeH = Display.main.systemHeight;
+                }
+                int longSide = Mathf.Max(nativeW, nativeH);
+                int shortSide = Mathf.Min(nativeW, nativeH);
+                if (shortSide <= 0) return;
+                int cap = q == 0 ? 720 : (q == 1 ? 900 : 1080);
+                float scale = shortSide > cap ? (float)cap / shortSide : 1f;
+                int w = Mathf.RoundToInt(longSide * scale);
+                int h = Mathf.RoundToInt(shortSide * scale);
+                if (Screen.width != w || Screen.height != h) Screen.SetResolution(w, h, true);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("DERBY: resolution cap skipped. " + ex.Message);
+            }
+#endif
         }
     }
 

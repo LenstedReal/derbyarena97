@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unity-independent static checks for Derby Arena 1.3.0. Not a substitute for a Unity compile or device test."""
+"""Unity-independent static checks for Derby Arena 1.4.0. Not a substitute for a Unity compile or device test."""
 from pathlib import Path
 import json, re, struct, sys
 
@@ -13,6 +13,10 @@ def check(ok, label, detail=''):
 
 def text(p):
     return p.read_text(encoding='utf-8', errors='ignore') if p.exists() else ''
+
+def png_size(p):
+    b = p.read_bytes()
+    return struct.unpack('>II', b[16:24]) if b[:8] == b'\x89PNG\r\n\x1a\n' else None
 
 def strip(src):
     out = []; i = 0; n = len(src)
@@ -84,7 +88,7 @@ check('public const int Total = 50;' in camp, '50-level campaign')
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
-check('Version = "1.3.0"' in diag, 'Runtime version 1.3.0')
+check('Version = "1.4.0"' in diag, 'Runtime version 1.4.0')
 
 editor = text(ROOT / 'Assets/DerbyArena/Editor/UrpAndPlayerSetup.cs')
 for mat in ['RuntimeLit.mat', 'RuntimeLitNormal.mat', 'RuntimeLitEmissive.mat', 'RuntimeLitGlass.mat', 'RuntimeFx.mat', 'RuntimeFxAdd.mat', 'RuntimeSky.mat']:
@@ -93,7 +97,22 @@ check('stripEngineCode = false' in editor, 'Engine code stripping disabled (Caps
 check('KeepFogVariants();' in editor, 'Fog shader variants kept')
 check('"com.lenstedreal.derbyarena"' in editor, 'Package id preserved')
 check((ROOT / 'Assets/link.xml').exists(), 'link.xml present')
-check('Version = "1.3.0"' in editor and 'VersionCode = 130' in editor, 'Player version 1.3.0 / code 130')
+check('Version = "1.4.0"' in editor and 'VersionCode = 140' in editor, 'Player version 1.4.0 / code 140')
+icons_hook = text(ROOT / 'Assets/DerbyArena/Editor/DerbyAndroidIcons.cs')
+check('IPostGenerateGradleAndroidProject' in icons_hook and '#if UNITY_EDITOR && UNITY_ANDROID' in icons_hook, 'Android launcher icons written into the Gradle project (guarded for iOS builds)')
+check('SaveAndReimport' not in editor, 'No asset re-import during the build (silently skipped the icons in 1.3.0)')
+for d, k in [('mdpi', 1), ('hdpi', 1.5), ('xhdpi', 2), ('xxhdpi', 3), ('xxxhdpi', 4)]:
+    for n, base in [('app_icon', 48), ('app_icon_round', 48), ('app_icon_foreground', 108), ('app_icon_background', 108)]:
+        ip = ROOT / 'AndroidIcons/res' / ('mipmap-' + d) / (n + '.png')
+        check(ip.exists() and png_size(ip) == (int(base * k), int(base * k)), f'Launcher icon {d}/{n}.png')
+for n in ['app_icon.xml', 'app_icon_round.xml']:
+    x = ROOT / 'AndroidIcons/res/mipmap-anydpi-v26' / n
+    check(x.exists() and 'adaptive-icon' in text(x), 'Adaptive icon ' + n)
+post = text(ROOT / 'Assets/DerbyArena/Shaders/DerbyPost.shader')
+check('LinearToGammaSpace' in post and 'GammaToLinearSpace' in post, 'Colour grading in gamma space (no black crush)')
+atm = text(SCRIPTS / 'World/Atmosphere.cs')
+check('ReflectionProbe' in atm and 'ApplyBrightness' in atm, 'Sky reflection probe + brightness setting')
+check('ForcePixel' not in text(SCRIPTS / 'Vehicles/VehicleVisual.cs') and 'ForcePixel' not in text(SCRIPTS / 'CameraRig/ChaseCamera.cs'), 'No forced per-pixel lights')
 for mat in ['RuntimeVertexLit.mat', 'RuntimePost.mat']:
     check(mat in editor, 'Editor generates ' + mat)
 check('ApplyIcons();' in editor, 'Editor applies the Derby Arena app icons')
@@ -102,9 +121,6 @@ for sh, name in [('DerbyPost.shader', '"Hidden/DerbyArena/Post"'), ('DerbyVertex
     st = text(sp) if sp.exists() else ''
     check(name in st and st.count('{') == st.count('}'), 'Shader present and balanced: ' + sh)
 check(text(ROOT / 'Assets/DerbyArena/Shaders/DerbyPost.shader').count('Pass') >= 5, 'Post shader has 5 passes')
-def png_size(p):
-    b = p.read_bytes()
-    return struct.unpack('>II', b[16:24]) if b[:8] == b'\x89PNG\r\n\x1a\n' else None
 for ic, size in [('icon_legacy.png', 1024), ('icon_adaptive_bg.png', 432), ('icon_adaptive_fg.png', 432), ('icon_round.png', 512)]:
     ip = ROOT / 'Assets/DerbyArena/Icons' / ic
     check(ip.exists() and png_size(ip) == (size, size), f'Icon {ic} {size}x{size}')
@@ -142,7 +158,7 @@ for s in ['asphalt', 'concrete', 'steel']:
         check((MODELS / 'spillway' / f'{s}_{k}.png').exists(), f'Spillway texture: {s}_{k}')
 
 fails = [r for r in res if r[0] == 'FAIL']
-print('DERBY ARENA 1.3.0 STATIC VALIDATION (Unity-independent)')
+print('DERBY ARENA 1.4.0 STATIC VALIDATION (Unity-independent)')
 for st, label, detail in res:
     if st == 'FAIL' or '-v' in sys.argv: print(f'[{st}] {label}' + (f' — {detail}' if detail else ''))
 print(f'\nSummary: {len(res) - len(fails)} PASS, {len(fails)} FAIL')

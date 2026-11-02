@@ -147,7 +147,6 @@ namespace DerbyArena.World
                     Vector3 hi = new Vector3(side * 33.2f, 4.4f, pipeZ[i]);
                     Vector3 d = hi - lo;
                     MeshFactory.ColliderBox("PipeCollider", shell, (lo + hi) * 0.5f, new Vector3(0.95f, 0.95f, d.magnitude + 0.4f), Quaternion.LookRotation(d.normalized, Vector3.up));
-                    MeshFactory.ColliderBox("PipeFoot", shell, new Vector3(side * 28.3f, 0.8f, pipeZ[i]), new Vector3(2.4f, 1.6f, 1.1f), Quaternion.identity);
                 }
             }
 
@@ -385,10 +384,59 @@ namespace DerbyArena.World
                 MeshFactory.Make("Bowl", MeshFactory.UnitCylinder(), iron, b, new Vector3(0f, 0.25f, 0f), new Vector3(1.3f, 0.5f, 1.3f));
                 MeshFactory.Make("Coals", MeshFactory.UnitCylinder(), coal, b, new Vector3(0f, 0.52f, 0f), new Vector3(1.05f, 0.06f, 1.05f));
                 var fl = b.gameObject.AddComponent<Brazier>();
-                if (i % 2 == 0 && quality > 0) fl.Light = Atmosphere.Lamp(b, at + Vector3.up * 1.4f, new Color(1f, 0.55f, 0.2f), 1.3f, 12f);
+                if (i % 4 == 0 && quality > 0) fl.Light = Atmosphere.Lamp(b, at + Vector3.up * 1.4f, new Color(1f, 0.55f, 0.2f), 1.3f, 12f);
             }
 
             StartCoroutine(LoadColosseum(floor));
+        }
+
+        static Material FindMaterial(GameObject model, string key)
+        {
+            if (model == null) return null;
+            foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+                foreach (var m in r.sharedMaterials)
+                    if (m != null && m.name.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0) return m;
+            return null;
+        }
+
+        /// <summary>
+        /// Sparse, clearly visible obstacles (1.4.0): three low sandstone block walls as in the reference video and
+        /// two small striped jump ramps. Box colliders only; positions keep clear of spawns, pickups and acid pools.
+        /// </summary>
+        void BuildColosseumObstacles(GameObject arena)
+        {
+            var stone = FindMaterial(arena, "RomanLimestone");
+            if (stone == null) stone = Mats.Lit(new Color(0.8f, 0.68f, 0.5f), 0.85f, 0f, Color.black, 0f);
+            var hazard = FindMaterial(arena, "HazardBarrier");
+            if (hazard == null) hazard = Mats.Lit(new Color(0.95f, 0.72f, 0.12f), 0.6f, 0.1f, Color.black, 0f);
+            var obstacles = new GameObject("Obstacles").transform;
+            obstacles.SetParent(root, false);
+
+            float[] wallAngles = { 60f, 180f, 300f };
+            for (int w = 0; w < wallAngles.Length; w++)
+            {
+                float a = wallAngles[w] * Mathf.Deg2Rad;
+                Vector3 c = new Vector3(Mathf.Sin(a) * 8f, 0f, Mathf.Cos(a) * 8f);
+                Vector3 tangent = new Vector3(Mathf.Cos(a), 0f, -Mathf.Sin(a));
+                Quaternion rot = Quaternion.LookRotation(tangent, Vector3.up);
+                for (int bIndex = -1; bIndex <= 1; bIndex++)
+                {
+                    float h = bIndex == 0 ? 1.1f : 0.85f;
+                    Vector3 p = c + tangent * (bIndex * 1.75f) + Vector3.up * (h * 0.5f);
+                    var blk = MeshFactory.SolidBox("StoneBlock", obstacles, p, new Vector3(1.5f, h, 1.5f), rot * Quaternion.Euler(0f, bIndex * 7f, 0f), stone);
+                    var mr = blk.GetComponent<MeshRenderer>();
+                    if (mr != null) mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                }
+            }
+
+            float[] rampAngles = { 107f, 251f };
+            for (int k = 0; k < rampAngles.Length; k++)
+            {
+                float a = rampAngles[k] * Mathf.Deg2Rad;
+                Vector3 c = new Vector3(Mathf.Sin(a) * 17f, -0.1f, Mathf.Cos(a) * 17f);
+                Quaternion rot = Quaternion.Euler(0f, rampAngles[k] + 90f, 0f) * Quaternion.Euler(-9f, 0f, 0f);
+                MeshFactory.SolidBox("JumpRamp", obstacles, c, new Vector3(4f, 1f, 5.2f), rot, hazard);
+            }
         }
 
         IEnumerator LoadColosseum(GameObject floor)
@@ -440,6 +488,7 @@ namespace DerbyArena.World
                 var fr = floor.GetComponent<MeshRenderer>();
                 if (fr != null) fr.enabled = false;
                 Crowd.Spawn(root, quality);
+                BuildColosseumObstacles(arena);
                 Status = "Kolezyum yüklendi, " + (Time.realtimeSinceStartup - t0).ToString("0.0") + " sn";
             }
             else

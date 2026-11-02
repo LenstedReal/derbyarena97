@@ -30,8 +30,8 @@ namespace DerbyArena.EditorTools
         const string VertexLitMaterialPath = MaterialsFolder + "/RuntimeVertexLit.mat";
         const string PostMaterialPath = MaterialsFolder + "/RuntimePost.mat";
         const string IconFolder = "Assets/DerbyArena/Icons";
-        const string Version = "1.3.0";
-        const int VersionCode = 130;
+        const string Version = "1.4.0";
+        const int VersionCode = 140;
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
@@ -144,21 +144,11 @@ namespace DerbyArena.EditorTools
         // ------------------------------------------------------------------ app icons
         // Icons are assigned through reflection so this file compiles on every build target (Android, iOS,
         // Editor) and across Unity API overload changes; the outcome is written to the build log.
-        static Texture2D LoadIcon(string file, bool alpha)
+        // Icons are imported with default settings; no re-import is attempted during the build (Unity does
+        // not allow asset imports inside a build callback, which silently skipped the icons in 1.3.0).
+        static Texture2D LoadIcon(string file)
         {
-            string path = IconFolder + "/" + file;
-            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
-            if (importer != null)
-            {
-                bool dirty = false;
-                if (importer.textureCompression != TextureImporterCompression.Uncompressed) { importer.textureCompression = TextureImporterCompression.Uncompressed; dirty = true; }
-                if (importer.mipmapEnabled) { importer.mipmapEnabled = false; dirty = true; }
-                if (importer.npotScale != TextureImporterNPOTScale.None) { importer.npotScale = TextureImporterNPOTScale.None; dirty = true; }
-                if (importer.alphaIsTransparency != alpha) { importer.alphaIsTransparency = alpha; dirty = true; }
-                if (!importer.isReadable) { importer.isReadable = true; dirty = true; }
-                if (dirty) importer.SaveAndReimport();
-            }
-            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(IconFolder + "/" + file);
         }
 
         static object TargetFor(Type parameterType, string platform)
@@ -252,10 +242,10 @@ namespace DerbyArena.EditorTools
         {
             try
             {
-                var legacy = LoadIcon("icon_legacy.png", false);
-                var round = LoadIcon("icon_round.png", true);
-                var background = LoadIcon("icon_adaptive_bg.png", false);
-                var foreground = LoadIcon("icon_adaptive_fg.png", true);
+                var legacy = LoadIcon("icon_legacy.png");
+                var round = LoadIcon("icon_round.png");
+                var background = LoadIcon("icon_adaptive_bg.png");
+                var foreground = LoadIcon("icon_adaptive_fg.png");
                 if (legacy == null)
                 {
                     Debug.LogWarning("DERBY ICONS: " + IconFolder + "/icon_legacy.png not found");

@@ -40,17 +40,17 @@ namespace DerbyArena.World
 
         void Configure(Atmosphere.Theme theme, bool hdr)
         {
-            mat.SetFloat("_Threshold", hdr ? 1.0f : 0.82f);
-            mat.SetFloat("_Knee", hdr ? 0.5f : 0.25f);
-            mat.SetFloat("_BloomIntensity", hdr ? 0.9f : 0.6f);
-            mat.SetColor("_BloomTint", Color.Lerp(Color.white, theme.Accent, 0.25f));
-            mat.SetFloat("_Exposure", hdr ? 1.0f : 1.08f);
-            mat.SetFloat("_Tonemap", hdr ? 1f : 0.5f);
+            mat.SetFloat("_Threshold", hdr ? 1.1f : 0.9f);
+            mat.SetFloat("_Knee", hdr ? 0.5f : 0.3f);
+            mat.SetFloat("_BloomIntensity", hdr ? 0.55f : 0.35f);
+            mat.SetColor("_BloomTint", Color.Lerp(Color.white, theme.Accent, 0.2f));
+            mat.SetFloat("_Exposure", 1f);
+            mat.SetFloat("_Tonemap", hdr ? 1f : 0f);
             mat.SetFloat("_Contrast", theme.Contrast);
             mat.SetFloat("_Saturation", theme.Saturation);
             mat.SetColor("_Gain", theme.GradeGain);
             mat.SetColor("_Lift", theme.GradeLift);
-            mat.SetFloat("_Vignette", 0.9f);
+            mat.SetFloat("_Vignette", 0.35f);
         }
 
         void OnRenderImage(RenderTexture src, RenderTexture dst)

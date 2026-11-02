@@ -30,7 +30,10 @@ namespace DerbyArena.UI
         bool paused;
         static Sprite star, arrowSprite;
         PlayerDriver driver;
-        RawImage loadingArt;
+        CanvasGroup loadingGroup;
+        Image loadingFill;
+        float loadProgress;
+        float loadFade = 1f;
         RectTransform objArrow;
         Image objArrowImg;
         const int EnemyBars = 8;
@@ -66,7 +69,7 @@ namespace DerbyArena.UI
             canvasRt = UiKit.Canvas("HUD", 10, out safe);
             canvasRt.SetParent(transform, false);
 
-            var vig = UiKit.Image("Vignette", canvasRt, UiKit.VignetteSprite, new Color(0f, 0f, 0f, 0.32f));
+            var vig = UiKit.Image("Vignette", canvasRt, UiKit.VignetteSprite, new Color(0f, 0f, 0f, 0.18f));
             UiKit.Stretch(vig.rectTransform, 0f, 0f, 1f, 1f);
             vig.transform.SetAsFirstSibling();
             damageVignette = UiKit.Image("DamageVignette", canvasRt, UiKit.VignetteSprite, new Color(1f, 0.05f, 0.02f, 0f));
@@ -125,47 +128,53 @@ namespace DerbyArena.UI
                 feedTime.Add(0f);
             }
 
-            // loading overlay
-            var lb = UiKit.Image("Loading", canvasRt, UiKit.Square, new Color(0.03f, 0.035f, 0.045f, 1f));
+            // loading overlay: key art shown whole (never cropped) on the left, info + real progress on the right.
+            // A CanvasGroup fades everything together and the page is gone before the countdown starts.
+            var lb = UiKit.Image("Loading", canvasRt, UiKit.Square, new Color(0.035f, 0.03f, 0.028f, 1f));
             UiKit.Stretch(lb.rectTransform, 0f, 0f, 1f, 1f);
             loadingBg = lb;
             loadingPage = lb.gameObject;
+            loadingGroup = loadingPage.AddComponent<CanvasGroup>();
             var art = Resources.Load<Texture2D>("Derby/keyart");
             if (art != null)
             {
+                var box = UiKit.Rect("ArtBox", lb.transform);
+                UiKit.Stretch(box, 0.02f, 0.06f, 0.49f, 0.94f);
                 var ago = new GameObject("KeyArt", typeof(RectTransform));
-                ago.transform.SetParent(lb.transform, false);
-                loadingArt = ago.AddComponent<RawImage>();
-                loadingArt.texture = art;
-                loadingArt.raycastTarget = false;
-                loadingArt.color = new Color(0.5f, 0.5f, 0.5f, 1f);
-                var ar = loadingArt.rectTransform;
-                ar.anchorMin = ar.anchorMax = new Vector2(0.5f, 0.5f);
-                ar.pivot = new Vector2(0.5f, 0.5f);
-                // square art scaled to cover the reference canvas, cropped on the long side
-                ar.sizeDelta = new Vector2(2400f, 2400f);
+                ago.transform.SetParent(box, false);
+                var raw = ago.AddComponent<RawImage>();
+                raw.texture = art;
+                raw.raycastTarget = false;
+                var fit = ago.AddComponent<AspectRatioFitter>();
+                fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+                fit.aspectRatio = (float)art.width / Mathf.Max(1, art.height);
             }
-            var badge = UiKit.Rect("Kind", lb.transform);
-            UiKit.Stretch(badge, 0.3f, 0.7f, 0.7f, 0.78f);
-            UiKit.Label("Text", badge, LevelConfig.KindName(match.Config.Kind), 34, KindColor(match.Config.Kind), TextAnchor.MiddleCenter, true);
-            var lt = UiKit.Rect("Title", lb.transform);
-            UiKit.Stretch(lt, 0.1f, 0.5f, 0.9f, 0.7f);
-            UiKit.Label("Text", lt, match.Config.Title, 72, UiKit.Amber, TextAnchor.MiddleCenter, true);
-            var ls = UiKit.Rect("Sub", lb.transform);
-            UiKit.Stretch(ls, 0.1f, 0.42f, 0.9f, 0.5f);
-            UiKit.Label("Text", ls, "BÖLÜM " + match.Config.Number + "  ·  " + match.Config.Subtitle, 34, UiKit.TextDim, TextAnchor.MiddleCenter, false);
-            var lo = UiKit.Rect("Objective", lb.transform);
-            UiKit.Stretch(lo, 0.15f, 0.3f, 0.85f, 0.4f);
-            UiKit.Label("Text", lo, match.Config.ObjectiveLine, 34, Color.white, TextAnchor.MiddleCenter, false);
+            var info = UiKit.Rect("Info", lb.transform);
+            UiKit.Stretch(info, art != null ? 0.52f : 0.1f, 0.08f, art != null ? 0.97f : 0.9f, 0.92f);
+            var kindR = UiKit.Rect("Kind", info);
+            UiKit.Stretch(kindR, 0f, 0.84f, 1f, 0.94f);
+            UiKit.Label("Text", kindR, LevelConfig.KindName(match.Config.Kind), 34, KindColor(match.Config.Kind), TextAnchor.MiddleCenter, true);
+            var lt = UiKit.Rect("Title", info);
+            UiKit.Stretch(lt, 0f, 0.66f, 1f, 0.84f);
+            UiKit.Label("Text", lt, match.Config.Title, 64, UiKit.Amber, TextAnchor.MiddleCenter, true);
+            var ls = UiKit.Rect("Sub", info);
+            UiKit.Stretch(ls, 0f, 0.58f, 1f, 0.66f);
+            UiKit.Label("Text", ls, "BÖLÜM " + match.Config.Number + "  ·  " + match.Config.Subtitle, 28, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+            var lo = UiKit.Rect("Objective", info);
+            UiKit.Stretch(lo, 0f, 0.42f, 1f, 0.56f);
+            UiKit.Label("Text", lo, match.Config.ObjectiveLine, 32, Color.white, TextAnchor.MiddleCenter, false);
             if (!string.IsNullOrEmpty(match.Config.Hint))
             {
-                var lh = UiKit.Rect("Hint", lb.transform);
-                UiKit.Stretch(lh, 0.15f, 0.2f, 0.85f, 0.3f);
-                UiKit.Label("Text", lh, "İPUCU: " + match.Config.Hint, 28, UiKit.Cyan, TextAnchor.MiddleCenter, false);
+                var lh = UiKit.Rect("Hint", info);
+                UiKit.Stretch(lh, 0f, 0.24f, 1f, 0.4f);
+                UiKit.Label("Text", lh, "İPUCU: " + match.Config.Hint, 26, UiKit.Cyan, TextAnchor.MiddleCenter, false);
             }
-            var ll = UiKit.Rect("Status", lb.transform);
-            UiKit.Stretch(ll, 0.3f, 0.08f, 0.7f, 0.15f);
-            loadingText = UiKit.Label("Text", ll, "YÜKLENİYOR", 28, UiKit.TextDim, TextAnchor.MiddleCenter, false);
+            var barBg = UiKit.Bar(info, UiKit.Amber, out loadingFill);
+            UiKit.Stretch(barBg.rectTransform, 0.1f, 0.1f, 0.9f, 0.14f);
+            loadingFill.fillAmount = 0f;
+            var ll = UiKit.Rect("Status", info);
+            UiKit.Stretch(ll, 0f, 0.01f, 1f, 0.09f);
+            loadingText = UiKit.Label("Text", ll, "YÜKLENİYOR", 26, UiKit.TextDim, TextAnchor.MiddleCenter, false);
         }
 
         void BuildTopLeft()
@@ -496,18 +505,18 @@ namespace DerbyArena.UI
         {
             if (loadingPage == null || !loadingPage.activeSelf) return;
             bool done = match != null && match.Phase != MatchPhase.Loading;
-            if (!done)
+            float target = done ? 1f : (match != null && match.Arena != null && match.Arena.Ready ? 0.75f : 0.4f);
+            loadProgress = Mathf.MoveTowards(loadProgress, target, Time.unscaledDeltaTime * (done ? 3f : 0.45f));
+            if (loadingFill != null) loadingFill.fillAmount = loadProgress;
+            if (!done || loadProgress < 0.999f)
             {
-                int dots = (int)(Time.unscaledTime * 3f) % 4;
-                loadingText.text = "YÜKLENİYOR" + new string('.', dots);
+                SetText(loadingText, "YÜKLENİYOR  %" + Mathf.RoundToInt(loadProgress * 100f));
                 return;
             }
-            var c = loadingBg.color;
-            c.a -= Time.unscaledDeltaTime * 2.2f;
-            loadingBg.color = c;
-            foreach (var t in loadingPage.GetComponentsInChildren<Text>()) { var tc = t.color; tc.a = c.a; t.color = tc; }
-            if (loadingArt != null) { var ac = loadingArt.color; ac.a = c.a; loadingArt.color = ac; }
-            if (c.a <= 0f) loadingPage.SetActive(false);
+            SetText(loadingText, "HAZIR");
+            loadFade -= Time.unscaledDeltaTime / 0.3f;
+            if (loadingGroup != null) loadingGroup.alpha = Mathf.Clamp01(loadFade);
+            if (loadFade <= 0f) loadingPage.SetActive(false);
         }
 
         void UpdateBars(float dt)
@@ -717,7 +726,7 @@ namespace DerbyArena.UI
             UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
             pausePage = bg.gameObject;
             var panel = UiKit.Image("Panel", bg.transform, UiKit.Rounded, UiKit.Panel);
-            UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 760f, 760f, 0.5f, 0.5f);
+            UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 760f, 900f, 0.5f, 0.5f);
             var title = UiKit.Rect("Title", panel.transform);
             UiKit.Place(title, 0.5f, 1f, 700f, 110f, 0.5f, 1f);
             UiKit.Label("Text", title, "DURAKLATILDI", 60, Color.white, TextAnchor.MiddleCenter, true);
@@ -738,6 +747,15 @@ namespace DerbyArena.UI
                 Save.Data.Sound = !Save.Data.Sound;
                 Save.Write();
                 AudioHub.SetSound(Save.Data.Sound);
+                Destroy(pausePage);
+                BuildPause();
+            });
+            AddPauseButton(panel.transform, "PARLAKLIK: %" + Mathf.RoundToInt(Save.Data.Brightness * 100f), UiKit.PanelLight, ref y, () =>
+            {
+                float nb = Save.Data.Brightness + 0.1f;
+                Save.Data.Brightness = nb > 1.45f ? 0.8f : nb;
+                Save.Write();
+                DerbyArena.World.Atmosphere.ApplyBrightness();
                 Destroy(pausePage);
                 BuildPause();
             });

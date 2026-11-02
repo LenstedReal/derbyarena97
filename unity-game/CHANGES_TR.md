@@ -1,3 +1,29 @@
+# DERBY ARENA — v1.4.0 (versionCode 140)
+
+Paket kimliği aynı: `com.lenstedreal.derbyarena`. 1.3.0'daki kötüleşmeler geri alındı ve kök nedenlerinden düzeltildi.
+Referans: Unity AI Open Beta tanıtım videosu (kum zemin her zaman parlak ve okunur, seyrek taş bloklar, turuncu pus, far huzmeleri).
+
+| # | Sorun (1.3.0) | Kök neden | 1.4.0 düzeltmesi |
+|---|---|---|---|
+| 1 | Uygulama ikonu varsayılan yeşil Android | İkon, build sırasında dokuyu yeniden içe aktarmaya çalışıyordu; Unity buna izin vermez, kod sessizce atlıyordu | İkonlar artık Unity'nin ürettiği Gradle projesine doğrudan yazılıyor (`AndroidIcons/res`, 5 yoğunluk: uyarlanabilir + yuvarlak + eski tip). Görünüm, telefondaki eski DERBY ARENA ikonuyla aynı (yuvarlak, başlık + araç tam görünür) |
+| 2 | Oyun çok karanlık, zemin ve engeller aynı siyah | Kontrast lineer uzayda 0,5 merkezli uygulanıyordu: sRGB ~0,25'ten koyu her şey **tam siyaha** kırpılıyordu | Renk düzeltme gamma uzayında; ton eşleme yalnız parlak uçlarda; vinyet hafif |
+| 3 | Temalar karanlık | Düşük ışık ve ortam, koyu sis | 5 tema videoya göre yeniden ayarlandı: Altın Gün, Turuncu Pus, Toksik, Neon Gece (mor pus), Kızıl |
+| 4 | Araçlar kara siluet | Sahnede yansıma yok, metal boya siyah yansıtıyordu | Gökyüzü yansıma probu (bir kez çizilir, ucuz) |
+| 5 | Parlaklık ayarı yok | — | **PARLAKLIK** %80–140: Ayarlar ve Duraklat menüsünde, anında uygulanır, tüm kalite seviyelerinde çalışır |
+| 6 | Yükleme ekranında görsel kesik, sayaç sırasında üstte kalıyor | Görsel ekranı kaplayacak şekilde büyütülmüştü; yavaş solma | Görsel solda bütün olarak (kesilmeden), bilgiler sağda, gerçek ilerleme çubuğu; sayaç başlamadan tamamen kayboluyor |
+| 7 | "BÖLÜM 2 · BÖLÜM 1" tekrarı | Bölüm ve sezon aynı adla yazılıyordu | Bölüm = seviye, Sezon = 10'lu grup ("BÖLÜM 2 · SEZON 1 · ...") |
+| 8 | Kolezyum tamamen boş | 1.3.0'da tüm engeller kaldırılmıştı | Seyrek engel: videodaki gibi 3 alçak taş blok duvarı + 2 küçük şeritli rampa (kutu çarpıştırıcı, görünür renkler) |
+| 9 | Spillway'de görünmez engel | 1.3.0 boru dibine görünmez blok koymuştu | Kaldırıldı |
+| 10 | Bölüm 10 / hayatta kal geçilemiyor | Hasar eğrisi dik, patron güçlü | Rakip hasarı %25–35 düşük, isabet daha düşük, aynı anda en fazla 2 ateş eden (sezon 4'ten itibaren 3). Patron 460 → 380 can, silah 3,4 → 2,6, roket 20 → 16, süre 300 sn. Hayatta Kal 60–100 sn, en fazla 2–3 rakip, yeniden doğma 5 sn, hasar ×0,75 |
+| 11 | Aynı bölümde takılınca çıkış yok | — | Otomatik yardım: her kayıpta rakip hasarı −%15, canı −%10, +15 sn (en fazla 3 kademe; kazanınca sıfırlanır) |
+| 12 | Araç "etkili" görünmüyor | Çarpışma sadece can düşürüyordu | Bindirince rakip savrulur ve döner; far huzmeleri (gece güçlü, gündüz hafif) |
+| 13 | FPS | 1440p ekranlarda gereksiz piksel; zorunlu piksel ışıkları | Çözünürlük sınırı (Yüksek 1080p, Orta 900p, Düşük 720p); zorunlu piksel ışıkları kaldırıldı; mangal ışığı 4 → 2; elit modeller önceden yükleniyor; shader'lar yükleme ekranında ısıtılıyor |
+
+## Google Play
+`StoreListing/`: 512×512 uygulama ikonu ve 1024×500 tanıtım görseli. AAB adımları `BUILD_TR.md` içinde.
+
+---
+
 # DERBY ARENA / BLACKOUT RUN — v1.3.0 (versionCode 130)
 
 Paket kimliği aynı: `com.lenstedreal.derbyarena`. Unity 6000.3.27f1, Built-in RP. 1.2.0 üzerine eklendi; yeniden yazım yok.

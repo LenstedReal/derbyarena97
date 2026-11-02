@@ -40,10 +40,10 @@ namespace DerbyArena.CameraRig
                 var l = go.AddComponent<Light>();
                 l.type = LightType.Directional;
                 l.color = new Color(0.78f, 0.86f, 1f);
-                l.intensity = 0.55f;
+                l.intensity = 0.4f;
                 l.shadows = LightShadows.None;
                 l.cullingMask = 1 << VehicleVisual.VehicleLayer;
-                l.renderMode = LightRenderMode.ForcePixel;
+                l.renderMode = LightRenderMode.Auto;
             }
         }
 

@@ -23,6 +23,8 @@ namespace DerbyArena.Core
         public bool Haptics = true;
         public int Quality = 1;               // 0 low, 1 medium, 2 high
         public bool QualityChosen = false;    // false -> auto-detect once on first launch
+        public float Brightness = 1.1f;       // 0.8 .. 1.4, scales key light, ambient and sky
+        public int[] Fails = new int[Campaign.Total + 1];   // losses per level -> automatic assist
     }
 
     public static class Save
@@ -74,6 +76,13 @@ namespace DerbyArena.Core
                 if (d.Stars != null) Array.Copy(d.Stars, s, Mathf.Min(d.Stars.Length, s.Length));
                 d.Stars = s;
             }
+            if (d.Fails == null || d.Fails.Length != Campaign.Total + 1)
+            {
+                var f = new int[Campaign.Total + 1];
+                if (d.Fails != null) Array.Copy(d.Fails, f, Mathf.Min(d.Fails.Length, f.Length));
+                d.Fails = f;
+            }
+            if (d.Brightness < 0.6f || d.Brightness > 1.6f) d.Brightness = 1.1f;
             if (d.Upgrades == null || d.Upgrades.Length != 5)
             {
                 var u = new int[5];

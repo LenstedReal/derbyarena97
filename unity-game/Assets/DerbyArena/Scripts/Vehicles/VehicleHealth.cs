@@ -183,6 +183,17 @@ namespace DerbyArena.Vehicles
 
             Vector3 contact = collision.contactCount > 0 ? collision.GetContact(0).point : (transform.position + other.transform.position) * 0.5f;
             victim.Apply(baseDmg * mul, rammer, contact);
+            var victimCar = iAmRammer ? theirCar : myCar;
+            if (victimCar != null && victimCar.Body != null && !victimCar.Body.isKinematic)
+            {
+                // extra shove + spin so a good hit visibly throws the target (demolition-derby feel)
+                Vector3 push = (victim.transform.position - rammer.transform.position);
+                push.y = 0f;
+                if (push.sqrMagnitude > 0.001f) push.Normalize();
+                float dv = Mathf.Clamp(impact * 0.22f, 1f, 6f) * (rammer.Team == 0 ? 1.25f : 0.8f);
+                victimCar.Body.AddForce((push * dv + Vector3.up * dv * 0.18f) * victimCar.Body.mass, ForceMode.Impulse);
+                victimCar.Body.AddTorque(Vector3.up * UnityEngine.Random.Range(-1f, 1f) * dv * victimCar.Body.mass * 0.35f, ForceMode.Impulse);
+            }
             rammer.Apply(baseDmg * selfMul, victim, contact);
             if (baseDmg * mul > 18f) DerbyArena.World.Crowd.Cheer(0.6f);
             Fx.Sparks(contact, -dir, 18);

@@ -69,6 +69,10 @@ namespace DerbyArena.Mission
         float hazardTick;
         int survivalSpawnIndex;
         System.Random eliteRng;
+        /// <summary>0..3: grows with every loss on this level, eases damage/health/time (reset on win).</summary>
+        public int Assist;
+        float damageScale = 1f;
+        float healthScale = 1f;
 
         public static MatchDirector Begin(LevelConfig config, ArenaLoader arena, TouchControls touch, Transform sceneRoot)
         {
@@ -105,8 +109,24 @@ namespace DerbyArena.Mission
                 var ks = SpecOf(k);
                 GlbLibrary.Preload(ks.GlbFile, ks.ModelOptions());
             }
+            if (Config.EliteChance > 0f)
+            {
+                foreach (var k in Config.Enemies)
+                {
+                    if (k == EnemyKind.WarRig) continue;
+                    var es = SpecOf(k);
+                    es.MakeElite();
+                    GlbLibrary.Preload(es.GlbFile, es.ModelOptions());
+                }
+            }
             eliteRng = new System.Random(Config.Number * 977 + 13);
             EnemyDriver.ResetTokens(Config.MaxShooters);
+
+            Assist = Mathf.Clamp(Save.Data.Fails[Config.Number], 0, 3);
+            damageScale = Config.EnemyDamage * (1f - 0.15f * Assist) * (Config.Kind == ObjectiveKind.Survival ? 0.75f : 1f);
+            healthScale = 1f - 0.1f * Assist;
+            TimeLeft += 15f * Assist * (Config.Kind == ObjectiveKind.Survival ? 0f : 1f);
+            if (Config.Kind == ObjectiveKind.Survival) TimeLeft *= 1f - 0.1f * Assist;
 
             float wait = 0f;
             while (!Arena.Ready && wait < 15f) { wait += Time.unscaledDeltaTime; yield return null; }
@@ -190,11 +210,15 @@ namespace DerbyArena.Mission
             wait = 0f;
             while (wait < 6f && (PlayerVisual == null || !PlayerVisual.Loaded)) { wait += Time.unscaledDeltaTime; yield return null; }
 
+            // compile the shaders now (behind the loading screen) instead of stuttering on first use
+            try { Shader.WarmupAllShaders(); } catch (Exception ex) { Debug.LogWarning("DERBY: shader warmup skipped. " + ex.Message); }
+
             Phase = MatchPhase.Countdown;
             Countdown = 3.2f;
             if (cam != null) cam.Intro(2.6f);
             AudioHub.Ambience(0.35f);
             Say(Config.Title, UiKit.Amber);
+            if (Assist > 0) Say("KOLAYLAŞTIRILDI · " + (Assist + 1) + ". DENEME", UiKit.Cyan);
         }
 
         EnemyKind NextSurvivalKind()
@@ -276,6 +300,7 @@ namespace DerbyArena.Mission
                 spec.MakeElite();
             spec.Health *= Config.EnemyHp;
             if (kind == EnemyKind.WarRig && Config.BossHealth > 0f) spec.Health = Config.BossHealth;
+            spec.Health *= healthScale;
             spec.TopSpeed *= Config.EnemySpeed;
             spec.Accel *= Mathf.Lerp(1f, Config.EnemySpeed, 0.6f);
             float yaw;
@@ -292,7 +317,7 @@ namespace DerbyArena.Mission
             var car = go.GetComponent<ArcadeCar>();
             var hp = go.GetComponent<VehicleHealth>();
             var guns = go.GetComponent<WeaponRig>();
-            guns.DamageMul = Config.EnemyDamage;
+            guns.DamageMul = damageScale;
             hp.InvulnerableUntil = Time.time + 1.5f;
             var ai = go.AddComponent<EnemyDriver>();
             ai.Car = car;
@@ -304,7 +329,7 @@ namespace DerbyArena.Mission
             ai.AimError = Config.AimErrorDeg;
             ai.Aggression = Mathf.Lerp(0.8f, 1.15f, (Config.Number - 1) / 49f);
             ai.Chapter = Config.Chapter;
-            ai.DamageScale = Config.EnemyDamage;
+            ai.DamageScale = damageScale;
             if (Zone != null) { ai.ZoneCenter = Zone.transform.position; ai.ZoneRadius = Zone.Radius; }
             ai.Active = Phase == MatchPhase.Playing;
             car.Locked = Phase != MatchPhase.Playing;
@@ -355,7 +380,7 @@ namespace DerbyArena.Mission
             }
             if (Config.Kind == ObjectiveKind.Survival)
             {
-                StartCoroutine(SurvivalRespawn(3f));
+                StartCoroutine(SurvivalRespawn(5f));
                 return;
             }
             if (Config.Kind == ObjectiveKind.LastStand && AliveEnemies() > 0)
@@ -413,6 +438,7 @@ namespace DerbyArena.Mission
             Stars = 1;
             if (Config.Kind == ObjectiveKind.Survival ? Kills >= Config.KillTarget : Elapsed <= Config.ParTime) Stars++;
             if (PlayerHealth != null && PlayerHealth.Fraction >= 0.5f) Stars++;
+            Save.Data.Fails[Config.Number] = 0;
             int prevStars = Save.Data.Stars[Config.Number];
             Reward = Config.Reward + Kills * 15;
             if (prevStars > 0) Reward = Mathf.RoundToInt(Reward * 0.45f);
@@ -437,6 +463,7 @@ namespace DerbyArena.Mission
             Phase = MatchPhase.Lost;
             endTimer = 2.2f;
             Reward = Kills * 10;
+            Save.Data.Fails[Config.Number] = Mathf.Min(9, Save.Data.Fails[Config.Number] + 1);
             Save.Data.Scrap += Reward;
             Save.Data.TotalKills += Kills;
             Save.Write();

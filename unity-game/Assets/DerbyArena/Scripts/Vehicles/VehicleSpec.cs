@@ -104,7 +104,7 @@ namespace DerbyArena.Vehicles
             {
                 DisplayName = "War Rig", GlbFile = "vehicles/enemy_boss_warrig.glb", Role = DriverRole.Boss,
                 Mass = 4200f, TopSpeed = 20f, Accel = 9.5f, TurnRate = 1.45f, Grip = 11f, Health = 600f, Scale = 1.25f,
-                GunDamage = 3.4f, GunInterval = 0.15f, GunRange = 44f, Rockets = true, RocketAmmo = 999, RocketDamage = 20f, RamMul = 1.4f,
+                GunDamage = 2.6f, GunInterval = 0.16f, GunRange = 40f, Rockets = true, RocketAmmo = 999, RocketDamage = 16f, RamMul = 1.3f,
                 ScrapValue = 200, Accent = new Color(0.85f, 0.12f, 0.1f), Paint = new Color(0.34f, 0.06f, 0.05f)
             };
         }

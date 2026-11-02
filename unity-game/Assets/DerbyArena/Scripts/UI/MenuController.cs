@@ -20,7 +20,7 @@ namespace DerbyArena.UI
             var m = go.AddComponent<MenuController>();
             m.canvasRt = UiKit.Canvas("MenuCanvas", 20, out m.safe);
             m.canvasRt.SetParent(go.transform, false);
-            var vig = UiKit.Image("Vignette", m.canvasRt, UiKit.VignetteSprite, new Color(0f, 0f, 0f, 0.75f));
+            var vig = UiKit.Image("Vignette", m.canvasRt, UiKit.VignetteSprite, new Color(0f, 0f, 0f, 0.5f));
             UiKit.Stretch(vig.rectTransform, 0f, 0f, 1f, 1f);
             vig.transform.SetAsFirstSibling();
             m.selected = Mathf.Clamp(Save.Data.LastPlayed, 1, Save.Data.Unlocked);
@@ -234,6 +234,12 @@ namespace DerbyArena.UI
             Row("OTOMATİK NİŞAN", Save.Data.AutoAim ? "GENİŞ" : "DAR", ref y, () => { Save.Data.AutoAim = !Save.Data.AutoAim; });
             Row("SES", Save.Data.Sound ? "AÇIK" : "KAPALI", ref y, () => { Save.Data.Sound = !Save.Data.Sound; AudioHub.SetSound(Save.Data.Sound); });
             Row("TİTREŞİM", Save.Data.Haptics ? "AÇIK" : "KAPALI", ref y, () => { Save.Data.Haptics = !Save.Data.Haptics; });
+            Row("PARLAKLIK", "%" + Mathf.RoundToInt(Save.Data.Brightness * 100f), ref y, () =>
+            {
+                float nb = Save.Data.Brightness + 0.1f;
+                Save.Data.Brightness = nb > 1.45f ? 0.8f : nb;
+                DerbyArena.World.Atmosphere.ApplyBrightness();
+            });
             string[] q = { "DÜŞÜK", "ORTA", "YÜKSEK" };
             Row("GRAFİK KALİTESİ", q[Mathf.Clamp(Save.Data.Quality, 0, 2)], ref y, () => { Save.Data.Quality = (Save.Data.Quality + 1) % 3; Save.Data.QualityChosen = true; DerbyBootstrapQuality.Apply(); });
         }
@@ -241,13 +247,13 @@ namespace DerbyArena.UI
         void Row(string label, string value, ref float y, Action change)
         {
             var row = UiKit.Image("Row", P, UiKit.Rounded, UiKit.Panel);
-            UiKit.Place(row.rectTransform, 0f, 1f, 1300f, 104f, 0f, 1f);
+            UiKit.Place(row.rectTransform, 0f, 1f, 1300f, 96f, 0f, 1f);
             row.rectTransform.anchoredPosition = new Vector2(0f, y);
             Txt(row.transform, label, 34, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, 700f, 80f, 0f, 0.5f).rectTransform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(30f, 0f);
-            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 460f, 80f, 1f, 0.5f, 30, () => { change(); Save.Write(); Show("settings"); });
+            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 460f, 76f, 1f, 0.5f, 30, () => { change(); Save.Write(); Show("settings"); });
             b.Background.rectTransform.anchoredPosition = new Vector2(-14f, 0f);
             b.Caption.color = UiKit.Amber;
-            y -= 116f;
+            y -= 106f;
         }
     }
 }

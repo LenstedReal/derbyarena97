@@ -1,3 +1,15 @@
+# Test raporu — v1.4.0
+
+| Test | Sonuç |
+|---|---|
+| `validate_derby.py`: 175 kontrol. Önceki kontrollere ek olarak 20 ikon dosyası + 2 uyarlanabilir XML, gamma uzayında renk düzeltme, yansıma probu, zorunlu piksel ışığı yok | 175 PASS / 0 FAIL |
+| Roslyn (C# 9) sözdizimi denetimi, tüm 35 C# dosyası (Unity ile aynı dil sürümü) | 0 hata |
+| Yeni Unity API'leri (ReflectionProbe, CanvasGroup, AspectRatioFitter, Display, Screen.SetResolution, Shader.WarmupAllShaders, IPostGenerateGradleAndroidProject) elle doğrulandı | yapıldı |
+| İkon maske önizlemesi (daire / squircle / yuvarlak kare) | başlık ve araç her maskede tam görünür |
+| Unity derlemesi ve cihaz testi | **bekliyor** (Build Automation + telefon) |
+
+---
+
 # Test raporu — v1.3.0
 
 ## Bu ortamda yapılan (gerçek sonuçlar)

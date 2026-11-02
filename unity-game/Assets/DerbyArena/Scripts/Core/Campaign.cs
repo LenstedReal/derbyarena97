@@ -116,7 +116,7 @@ namespace DerbyArena.Core
             "RLSCDLRSCB"
         };
 
-        static readonly float[] BossHealthByChapter = { 460f, 620f, 780f, 940f, 1120f };
+        static readonly float[] BossHealthByChapter = { 380f, 520f, 680f, 840f, 1000f };
 
         static ObjectiveKind KindOf(char c)
         {
@@ -182,13 +182,14 @@ namespace DerbyArena.Core
                 c.Enemies[k++] = r == 0 ? EnemyKind.Drifter : (r == 1 ? EnemyKind.Rammer : EnemyKind.Hunter);
             }
             c.StartEnemies = c.Kind == ObjectiveKind.Reactor ? Mathf.Max(1, c.Enemies.Length / 2) : c.Enemies.Length;
-            c.SurvivalConcurrent = Mathf.Clamp(2 + c.Chapter / 2, 2, 4);
+            c.SurvivalConcurrent = c.Chapter <= 2 ? 2 : 3;
 
-            c.EnemyHp = 1f + 1.0f * t;
-            c.EnemySpeed = 0.9f + 0.22f * t;
-            c.EnemyDamage = 0.8f + 0.65f * t;
-            c.AimErrorDeg = Mathf.Lerp(9.5f, 3.5f, t);
-            c.MaxShooters = 2 + (c.Chapter >= 3 ? 1 : 0) + (c.Chapter >= 5 ? 1 : 0);
+            // 1.4.0: gentler curve (1.3.0 felt like a wall from level 10 on)
+            c.EnemyHp = 0.9f + 0.8f * t;
+            c.EnemySpeed = 0.88f + 0.2f * t;
+            c.EnemyDamage = 0.6f + 0.5f * t;
+            c.AimErrorDeg = Mathf.Lerp(11f, 4.5f, t);
+            c.MaxShooters = 2 + (c.Chapter >= 4 ? 1 : 0);
             c.EliteChance = c.Chapter >= 5 ? 0.4f : (c.Chapter == 4 ? 0.15f : 0f);
             c.AcidPools = c.Chapter == 3 || (c.Chapter == 5 && c.Arena == ArenaKind.Spillway);
             c.Night = c.Chapter == 4;
@@ -199,9 +200,9 @@ namespace DerbyArena.Core
                 case ObjectiveKind.Reactor: c.TimeLimit = 150f + c.Cells * 15f; break;
                 case ObjectiveKind.Demolition: c.TimeLimit = 110f + count * 20f; break;
                 case ObjectiveKind.Checkpoint: c.TimeLimit = 30f + c.Gates * 9f; break;
-                case ObjectiveKind.Survival: c.TimeLimit = 70f + c.Chapter * 15f; break;
+                case ObjectiveKind.Survival: c.TimeLimit = 50f + c.Chapter * 10f; break;
                 case ObjectiveKind.LastStand: c.TimeLimit = 150f + count * 10f; break;
-                default: c.TimeLimit = 240f; break;
+                default: c.TimeLimit = 300f; break;
             }
             c.ParTime = c.TimeLimit * (c.Kind == ObjectiveKind.Checkpoint ? 0.7f : 0.55f);
             c.KillTarget = 2 + c.Chapter;
@@ -216,7 +217,7 @@ namespace DerbyArena.Core
                 case ObjectiveKind.LastStand: c.Title = "SON KALAN"; break;
                 default: c.Title = "REAKTÖR HATTI"; break;
             }
-            c.Subtitle = "BÖLÜM " + c.Chapter + " · " + ChapterNames[c.Chapter - 1];
+            c.Subtitle = "SEZON " + c.Chapter + " · " + ChapterNames[c.Chapter - 1];
             c.Hint = HintFor(n);
             return c;
         }

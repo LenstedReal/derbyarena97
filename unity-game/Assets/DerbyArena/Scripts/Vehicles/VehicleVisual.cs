@@ -34,6 +34,10 @@ namespace DerbyArena.Vehicles
         int quality;
 
         static Material skidMat;
+        static Mesh beamMesh;
+        static Material beamMat;
+        VehicleHealth health;
+        GameObject[] beams;
 
         public void Begin(VehicleSpec vehicleSpec, ArcadeCar arcadeCar)
         {
@@ -49,7 +53,69 @@ namespace DerbyArena.Vehicles
             GlbLibrary.Spawn(spec.GlbFile, spec.ModelOptions(), visualRoot, OnModel);
             BuildShadow();
             if (quality > 0 || isPlayer) BuildSkids();
-            if (isPlayer && quality > 0) BuildHeadlight();
+            health = GetComponent<VehicleHealth>();
+            if (quality > 0) BuildBeams();
+            if (isPlayer && (quality == 2 || (quality == 1 && Atmosphere.CurrentBeamStrength >= 0.4f))) BuildHeadlight();
+        }
+
+        /// <summary>Headlight beams as in the reference video: two soft additive cones, stronger at night.</summary>
+        void BuildBeams()
+        {
+            if (beamMat == null) beamMat = Mats.FxAdditive();
+            if (beamMat == null) return;
+            float strength = Atmosphere.CurrentBeamStrength * (isPlayer ? 1f : 0.8f);
+            if (beamMat.HasProperty("_TintColor")) beamMat.SetColor("_TintColor", new Color(0.5f, 0.47f, 0.4f, Mathf.Clamp01(strength)));
+            var mesh = BeamMesh();
+            beams = new GameObject[2];
+            float sc = spec.Scale;
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? -1f : 1f;
+                var go = MeshFactory.Make("HeadlightBeam", mesh, beamMat, transform,
+                    new Vector3(side * spec.BodySize.x * 0.3f * sc, 0.72f * sc, spec.BodySize.z * 0.47f * sc), Vector3.one * sc);
+                go.transform.localRotation = Quaternion.Euler(4f, side * 3f, 0f);
+                var r = go.GetComponent<MeshRenderer>();
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                beams[i] = go;
+            }
+        }
+
+        static Mesh BeamMesh()
+        {
+            if (beamMesh != null) return beamMesh;
+            const int seg = 12;
+            const float length = 9f, r0 = 0.12f, r1 = 2.1f;
+            var v = new Vector3[(seg + 1) * 2];
+            var c = new Color[v.Length];
+            var uv = new Vector2[v.Length];
+            var tri = new int[seg * 6];
+            for (int i = 0; i <= seg; i++)
+            {
+                float a = i / (float)seg * Mathf.PI * 2f;
+                float cs = Mathf.Cos(a), sn = Mathf.Sin(a);
+                v[i * 2] = new Vector3(cs * r0, sn * r0 * 0.6f, 0f);
+                v[i * 2 + 1] = new Vector3(cs * r1, sn * r1 * 0.45f - 0.35f, length);
+                c[i * 2] = new Color(1f, 0.92f, 0.75f, 1f);
+                c[i * 2 + 1] = new Color(1f, 0.92f, 0.75f, 0f);
+                uv[i * 2] = new Vector2(0.5f, 0.5f);
+                uv[i * 2 + 1] = new Vector2(0.5f, 0.5f);
+            }
+            for (int i = 0; i < seg; i++)
+            {
+                int k = i * 6;
+                int a0 = i * 2, b0 = i * 2 + 1, a1 = i * 2 + 2, b1 = i * 2 + 3;
+                tri[k] = a0; tri[k + 1] = b0; tri[k + 2] = a1;
+                tri[k + 3] = a1; tri[k + 4] = b0; tri[k + 5] = b1;
+            }
+            beamMesh = new Mesh();
+            beamMesh.name = "HeadlightBeam";
+            beamMesh.vertices = v;
+            beamMesh.colors = c;
+            beamMesh.uv = uv;
+            beamMesh.triangles = tri;
+            beamMesh.RecalculateBounds();
+            return beamMesh;
         }
 
         void BuildShadow()
@@ -107,7 +173,7 @@ namespace DerbyArena.Vehicles
             l.intensity = 1.6f;
             l.color = new Color(1f, 0.92f, 0.78f);
             l.shadows = LightShadows.None;
-            l.renderMode = LightRenderMode.ForcePixel;
+            l.renderMode = LightRenderMode.Auto;
         }
 
         /// <summary>White hit flash on all vehicle renderers (MaterialPropertyBlock, no material copies).</summary>
@@ -140,6 +206,8 @@ namespace DerbyArena.Vehicles
                 foreach (var r in car.GetComponentsInChildren<Renderer>(true))
                     if (!list.Contains(r) && r.GetComponent<TrailRenderer>() == null && r.GetComponent<ParticleSystem>() == null) list.Add(r);
             renderers = list.ToArray();
+            list.RemoveAll(x => x == null || x.gameObject.name == "HeadlightBeam");
+            renderers = list.ToArray();
             foreach (var r in renderers) r.gameObject.layer = VehicleLayer;
         }
 
@@ -147,6 +215,11 @@ namespace DerbyArena.Vehicles
         {
             float dt = Time.deltaTime;
             if (dt <= 0f || car == null) return;
+            if (beams != null && health != null && health.Dead)
+            {
+                for (int i = 0; i < beams.Length; i++) if (beams[i] != null) beams[i].SetActive(false);
+                beams = null;
+            }
             if (flashOn)
             {
                 flashTimer -= dt;
