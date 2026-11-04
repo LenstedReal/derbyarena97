@@ -13,7 +13,8 @@ namespace DerbyArena.Vehicles
     /// POSITION / NORMAL / TEXCOORD_0, base colour factors and textures, emissive factors and
     /// alpha-blended glass. It builds ordinary Unity meshes and materials from the Resources
     /// templates, so it works with the Built-in render pipeline and needs no extra packages.
-    /// glTF is right-handed: X is mirrored (positions, normals, node transforms) like glTFast does.
+    /// glTF is right-handed: X is mirrored (positions, normals, node transforms) and the triangle winding is
+    /// reversed to match, like glTFast does.
     /// </summary>
     public static class MiniGlb
     {
@@ -185,6 +186,7 @@ namespace DerbyArena.Vehicles
                 Color[] vcol = cAcc >= 0 ? ReadColors(ctx, cAcc) : null;
                 if (vcol != null) anyColors = true;
                 int[] tri = ReadIndices(ctx, (int)Num(p, "indices", -1), pos.Length);
+                FixWinding(pos, nor, tri);
 
                 int baseVertex = verts.Count;
                 for (int k = 0; k < pos.Length; k++)
@@ -219,6 +221,8 @@ namespace DerbyArena.Vehicles
             for (int i = 0; i < subTris.Count; i++)
                 mesh.SetTriangles(subTris[i], i);
             if (!allNormals) mesh.RecalculateNormals();
+            // normal-mapped materials need tangents; without them the Standard shader shades the bumps as noise
+            if (uvs.Count > 0) mesh.RecalculateTangents();
             mesh.RecalculateBounds();
 
             var data = new MeshData();
@@ -226,6 +230,29 @@ namespace DerbyArena.Vehicles
             data.Materials = mats.ToArray();
             cache[mi] = data;
             return data;
+        }
+
+        /// <summary>
+        /// glTF front faces are counter-clockwise in a right-handed system. Mirroring X (above) turns every one of
+        /// them into a Unity back face unless the winding is reversed as well (glTFast and UnityGLTF both do this).
+        /// Before 2.1 the winding was kept, so every model rendered inside out: the near panels were culled and the
+        /// far, unlit inner faces showed through, which made the cars look flat and dark. The file's own normals
+        /// decide per triangle, so files with mixed winding come out right too; without normals the mirror rule applies.
+        /// </summary>
+        static void FixWinding(Vector3[] pos, Vector3[] nor, int[] tri)
+        {
+            for (int k = 0; k + 2 < tri.Length; k += 3)
+            {
+                int a = tri[k], b = tri[k + 1], c = tri[k + 2];
+                bool flip = true;
+                if (nor != null && a < nor.Length && b < nor.Length && c < nor.Length && a < pos.Length && b < pos.Length && c < pos.Length)
+                {
+                    Vector3 g = Vector3.Cross(pos[b] - pos[a], pos[c] - pos[a]);
+                    Vector3 n = nor[a] + nor[b] + nor[c];
+                    if (g.sqrMagnitude > 1e-14f && n.sqrMagnitude > 1e-8f) flip = Vector3.Dot(g, n) < 0f;
+                }
+                if (flip) { tri[k + 1] = c; tri[k + 2] = b; }
+            }
         }
 
         // ------------------------------------------------------------------ binary accessors
@@ -514,6 +541,9 @@ namespace DerbyArena.Vehicles
             {
                 string name = Str(m, "name");
                 mat.name = string.IsNullOrEmpty(name) ? "glb_material" : name;
+                // every clone of a model shares these materials: let the renderer instance identical mesh/material
+                // pairs (four wheels per car, several cars of one type) into one draw call each
+                mat.enableInstancing = true;
             }
             return mat;
         }

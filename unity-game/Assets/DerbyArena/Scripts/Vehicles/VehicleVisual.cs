@@ -72,7 +72,7 @@ namespace DerbyArena.Vehicles
             {
                 float side = i == 0 ? -1f : 1f;
                 var go = MeshFactory.Make("HeadlightBeam", mesh, beamMat, transform,
-                    new Vector3(side * spec.BodySize.x * 0.3f * sc, 0.72f * sc, spec.BodySize.z * 0.47f * sc), Vector3.one * sc);
+                    new Vector3(side * spec.BodySize.x * 0.3f * sc, 0.84f * sc, spec.BodySize.z * 0.47f * sc), Vector3.one * sc);
                 go.transform.localRotation = Quaternion.Euler(4f, side * 3f, 0f);
                 var r = go.GetComponent<MeshRenderer>();
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -425,7 +425,7 @@ namespace DerbyArena.Vehicles
         public Vector3 Muzzle()
         {
             Vector3 dir = Quaternion.AngleAxis(turretYaw, transform.up) * transform.forward;
-            if (Barrel != null) return Barrel.position + dir * 0.75f * spec.Scale;
+            if (Barrel != null) return Barrel.position + dir * 1.3f * spec.Scale;   // 2.1 barrels are 1.1-1.5 m long
             return transform.position + transform.up * spec.MuzzleHeight * spec.Scale + transform.forward * spec.MuzzleForward * spec.Scale;
         }
 

@@ -84,7 +84,7 @@ scene = text(ROOT / 'Assets/DerbyArena/Scenes/BlackoutSpillway.unity')
 g = re.search(r'guid: (\w+)', meta)
 check(g is not None and g.group(1) in scene, 'Scene references DerbyBootstrap script GUID')
 camp = text(SCRIPTS / 'Core/Campaign.cs')
-check('public const int Total = 60;' in camp, '60-level campaign')
+check('public const int ReleasedSeasons = 5;' in camp and 'Total = ReleasedSeasons * PerChapter' in camp, '50-level campaign (season 6 gated behind ReleasedSeasons)')
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
@@ -220,16 +220,18 @@ else:
 camp = text(SCRIPTS / 'Core/Campaign.cs')
 m = re.search(r'public const int Total = (\d+);', camp)
 total = int(m.group(1)) if m else 0
-check(total == 60, 'Campaign has 60 levels (6 seasons)')
+check(total == 0, 'Total is derived from ReleasedSeasons')
 def arr(name):
     mm = re.search(name + r'\s*=\s*(?:new\s+\w+\[\]\s*)?\{(.*?)\};', camp, re.S)
     return [x for x in re.findall(r'"[^"]*"|[\d.]+f', mm.group(1))] if mm else []
 for name in ['ChapterNamesTr', 'ChapterNamesEn', 'ChapterFeaturesTr', 'ChapterFeaturesEn', 'BossNames', 'Plan', 'BossHealthByChapter']:
-    check(len(arr(name)) == total // 10, 'Campaign.%s has one entry per season' % name, str(len(arr(name))))
+    check(len(arr(name)) == 6, 'Campaign.%s has six entries (5 released + prepared season 6)' % name, str(len(arr(name))))
 plans = arr('Plan')
 check(all(len(p.strip('"')) == 10 and set(p.strip('"')) <= set('RDCSLB') and p.strip('"').endswith('B') for p in plans), 'Every season plan: 10 known missions ending with a boss')
 check('ArenaKind { Spillway, Colosseum, Docks }' in camp and 'c.Chapter == 6) c.Arena = ArenaKind.Docks' in camp, 'Season 6 plays in the Container Port')
 check('(n - 1) / 49f' in camp, 'Difficulty curve of levels 1-50 unchanged')
+mn2 = text(SCRIPTS / 'UI/MenuController.cs')
+check('Campaign.Seasons + 1' in mn2 and 'BuildUpcomingSeason' in mn2, 'Level list keeps the roadmap tab after the released seasons')
 arena = text(SCRIPTS / 'World/Arena.cs')
 check('kind == ArenaKind.Docks) loader.BuildDocks()' in arena and 'Ready = true;' in arena, 'Arena loader builds the docks and marks it ready')
 docks = text(SCRIPTS / 'World/DocksArena.cs')
@@ -267,6 +269,30 @@ check('if (showing) AudioListener.pause = audioWasPaused;' in text(ADS / 'AdsMan
 intro = text(SCRIPTS / 'UI/IntroSplash.cs')
 check('Resources.Load<Texture2D>("Derby/keyart")' in intro and 'Shown = true' in intro and 'unscaledDeltaTime' in intro, 'Opening screen: key art, cold start only, unscaled time')
 check('IntroSplash.Play()' in text(SCRIPTS / 'Core/DerbyBootstrap.cs') and (ROOT / 'Assets/Resources/Derby/keyart.jpg').exists(), 'Opening screen wired and its art present')
+
+# 2.1 vehicle models (scripts/carforge.py): five distinct bodies, same node contract and wheel geometry as 1.x
+WHEELS = {'vehicles/player_muscle.glb': (1.1956, 0.5246, 1.769), 'vehicles/enemy_boss_warrig.glb': (1.1956, 0.5246, 1.769),
+          'vehicles/enemy_raider_a.glb': (0.98, 0.43, 1.45), 'vehicles/enemy_raider_b.glb': (0.98, 0.43, 1.45), 'vehicles/enemy_raider_c.glb': (0.98, 0.43, 1.45)}
+bodies = {}
+for rel, (tx, wy, wz) in WHEELS.items():
+    j = glb(MODELS / rel)
+    nodes = {n.get('name'): n for n in j['nodes']}
+    def near(n, v): return all(abs(a - b) < 0.002 for a, b in zip(n.get('translation', [0, 0, 0]), v))
+    check(near(nodes['Wheel_FL'], (-tx, wy, -wz)) and near(nodes['Wheel_FR'], (tx, wy, -wz)) and near(nodes['Wheel_RL'], (-tx, wy, wz)) and near(nodes['Wheel_RR'], (tx, wy, wz)),
+          'Wheel positions unchanged (physics identical): ' + rel)
+    mats = {m['name']: m for m in j['materials']}
+    paint = [m for n, m in mats.items() if 'paint' in n.lower()]
+    check(len(paint) == 1 and 'baseColorTexture' in paint[0]['pbrMetallicRoughness'] and 'normalTexture' in paint[0], 'Recolourable textured paint with normal map: ' + rel)
+    check(any(m.get('alphaMode') == 'BLEND' for m in mats.values()) and sum(1 for m in mats.values() if m.get('emissiveFactor')) == 2, 'Glass + head/tail lights: ' + rel)
+    tris = sum(j['accessors'][pr['indices']]['count'] // 3 for m in j['meshes'] for pr in m['primitives'] if 'indices' in pr)
+    check(6000 <= tris <= 12000, 'Model detail in budget (6k-12k unique tris, 1.x had 1.4k): ' + rel, str(tris))
+    body = [m for m in j['meshes'] if m['name'].endswith('_Body')][0]
+    acc = j['accessors'][body['primitives'][0]['attributes']['POSITION']]
+    bodies[rel] = (round(acc['min'][2], 2), round(acc['max'][2], 2), round(acc['max'][1], 2), tris)
+check(len({v[:3] for v in bodies.values()}) == 5, 'Five distinct vehicle bodies (not one model with five paints)', str(bodies))
+check('FixWinding(pos, nor, tri)' in text(SCRIPTS / 'Vehicles/MiniGlb.cs') and 'RecalculateTangents' in text(SCRIPTS / 'Vehicles/MiniGlb.cs') and 'enableInstancing = true' in text(SCRIPTS / 'Vehicles/MiniGlb.cs'), 'MiniGlb: winding fixed after the X mirror, tangents, instancing')
+kit2 = text(SCRIPTS / 'Vehicles/VehicleKit.cs')
+check('static Shape Measure(' in kit2 and 'Cut(a, b2, c, 0, 0.02f, seg)' in kit2 and 'roofZ1 - 0.08f' in kit2, 'Battle kit placed from the measured body shape')
 
 fails = [r for r in res if r[0] == 'FAIL']
 print('DERBY ARENA 2.1.0 STATIC VALIDATION (Unity-independent)')

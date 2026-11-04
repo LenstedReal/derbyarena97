@@ -1,20 +1,22 @@
 # DERBY ARENA — v2.1.0 (versionCode 210)
 
-Paket kimliği, logo ve kayıtlar aynı. 2.0.0'ın üzerine grafik motoru ve içerik güncellemesi.
+Paket kimliği, logo ve kayıtlar aynı. 2.0.0'ın üzerine model, grafik motoru ve hata düzeltme güncellemesi.
 
 | # | Yeni | Ayrıntı |
 |---|---|---|
-| 1 | **Sezon 6: Konteyner Limanı** | Kodla kurulan üçüncü arena (indirme yok): toprak zemin, aşınmış oval pist, konteyner duvarlar, ortada dört konteyner siper, iki atlama rampası, kuzeyde konteyner taşıyan dev vinç, ufukta konteyner yığınları, projektörler, lastik, varil, bayrak. 10 yeni bölüm (51-60), yeni patron DOCKYARD KRAKEN, liman akşamı ışık teması. Siper yerleri bilgisayarlı aramayla seçildi: kapı direklerine, kapılar arası rotaya, başlangıç şeridine ve son bölge çemberine en az 3,2 m |
-| 2 | Eski oyuncular | 50. bölümü bitirmiş oyuncunun 51. bölümü otomatik açılır. 1-50 zorluk eğrisi değişmedi; 6. sezon onun devamı |
-| 3 | **Post 2.0** | Yüksek/Ultra'da ACES filmik ton eşleme (yarım güç, koyu zemin okunur kalır), film greni, yakın patlamada beyaz flaş, nitroda renk ayrışması, çarpışma/roket darbesinde kısa sarsıntı. Kırmızı hasar kenarı HUD'da kaldı (çift olmasın diye) |
-| 4 | **ULTRA kalite** | 1440p, 4x MSAA, çok yüksek gölge, 75 m gölge mesafesi, 6 ışık. Otomatik seçim en fazla Yüksek verir; Ultra elle seçilir, FPS düşerse uyarlanabilir performans devreye girer |
-| 5 | Ayar: **EKRAN EFEKTLERİ** | Flaş, sarsıntı, nitro efekti ve greni tek tuşla kapatır |
-| 6 | **Draw call azaltma** | Araç savaş kiti malzeme başına tek mesh (araç başına ~30 → ~5 çizim). Arena dekoru ve liman arenası static batching ile birleştiriliyor |
-| 7 | **Hata düzeltmeleri (bağımsız kod incelemesiyle bulundu)** | • Oyuncu "ikinci şans" ekranındayken son rakip/patron kendi çarpışma hasarıyla ölürse maç kazanılamıyordu (süre bitince haksız yenilgi). Artık canlanınca zafer geliyor, ayrıca her karede güvenlik kontrolü var. • Uyarlanabilir performans yavaş telefonda ikinci maçtan sonra gölgeleri geri açıyordu (2.0 hatası). • 8 rakipli Son Kalan bölümlerinde iki araç aynı noktada doğup patlayabiliyordu (Sezon 5'te de vardı): dolu noktada yakında boş yer aranıyor. • Reklam açılamazsa ses yanlış geri yükleniyordu; geç gelen ödül sinyali kayboluyordu; reklam SDK'sı hiç cevap vermezse ikinci şans ekranı 999 sn bekliyordu (artık 90 sn). • Liman rampaları tümsek yapıldı (arkada 0,8 m basamak kalmıyordu). • Post shader: 1440p'de gren kümelenmesi ve çok parlak ışıkta siyah piksel riski giderildi |
-| 8 | **Açılış ekranı** | Oyun açılırken siyahtan DERBY ARENA ana görseline geçiş (uygulama logosuyla aynı görsel), turuncu yükleme çizgisi; menü arkada hazırlanır. Yalnızca ilk açılışta, dokununca geçilir |
-| 9 | CI düzeltmesi | GitHub'daki statik doğrulama Pillow olmadan da çalışıyor (2.0.0'da kırmızıydı, Unity derlemesiyle ilgisi yoktu) |
+| 1 | **Araç modelleri sıfırdan (`scripts/carforge.py`)** | 1.x'te oyuncu ile patron aynı kutu modeldi, üç rakip de birebir aynıydı (sadece boya farklıydı). Şimdi beş ayrı araç: Breakline Interceptor (uzun kaputlu muscle, hava alığı, çift egzoz, kafes), Razor Drifter (alçak kupe, difüzör), Bastion Rammer (kutu gövdeli station, kar küreği, kaput zırhı), Siege Hunter (sedan, bagajda roket podu, anten), War Rig (kamyon: bacalar, yakıt tankları, zırhlı kasa, boğa demiri, çift namlu). Gerçek tekerlek kemerleri, çamurluk şişkinlikleri, tumblehome'lu kabin ve direkler, ızgara, farlar, stop paneli, aynalar, kapı derzleri, iç mekân, şasi/aks. Boya dokusu (çizik, çentik) + normal haritası, lastik sırtı dokusu, pas dokusu. Araç başına 6-8k üçgen (1.x: 1.4k). Tekerlek konumları ve yarıçapları birebir aynı: fizik değişmedi |
+| 2 | **Model yükleyici hatası (1.x'ten beri)** | glTF X ekseninde aynalanıyor ama üçgen sarımı çevrilmiyordu: Unity bütün GLB modelleri ters yüz çiziyordu (yakın yüzler atılıyor, uzak iç yüzler görünüyordu; araçların "düz ve karanlık" durmasının nedeni buydu). Artık dosyadaki normallere göre üçgen üçgen düzeltiliyor; normal haritaları için tanjantlar hesaplanıyor; aynı model+malzeme çiftleri GPU instancing ile tek çizim çağrısında |
+| 3 | Savaş kiti modele uyuyor | Kit parçaları artık gövdeyi ölçerek yerleşiyor (tavan, kaput, bagaj yüksekliği, kapı genişliği): spoyler bagajda, kompresör kaputta, ışık barı tavanın ön kenarında, şeritler cam üstünden geçmiyor |
+| 4 | **Post 2.0** | Yüksek/Ultra'da ACES filmik ton eşleme (yarım güç, koyu zemin okunur kalır), film greni, yakın patlamada beyaz flaş, nitroda renk ayrışması, çarpışma/roket darbesinde kısa sarsıntı. Kırmızı hasar kenarı HUD'da kaldı |
+| 5 | **ULTRA kalite** | 1440p, 4x MSAA, çok yüksek gölge, 75 m gölge mesafesi, 6 ışık. Otomatik seçim en fazla Yüksek verir; Ultra elle seçilir, FPS düşerse uyarlanabilir performans devreye girer |
+| 6 | Ayar: **EKRAN EFEKTLERİ** | Flaş, sarsıntı, nitro efekti ve greni tek tuşla kapatır |
+| 7 | **Draw call azaltma** | Araç savaş kiti malzeme başına tek mesh. Arena dekoru static batching ile birleştiriliyor |
+| 8 | **Açılış ekranı** | Siyahtan DERBY ARENA ana görseline geçiş (uygulama logosuyla aynı görsel), turuncu yükleme çizgisi; menü arkada hazırlanır. Yalnızca ilk açılışta, dokununca geçilir |
+| 9 | **Sezon 6 hazır ama kapalı** | Konteyner Limanı arenası (`World/DocksArena.cs`), 6. sezon planı, patron ve ışık teması kodda hazır; `Campaign.ReleasedSeasons = 5` olduğu için bölümler ekranı eskisi gibi 5 sezon + "YAKINDA · YOL HARİTASI" sekmesi gösterir. Yayınlamak için sabiti 6 yap |
+| 10 | **Hata düzeltmeleri (bağımsız kod incelemesiyle bulundu)** | • Oyuncu "ikinci şans" ekranındayken son rakip/patron kendi çarpışma hasarıyla ölürse maç kazanılamıyordu (süre bitince haksız yenilgi). Artık canlanınca zafer geliyor, ayrıca her karede güvenlik kontrolü var. • Uyarlanabilir performans yavaş telefonda ikinci maçtan sonra gölgeleri geri açıyordu (2.0 hatası). • 8 rakipli Son Kalan bölümlerinde iki araç aynı noktada doğup patlayabiliyordu: dolu noktada yakında boş yer aranıyor. • Reklam açılamazsa ses yanlış geri yükleniyordu; geç gelen ödül sinyali kayboluyordu; reklam SDK'sı hiç cevap vermezse ikinci şans ekranı 999 sn bekliyordu (artık 90 sn). • Post shader: 1440p'de gren kümelenmesi ve çok parlak ışıkta siyah piksel riski giderildi |
+| 11 | CI düzeltmesi | GitHub'daki statik doğrulama Pillow olmadan da çalışıyor (2.0.0'da kırmızıydı, Unity derlemesiyle ilgisi yoktu) |
 
-Test: tüm C# kodu Roslyn derleyicisiyle Unity/AdMob API taslaklarına karşı tip denetiminden geçti (reklamlı ve reklamsız, Android ve iOS); reklam kodu Google'ın 11.6.0 kaynağıyla derlendi; statik doğrulama 241/241. Unity'de oynatma ve cihaz testi burada yapılamadı.
+Test: tüm C# kodu Roslyn derleyicisiyle Unity/AdMob API taslaklarına karşı tip denetiminden geçti (reklamlı ve reklamsız, Android ve iOS); reklam kodu Google'ın 11.6.0 kaynağıyla derlendi; statik doğrulama 276 kontrol. Araç modelleri yazılım render'ıyla (numpy) her açıdan incelendi, kit yerleşimi aynı algoritmayla simüle edildi. Unity'de oynatma ve cihaz testi burada yapılamadı.
 
 ---
 
@@ -34,7 +36,7 @@ Paket kimliği ve uygulama logosu aynı. Kayıtlar korunur (kayıt sürümü 4'e
 | 8 | Android geri tuşu | Menü alt sayfaları → ana sayfa; yasal sayfa → ayarlar; sonuç ekranı → menü |
 | 9 | Gizlilik | Unity analitiği kapatıldı (`submitAnalytics=false`); targetSdk otomatik (en yüksek kurulu) |
 
-Yapılmadı: Sezon 6 ve yeni arena (2.1.0'da eklendi).
+Yapılmadı: Sezon 6 ve yeni arena (2.1.0'da hazırlandı, henüz kapalı).
 
 ---
 

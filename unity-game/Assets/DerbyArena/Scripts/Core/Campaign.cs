@@ -79,17 +79,19 @@ namespace DerbyArena.Core
     }
 
     /// <summary>
-    /// 60 levels in 6 chapters. Each chapter introduces something new: checkpoint runs (ch1), survival and the
-    /// shrinking-zone "last one standing" mode (ch2), acid pools (ch3), night races with headlights (ch4), elite
-    /// enemies (ch5) and the Container Port arena with ramps and container cover (ch6, 2.1). Every 10th level is a
-    /// boss. Deterministic and data driven.
+    /// 50 released levels in 5 chapters (a sixth, the Container Port, is prepared but gated). Each chapter introduces
+    /// something new: checkpoint runs (ch1), survival and the shrinking-zone "last one standing" mode (ch2), acid
+    /// pools (ch3), night races with headlights (ch4), elite enemies (ch5) and the Container Port arena with ramps
+    /// and container cover (ch6). Every 10th level is a boss. Deterministic and data driven.
     /// </summary>
     public static class Campaign
     {
-        // To add a season in an update: append a Plan string, its names/features/boss below, and raise
-        // Total by 10. Saves resize automatically (SaveData.Sanitize), progress is kept.
-        public const int Total = 60;
+        // Season 6 (Container Port, levels 51-60: DocksArena, theme 5, the sixth plan/boss/name entries below) is
+        // built and statically tested but NOT released yet: the level list keeps the roadmap tab in its place.
+        // To ship it raise ReleasedSeasons to 6. Saves resize automatically (SaveData.Sanitize), progress is kept.
+        public const int ReleasedSeasons = 5;
         public const int PerChapter = 10;
+        public const int Total = ReleasedSeasons * PerChapter;
         public const int Seasons = Total / PerChapter;
 
         static readonly string[] ChapterNamesTr = { "ACEMİ KOLEZYUM", "HURDA ÇORAKLIK", "ZEHİRLİ DÖKÜMHANE", "GECE SİBER-RİNG", "DEMİR KIYAMET", "KONTEYNER LİMANI" };
