@@ -29,7 +29,7 @@ namespace DerbyArena.World
         public static Theme Get(int index)
         {
             var t = new Theme();
-            switch (Mathf.Clamp(index, 0, 4))
+            switch (Mathf.Clamp(index, 0, 5))
             {
                 case 0: // golden day
                     t.SkyTint = new Color(0.5f, 0.62f, 0.85f); t.SkyGround = new Color(0.55f, 0.5f, 0.45f);
@@ -71,6 +71,16 @@ namespace DerbyArena.World
                     t.GradeGain = new Color(0.98f, 0.99f, 1.06f); t.GradeLift = new Color(0f, 0f, 0.01f); t.Saturation = 1.12f; t.Contrast = 1.06f;
                     t.BeamStrength = 0.45f;
                     break;
+                case 5: // harbour dusk: blue-teal evening sky, low warm sun, sodium-orange accents
+                    t.SkyTint = new Color(0.36f, 0.47f, 0.66f); t.SkyGround = new Color(0.28f, 0.27f, 0.28f);
+                    t.Fog = new Color(0.5f, 0.52f, 0.58f); t.FogDensity = 0.0042f;
+                    t.AmbSky = new Color(0.58f, 0.64f, 0.78f); t.AmbEquator = new Color(0.6f, 0.54f, 0.5f); t.AmbGround = new Color(0.34f, 0.3f, 0.26f);
+                    t.Key = new Color(1f, 0.8f, 0.6f); t.KeyIntensity = 1.35f; t.KeyEuler = new Vector3(26f, -60f, 0f);
+                    t.Fill = new Color(0.45f, 0.6f, 0.85f); t.FillIntensity = 0.35f; t.Accent = new Color(1f, 0.62f, 0.18f);
+                    t.SkyExposure = 1.1f; t.Thickness = 1.4f;
+                    t.GradeGain = new Color(1.02f, 1f, 0.98f); t.GradeLift = new Color(0f, 0f, 0f); t.Saturation = 1.08f; t.Contrast = 1.05f;
+                    t.BeamStrength = 0.3f;
+                    break;
                 default: // crimson
                     t.SkyTint = new Color(0.85f, 0.35f, 0.28f); t.SkyGround = new Color(0.45f, 0.2f, 0.16f);
                     t.Fog = new Color(0.72f, 0.38f, 0.3f); t.FogDensity = 0.0055f;
@@ -100,7 +110,7 @@ namespace DerbyArena.World
             var key = keyGo.AddComponent<Light>();
             key.type = LightType.Directional;
             key.color = t.Key;
-            key.shadows = quality == 0 ? LightShadows.None : (quality == 2 ? LightShadows.Soft : LightShadows.Hard);
+            key.shadows = quality == 0 ? LightShadows.None : (quality >= 2 ? LightShadows.Soft : LightShadows.Hard);
             key.shadowStrength = 0.7f;
             key.shadowBias = 0.05f;
             key.shadowNormalBias = 0.4f;

@@ -250,6 +250,7 @@ namespace DerbyArena.Combat
             Ring(pos + Vector3.up * 0.2f, 7f * size, new Color(1f, 0.6f, 0.25f));
             Sparks(pos, Vector3.up, Mathf.RoundToInt(30 * size));
             Flash(pos + Vector3.up, new Color(1f, 0.55f, 0.2f), 6f * size, 14f * size);
+            DerbyArena.World.PostFx.Blast(pos, size);
         }
 
         /// <summary>Nitro exhaust flame: short additive white-hot streak behind the car.</summary>

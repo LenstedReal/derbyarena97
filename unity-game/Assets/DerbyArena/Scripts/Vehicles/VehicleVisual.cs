@@ -55,7 +55,7 @@ namespace DerbyArena.Vehicles
             if (quality > 0 || isPlayer) BuildSkids();
             health = GetComponent<VehicleHealth>();
             if (quality > 0) BuildBeams();
-            if (isPlayer && (quality == 2 || (quality == 1 && Atmosphere.CurrentBeamStrength >= 0.4f))) BuildHeadlight();
+            if (isPlayer && (quality >= 2 || (quality == 1 && Atmosphere.CurrentBeamStrength >= 0.4f))) BuildHeadlight();
         }
 
         /// <summary>Headlight beams as in the reference video: two soft additive cones, stronger at night.</summary>

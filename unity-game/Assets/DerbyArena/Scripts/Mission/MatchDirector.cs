@@ -79,6 +79,7 @@ namespace DerbyArena.Mission
         public float ReviveTimeLeft;
         /// <summary>The rewarded "double scrap" was taken on the result screen.</summary>
         public bool RewardDoubled;
+        bool winPending;   // the last rival / boss died while the player was downed: win right after the revive
 
         public static MatchDirector Begin(LevelConfig config, ArenaLoader arena, TouchControls touch, Transform sceneRoot)
         {
@@ -295,9 +296,25 @@ namespace DerbyArena.Mission
                 float score = Mathf.Min(dPlayer, 40f) - crowd * 4f + UnityEngine.Random.value * 3f;
                 if (score > bestScore) { bestScore = score; best = s; }
             }
+            // 2.1: more rivals than spawn points (8 in late Last Stand levels): never start inside another car
+            if (Occupied(best))
+            {
+                Vector3[] offsets = { new Vector3(5f, 0f, 0f), new Vector3(-5f, 0f, 0f), new Vector3(0f, 0f, 5f), new Vector3(0f, 0f, -5f), new Vector3(4f, 0f, 4f), new Vector3(-4f, 0f, -4f) };
+                for (int i = 0; i < offsets.Length; i++)
+                {
+                    Vector3 c = best + offsets[i];
+                    if (info.Inside(c) && !Occupied(c)) { best = c; break; }
+                }
+            }
             Vector3 to = pp - best;
             yaw = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
             return best;
+        }
+
+        static bool Occupied(Vector3 spawn)
+        {
+            // a sphere at car height: hits cars, walls and cover, not the floor (its bottom stays 0.4 m above it)
+            return Physics.CheckSphere(spawn + Vector3.up * 1.8f, 1.6f, ~0, QueryTriggerInteraction.Ignore);
         }
 
         void SpawnEnemy(EnemyKind kind, int index)
@@ -363,7 +380,8 @@ namespace DerbyArena.Mission
 
         void OnEnemyDied(VehicleHealth victim, VehicleHealth killer)
         {
-            if (Phase != MatchPhase.Playing && Phase != MatchPhase.Countdown) return;
+            // 2.1: also while Downed (a rammer can die from its own ram damage in the same hit that downed the player)
+            if (Phase != MatchPhase.Playing && Phase != MatchPhase.Countdown && Phase != MatchPhase.Downed) return;
             int scrap = 0;
             var car = victim.GetComponent<ArcadeCar>();
             if (car != null && car.Spec != null) scrap = car.Spec.ScrapValue;
@@ -377,12 +395,12 @@ namespace DerbyArena.Mission
 
             if (victim == Boss)
             {
-                Win();
+                WinOrDefer();
                 return;
             }
             if ((Config.Kind == ObjectiveKind.Demolition || Config.Kind == ObjectiveKind.LastStand) && pending.Count == 0 && AliveEnemies() == 0)
             {
-                Win();
+                WinOrDefer();
                 return;
             }
             if (Config.Kind == ObjectiveKind.Survival)
@@ -394,6 +412,12 @@ namespace DerbyArena.Mission
                 Say(AliveEnemies() + Loc.T(" RAKİP KALDI", " RIVALS LEFT"), UiKit.Amber);
             if (pending.Count > 0 && Config.Kind != ObjectiveKind.Reactor)
                 StartCoroutine(DelayedSpawn(1.5f));
+        }
+
+        void WinOrDefer()
+        {
+            if (Phase == MatchPhase.Downed) winPending = true;
+            else Win();
         }
 
         IEnumerator SurvivalRespawn(float delay)
@@ -451,7 +475,7 @@ namespace DerbyArena.Mission
         public void AcceptSecondChance()
         {
             if (Phase != MatchPhase.Downed) return;
-            ReviveTimeLeft = 999f;   // the countdown stops while the ad plays
+            ReviveTimeLeft = 90f;    // real seconds for the ad itself; if the SDK never answers the car dies, no soft-lock
             var ads = DerbyArena.Ads.AdsManager.Instance;
             if (ads == null) { DeclineSecondChance(); return; }
             ads.ShowRewarded(earned =>
@@ -479,12 +503,14 @@ namespace DerbyArena.Mission
                 e.Active = true;
                 if (e.Car != null) e.Car.Locked = false;
                 // shove nearby rivals away so the player is not wrecked again in the same second
+                if (PlayerCar == null) continue;
                 Vector3 d = e.transform.position - PlayerCar.transform.position; d.y = 0f;
                 if (d.magnitude < 9f && e.Car != null && e.Car.Body != null)
                     e.Car.Body.AddForce((d.normalized * 7f + Vector3.up * 1.5f) * e.Car.Body.mass, ForceMode.Impulse);
             }
             Say(Loc.T("İKİNCİ ŞANS!", "SECOND CHANCE!"), UiKit.Green);
             AudioHub.Play2D(SynthAudio.Go(), 0.7f, 1.1f);
+            if (winPending) { winPending = false; Win(); }
         }
 
         /// <summary>Player declined, the offer timed out, or the ad gave no reward: the deferred death happens.</summary>
@@ -623,6 +649,9 @@ namespace DerbyArena.Mission
 
         void TickPlaying(float dt)
         {
+            // safety net: a win that was missed (e.g. an enemy died in a frame the match was not Playing) still counts
+            if (Boss != null && Boss.Dead) { Win(); return; }
+            if ((Config.Kind == ObjectiveKind.Demolition || Config.Kind == ObjectiveKind.LastStand) && Enemies.Count > 0 && pending.Count == 0 && AliveEnemies() == 0) { Win(); return; }
             Elapsed += dt;
             TimeLeft -= dt;
             if (TimeLeft <= 0f)

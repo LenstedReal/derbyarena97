@@ -76,6 +76,7 @@ namespace DerbyArena.Vehicles
             }
             if (visual == null) visual = GetComponent<VehicleVisual>();
             if (visual != null && amount >= 1.5f) visual.Flash();
+            if (Team == 0 && amount >= 6f) DerbyArena.World.PostFx.Hit(Mathf.Clamp01(0.2f + amount / 40f));   // rams and rockets, not every bullet
             if (Damaged != null) Damaged(this, amount);
             if (Current <= 0f)
             {

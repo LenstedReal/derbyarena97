@@ -69,8 +69,29 @@ namespace DerbyArena.World
             loader.theme = Atmosphere.Get(themeIndex);
             Atmosphere.Apply(loader.theme, go.transform, cam, quality);
             if (kind == ArenaKind.Colosseum) loader.BuildColosseum();
+            else if (kind == ArenaKind.Docks) loader.BuildDocks();
             else loader.BuildSpillway();
             return loader;
+        }
+
+        // ================================================================== DOCKS (2.1, built in code)
+        void BuildDocks()
+        {
+            Info = DocksArena.Info();
+            try { Status = DocksArena.Build(root, theme, quality); }
+            catch (Exception ex)
+            {
+                // never leave the player without a floor
+                Debug.LogError("DERBY: docks arena failed. " + ex);
+                MeshFactory.SolidBox("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(90f, 1f, 90f), Quaternion.identity, Mats.Lit(new Color(0.5f, 0.4f, 0.3f), 0.95f, 0f, Color.black, 0f));
+                MeshFactory.ColliderBox("BoundN", root, new Vector3(0f, 6f, 37f), new Vector3(90f, 12f, 1f), Quaternion.identity);
+                MeshFactory.ColliderBox("BoundS", root, new Vector3(0f, 6f, -37f), new Vector3(90f, 12f, 1f), Quaternion.identity);
+                MeshFactory.ColliderBox("BoundE", root, new Vector3(37f, 6f, 0f), new Vector3(1f, 12f, 90f), Quaternion.identity);
+                MeshFactory.ColliderBox("BoundW", root, new Vector3(-37f, 6f, 0f), new Vector3(1f, 12f, 90f), Quaternion.identity);
+                Status = Loc.T("Liman basit modda", "Port in simple mode");
+            }
+            DerbyStartupDiagnostics.Report("Arena", Status);
+            Ready = true;
         }
 
         // ================================================================== SPILLWAY

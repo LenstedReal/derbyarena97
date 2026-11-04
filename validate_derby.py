@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unity-independent static checks for Derby Arena 2.0.0. Not a substitute for a Unity compile or device test."""
+"""Unity-independent static checks for Derby Arena 2.1.0. Not a substitute for a Unity compile or device test."""
 from pathlib import Path
 import json, re, struct, sys
 
@@ -84,11 +84,11 @@ scene = text(ROOT / 'Assets/DerbyArena/Scenes/BlackoutSpillway.unity')
 g = re.search(r'guid: (\w+)', meta)
 check(g is not None and g.group(1) in scene, 'Scene references DerbyBootstrap script GUID')
 camp = text(SCRIPTS / 'Core/Campaign.cs')
-check('public const int Total = 50;' in camp, '50-level campaign')
+check('public const int Total = 60;' in camp, '60-level campaign')
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
-check('Version = "2.0.0"' in diag and 'VersionCode = 200' in diag, 'Runtime version 2.0.0 (200)')
+check('Version = "2.1.0"' in diag and 'VersionCode = 210' in diag, 'Runtime version 2.1.0 (210)')
 loc = text(SCRIPTS / 'Core/Loc.cs')
 check('public static string T(string turkish, string english)' in loc and 'SystemLanguage.Turkish' in loc, 'Turkish / English localisation (device language preselects)')
 menu = text(SCRIPTS / 'UI/MenuController.cs')
@@ -104,7 +104,7 @@ check('stripEngineCode = false' in editor, 'Engine code stripping disabled (Caps
 check('KeepFogVariants();' in editor, 'Fog shader variants kept')
 check('"com.lenstedreal.derbyarena"' in editor, 'Package id preserved')
 check((ROOT / 'Assets/link.xml').exists(), 'link.xml present')
-check('Version = "2.0.0"' in editor and 'VersionCode = 200' in editor, 'Player version 2.0.0 / code 200')
+check('Version = "2.1.0"' in editor and 'VersionCode = 210' in editor, 'Player version 2.1.0 / code 210')
 icons_hook = text(ROOT / 'Assets/DerbyArena/Editor/DerbyAndroidIcons.cs')
 check('IPostGenerateGradleAndroidProject' in icons_hook and '#if UNITY_EDITOR && UNITY_ANDROID' in icons_hook, 'Android launcher icons written into the Gradle project (guarded for iOS builds)')
 check('SaveAndReimport' not in editor, 'No asset re-import during the build (silently skipped the icons in 1.3.0)')
@@ -216,8 +216,56 @@ else:
   except Exception as e:
     check(False, 'adaptive icon check', repr(e))
 
+# 2.1: season 6 (Container Port), post 2.0, ultra profile, draw-call merging
+camp = text(SCRIPTS / 'Core/Campaign.cs')
+m = re.search(r'public const int Total = (\d+);', camp)
+total = int(m.group(1)) if m else 0
+check(total == 60, 'Campaign has 60 levels (6 seasons)')
+def arr(name):
+    mm = re.search(name + r'\s*=\s*(?:new\s+\w+\[\]\s*)?\{(.*?)\};', camp, re.S)
+    return [x for x in re.findall(r'"[^"]*"|[\d.]+f', mm.group(1))] if mm else []
+for name in ['ChapterNamesTr', 'ChapterNamesEn', 'ChapterFeaturesTr', 'ChapterFeaturesEn', 'BossNames', 'Plan', 'BossHealthByChapter']:
+    check(len(arr(name)) == total // 10, 'Campaign.%s has one entry per season' % name, str(len(arr(name))))
+plans = arr('Plan')
+check(all(len(p.strip('"')) == 10 and set(p.strip('"')) <= set('RDCSLB') and p.strip('"').endswith('B') for p in plans), 'Every season plan: 10 known missions ending with a boss')
+check('ArenaKind { Spillway, Colosseum, Docks }' in camp and 'c.Chapter == 6) c.Arena = ArenaKind.Docks' in camp, 'Season 6 plays in the Container Port')
+check('(n - 1) / 49f' in camp, 'Difficulty curve of levels 1-50 unchanged')
+arena = text(SCRIPTS / 'World/Arena.cs')
+check('kind == ArenaKind.Docks) loader.BuildDocks()' in arena and 'Ready = true;' in arena, 'Arena loader builds the docks and marks it ready')
+docks = text(SCRIPTS / 'World/DocksArena.cs')
+check('info.Kind = ArenaKind.Docks' in docks and 'StaticBatchingUtility.Combine' in docks and 'ColliderBox("BoundN"' in docks, 'Docks: info, batching, tall bound walls')
+atm = text(SCRIPTS / 'World/Atmosphere.cs')
+check('Mathf.Clamp(index, 0, 5)' in atm and 'case 5:' in atm, 'Atmosphere theme for season 6')
+sd = text(SCRIPTS / 'Core/SaveData.cs')
+check('while (d.Unlocked < Campaign.Total && d.Stars[d.Unlocked] > 0) d.Unlocked++;' in sd, 'Players who cleared level 50 get level 51')
+check('Mathf.Clamp(d.Quality, 0, 3)' in sd and 'ScreenEffects = true' in sd, 'Save: ultra quality and screen-effects switch')
+boot = text(SCRIPTS / 'Core/DerbyBootstrap.cs')
+check('q >= 3 ? 4 :' in boot and '(q == 2 ? 1080 : 1440)' in boot, 'Ultra profile: 4x MSAA, 1440p')
+sh = text(ROOT / 'Assets/DerbyArena/Shaders/DerbyPost.shader')
+check(all(u in sh for u in ['half _Aces;', 'half _Grain;', 'half _Flash;', 'half _Speed;', 'SampleSource(i.uv)']), 'Post shader: ACES, grain, flash, nitro split')
+check(sh.count('Pass\n') + sh.count('Pass\r\n') >= 5 and 'sin(dot' not in sh, 'Post shader keeps 5 passes, sin-free grain hash')
+pfx = text(SCRIPTS / 'World/PostFx.cs')
+check('public static void Hit(' in pfx and 'public static void Blast(' in pfx and 'NitroActive' in pfx, 'PostFx: hit jolt, blast flash, nitro')
+check('PostFx.Blast(' in text(SCRIPTS / 'Combat/Fx.cs') and 'PostFx.Hit(' in text(SCRIPTS / 'Vehicles/VehicleHealth.cs'), 'Feedback hooked to explosions and player hits')
+kit = text(SCRIPTS / 'Vehicles/VehicleKit.cs')
+check('Merge(root);' in kit and 'CombineMeshes' in kit and 'DestroyImmediate' in kit, 'Battle kit merged per material')
+check('StaticBatchingUtility.Combine' in text(SCRIPTS / 'World/ArenaDressing.cs'), 'Arena dressing static batched')
+mnu = text(SCRIPTS / 'UI/MenuController.cs')
+check('% 4' in mnu and 'EKRAN EFEKTLERİ' in mnu and 'y -= 72f;' in mnu, 'Settings: 4 quality levels, screen effects row, 13 rows fit')
+
+# 2.1 review fixes
+md2 = text(SCRIPTS / 'Mission/MatchDirector.cs')
+check('Phase != MatchPhase.Downed) return;' in md2 and 'winPending = true' in md2 and 'if (winPending) { winPending = false; Win(); }' in md2, 'A rival dying while the player is downed still wins the match')
+check('if (Boss != null && Boss.Dead) { Win(); return; }' in md2, 'Win safety net in TickPlaying')
+check('ReviveTimeLeft = 90f;' in md2 and '999f' not in md2, 'Second-chance ad wait is capped (no soft-lock)')
+check('static bool Occupied(' in md2, 'Rivals never spawn inside another car')
+check('"RampBack"' in text(SCRIPTS / 'World/DocksArena.cs'), 'Docks ramps are humps (no vertical step)')
+check('AdaptivePerformance.Step >= 1' in text(SCRIPTS / 'Core/DerbyBootstrap.cs'), 'Adaptive shadows-off survives later matches')
+check(sh.count('#pragma target 3.0') == 2 and 'floor(pix)' in sh and 'min((float3)c, 64.0)' in sh, 'Post shader: SM3 for SV_POSITION, full-precision grain, NaN-safe ACES')
+check('if (showing) AudioListener.pause = audioWasPaused;' in text(ADS / 'AdsManager.cs'), 'Ads: audio restored only after a real show')
+
 fails = [r for r in res if r[0] == 'FAIL']
-print('DERBY ARENA 2.0.0 STATIC VALIDATION (Unity-independent)')
+print('DERBY ARENA 2.1.0 STATIC VALIDATION (Unity-independent)')
 for st, label, detail in res:
     if st == 'FAIL' or '-v' in sys.argv: print(f'[{st}] {label}' + (f' — {detail}' if detail else ''))
 print(f'\nSummary: {len(res) - len(fails)} PASS, {len(fails)} FAIL')

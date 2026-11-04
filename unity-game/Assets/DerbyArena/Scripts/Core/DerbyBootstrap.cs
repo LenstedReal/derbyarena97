@@ -58,7 +58,7 @@ namespace DerbyArena.Core
             cam.farClipPlane = 600f;
             cam.fieldOfView = 60f;
             cam.allowHDR = false;
-            cam.allowMSAA = Save.Data.Quality == 2;
+            cam.allowMSAA = Save.Data.Quality >= 2;
             cam.useOcclusionCulling = false;
             cam.transform.SetPositionAndRotation(new Vector3(0f, 8f, -40f), Quaternion.Euler(10f, 0f, 0f));
             if (go.GetComponent<AudioListener>() == null) go.AddComponent<AudioListener>();
@@ -100,7 +100,7 @@ namespace DerbyArena.Core
                 chase.Orbit = true;
                 chase.OrbitCenter = pos;
                 chase.OrbitRadius = 9.5f;
-                chase.OrbitHeight = 2.6f;
+                chase.OrbitHeight = cfg.Arena == ArenaKind.Docks ? 4.2f : 2.6f;   // docks: clear the 2.6 m cover container
                 cam.transform.position = pos + new Vector3(4f, 3f, -9f);
                 cam.transform.LookAt(pos + Vector3.up);
             }
@@ -143,14 +143,17 @@ namespace DerbyArena.Core
             int q = Save.Data.Quality;
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = Save.Data.FrameRate;
-            QualitySettings.shadows = q == 0 ? ShadowQuality.Disable : (q == 2 ? ShadowQuality.All : ShadowQuality.HardOnly);
-            QualitySettings.shadowResolution = q == 2 ? ShadowResolution.High : ShadowResolution.Medium;
-            QualitySettings.shadowDistance = q == 0 ? 0f : (q == 2 ? 60f : 45f);
-            QualitySettings.shadowCascades = q == 2 ? 2 : 1;
-            QualitySettings.pixelLightCount = q == 0 ? 1 : (q == 2 ? 4 : 2);
-            QualitySettings.antiAliasing = q == 2 ? 2 : 0;
-            QualitySettings.anisotropicFiltering = q == 0 ? AnisotropicFiltering.Disable : AnisotropicFiltering.Enable;
-            QualitySettings.lodBias = q == 0 ? 0.7f : 1f;
+            // 0 low, 1 medium, 2 high, 3 ultra (2.1: sharper shadows, 4x MSAA, 1440p, more lights)
+            QualitySettings.shadows = q == 0 ? ShadowQuality.Disable : (q >= 2 ? ShadowQuality.All : ShadowQuality.HardOnly);
+            QualitySettings.shadowResolution = q >= 3 ? ShadowResolution.VeryHigh : (q == 2 ? ShadowResolution.High : ShadowResolution.Medium);
+            QualitySettings.shadowDistance = q == 0 ? 0f : (q >= 3 ? 75f : (q == 2 ? 60f : 45f));
+            QualitySettings.shadowCascades = q >= 2 ? 2 : 1;
+            QualitySettings.pixelLightCount = q == 0 ? 1 : (q >= 3 ? 6 : (q == 2 ? 4 : 2));
+            QualitySettings.antiAliasing = q >= 3 ? 4 : (q == 2 ? 2 : 0);
+            QualitySettings.anisotropicFiltering = q == 0 ? AnisotropicFiltering.Disable : (q >= 3 ? AnisotropicFiltering.ForceEnable : AnisotropicFiltering.Enable);
+            QualitySettings.lodBias = q == 0 ? 0.7f : (q >= 3 ? 1.5f : 1f);
+            // 2.1: a phone that already had to drop shadows this session keeps them off in every later match
+            if (Save.Data.DynamicResolution && AdaptivePerformance.Step >= 1) QualitySettings.shadows = ShadowQuality.Disable;
             QualitySettings.softParticles = false;
             QualitySettings.realtimeReflectionProbes = true;
             CapResolution(q);
@@ -177,7 +180,7 @@ namespace DerbyArena.Core
                 int longSide = Mathf.Max(nativeW, nativeH);
                 int shortSide = Mathf.Min(nativeW, nativeH);
                 if (shortSide <= 0) return;
-                int cap = q == 0 ? 720 : (q == 1 ? 900 : 1080);
+                int cap = q == 0 ? 720 : (q == 1 ? 900 : (q == 2 ? 1080 : 1440));
                 float scale = (shortSide > cap ? (float)cap / shortSide : 1f) * (Save.Data.DynamicResolution ? DynamicScale : 1f);
                 int w = Mathf.RoundToInt(longSide * scale);
                 int h = Mathf.RoundToInt(shortSide * scale);

@@ -21,7 +21,7 @@ namespace DerbyArena.Core
         public bool AutoAim = true;
         public bool Sound = true;
         public bool Haptics = true;
-        public int Quality = 1;               // 0 low, 1 medium, 2 high
+        public int Quality = 1;               // 0 low, 1 medium, 2 high, 3 ultra
         public bool QualityChosen = false;    // false -> auto-detect once on first launch
         public int Language = 0;              // 0 Turkish, 1 English (see Loc)
         public bool LanguageChosen = false;   // false -> language picker on first launch
@@ -37,6 +37,9 @@ namespace DerbyArena.Core
         public string RewardDay = "";         // yyyyMMdd of the last rewarded scrap ad
         public int RewardCount = 0;           // rewarded scrap ads watched on RewardDay
         public bool PrivacySeen = false;      // privacy page opened at least once
+
+        // 2.1
+        public bool ScreenEffects = true;     // post effects: blast flash, hit jolt, nitro split, film grain (HUD damage edges stay)
     }
 
     public static class Save
@@ -104,11 +107,13 @@ namespace DerbyArena.Core
             for (int i = 0; i < d.Upgrades.Length; i++) d.Upgrades[i] = Mathf.Clamp(d.Upgrades[i], 0, Upgrades.MaxLevel);
             for (int i = 0; i < d.Stars.Length; i++) d.Stars[i] = Mathf.Clamp(d.Stars[i], 0, 3);
             d.Unlocked = Mathf.Clamp(d.Unlocked, 1, Campaign.Total);
+            // 2.1 added season 6: a player who had cleared the old last level (50) gets level 51 opened.
+            while (d.Unlocked < Campaign.Total && d.Stars[d.Unlocked] > 0) d.Unlocked++;
             d.LastPlayed = Mathf.Clamp(d.LastPlayed, 1, d.Unlocked);
             d.Scrap = Mathf.Max(0, d.Scrap);
             d.ControlMode = Mathf.Clamp(d.ControlMode, 0, 1);
             d.Sensitivity = Mathf.Clamp(d.Sensitivity, 0.5f, 1.8f);
-            d.Quality = Mathf.Clamp(d.Quality, 0, 2);
+            d.Quality = Mathf.Clamp(d.Quality, 0, 3);
             d.Language = Mathf.Clamp(d.Language, 0, 1);
             if (d.FrameRate != 30 && d.FrameRate != 60 && d.FrameRate != 90 && d.FrameRate != 120) d.FrameRate = 60;
             d.Wins = Mathf.Max(0, d.Wins);

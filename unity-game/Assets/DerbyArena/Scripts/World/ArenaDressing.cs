@@ -5,7 +5,7 @@ namespace DerbyArena.World
     /// <summary>
     /// Derby-stadium dressing in code: red/white striped barrier caps, floodlight masts, tyre stacks, oil drums and
     /// skull banners. Visual first; only the tyre stacks and drums have (small, box) colliders and they stay out of
-    /// spawns, pickups, gates and the driving line. Shared materials, static batching, no extra real-time lights.
+    /// spawns, pickups, gates and the driving line. Shared materials, static batching (2.1), no extra real-time lights.
     /// </summary>
     public static class ArenaDressing
     {
@@ -94,9 +94,27 @@ namespace DerbyArena.World
             Visual("Jaw", cube, skull, t, mark + Vector3.down * 0.3f, new Vector3(0.3f, 0.18f, 0.02f), face, false);
         }
 
-        /// <summary>Colosseum: striped barrier cap on the ring wall, four floodlight masts, tyre stacks and drums at the wall.</summary>
-        public static void Colosseum(Transform root, Color accent, int quality)
+        /// <summary>
+        /// 2.1: everything in the dressing is static, but objects made at run time are not batched by Unity on their
+        /// own. Combining the container turns ~250 small renderers into a handful of draw calls.
+        /// </summary>
+        static Transform Container(Transform root)
         {
+            var t = new GameObject("Dressing").transform;
+            t.SetParent(root, false);
+            return t;
+        }
+
+        static void Batch(Transform container)
+        {
+            try { StaticBatchingUtility.Combine(container.gameObject); }
+            catch (System.Exception ex) { Debug.LogWarning("DERBY: dressing batching skipped. " + ex.Message); }
+        }
+
+        /// <summary>Colosseum: striped barrier cap on the ring wall, four floodlight masts, tyre stacks and drums at the wall.</summary>
+        public static void Colosseum(Transform arenaRoot, Color accent, int quality)
+        {
+            var root = Container(arenaRoot);
             var red = Lit(new Color(0.78f, 0.08f, 0.06f), 0.55f, 0.05f);
             var white = Lit(new Color(0.92f, 0.9f, 0.86f), 0.55f, 0.05f);
             var cube = MeshFactory.UnitCube();
@@ -145,11 +163,13 @@ namespace DerbyArena.World
                     Banner(root, new Vector3(Mathf.Sin(a) * 30.3f, 3.2f, Mathf.Cos(a) * 30.3f), Vector3.zero, pole, cloth, bone);
                 }
             }
+            Batch(root);
         }
 
         /// <summary>Spillway: tyre stacks and drums along the side walls, clear of pipes, spawns and the gate line.</summary>
-        public static void Spillway(Transform root)
+        public static void Spillway(Transform arenaRoot)
         {
+            var root = Container(arenaRoot);
             var rubber = Lit(new Color(0.05f, 0.05f, 0.055f), 0.9f, 0f);
             var rim = Lit(new Color(0.5f, 0.5f, 0.52f), 0.4f, 0.6f);
             var drumRed = Lit(new Color(0.6f, 0.1f, 0.06f), 0.6f, 0.2f);
@@ -159,6 +179,7 @@ namespace DerbyArena.World
             Vector3[] drums = { new Vector3(34.8f, 0f, -33f), new Vector3(-34.8f, 0f, -10f), new Vector3(34.8f, 0f, 12f), new Vector3(-34.8f, 0f, 36f) };
             for (int i = 0; i < tyres.Length; i++) TyreStack(root, tyres[i], 3, rubber, rim);
             for (int i = 0; i < drums.Length; i++) Drum(root, drums[i], drumRed, band);
+            Batch(root);
         }
     }
 }

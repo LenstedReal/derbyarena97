@@ -1,3 +1,22 @@
+# DERBY ARENA — v2.1.0 (versionCode 210)
+
+Paket kimliği, logo ve kayıtlar aynı. 2.0.0'ın üzerine grafik motoru ve içerik güncellemesi.
+
+| # | Yeni | Ayrıntı |
+|---|---|---|
+| 1 | **Sezon 6: Konteyner Limanı** | Kodla kurulan üçüncü arena (indirme yok): toprak zemin, aşınmış oval pist, konteyner duvarlar, ortada dört konteyner siper, iki atlama rampası, kuzeyde konteyner taşıyan dev vinç, ufukta konteyner yığınları, projektörler, lastik, varil, bayrak. 10 yeni bölüm (51-60), yeni patron DOCKYARD KRAKEN, liman akşamı ışık teması. Siper yerleri bilgisayarlı aramayla seçildi: kapı direklerine, kapılar arası rotaya, başlangıç şeridine ve son bölge çemberine en az 3,2 m |
+| 2 | Eski oyuncular | 50. bölümü bitirmiş oyuncunun 51. bölümü otomatik açılır. 1-50 zorluk eğrisi değişmedi; 6. sezon onun devamı |
+| 3 | **Post 2.0** | Yüksek/Ultra'da ACES filmik ton eşleme (yarım güç, koyu zemin okunur kalır), film greni, yakın patlamada beyaz flaş, nitroda renk ayrışması, çarpışma/roket darbesinde kısa sarsıntı. Kırmızı hasar kenarı HUD'da kaldı (çift olmasın diye) |
+| 4 | **ULTRA kalite** | 1440p, 4x MSAA, çok yüksek gölge, 75 m gölge mesafesi, 6 ışık. Otomatik seçim en fazla Yüksek verir; Ultra elle seçilir, FPS düşerse uyarlanabilir performans devreye girer |
+| 5 | Ayar: **EKRAN EFEKTLERİ** | Flaş, sarsıntı, nitro efekti ve greni tek tuşla kapatır |
+| 6 | **Draw call azaltma** | Araç savaş kiti malzeme başına tek mesh (araç başına ~30 → ~5 çizim). Arena dekoru ve liman arenası static batching ile birleştiriliyor |
+| 7 | **Hata düzeltmeleri (bağımsız kod incelemesiyle bulundu)** | • Oyuncu "ikinci şans" ekranındayken son rakip/patron kendi çarpışma hasarıyla ölürse maç kazanılamıyordu (süre bitince haksız yenilgi). Artık canlanınca zafer geliyor, ayrıca her karede güvenlik kontrolü var. • Uyarlanabilir performans yavaş telefonda ikinci maçtan sonra gölgeleri geri açıyordu (2.0 hatası). • 8 rakipli Son Kalan bölümlerinde iki araç aynı noktada doğup patlayabiliyordu (Sezon 5'te de vardı): dolu noktada yakında boş yer aranıyor. • Reklam açılamazsa ses yanlış geri yükleniyordu; geç gelen ödül sinyali kayboluyordu; reklam SDK'sı hiç cevap vermezse ikinci şans ekranı 999 sn bekliyordu (artık 90 sn). • Liman rampaları tümsek yapıldı (arkada 0,8 m basamak kalmıyordu). • Post shader: 1440p'de gren kümelenmesi ve çok parlak ışıkta siyah piksel riski giderildi |
+| 8 | CI düzeltmesi | GitHub'daki statik doğrulama Pillow olmadan da çalışıyor (2.0.0'da kırmızıydı, Unity derlemesiyle ilgisi yoktu) |
+
+Test: tüm C# kodu Roslyn derleyicisiyle Unity/AdMob API taslaklarına karşı tip denetiminden geçti (reklamlı ve reklamsız, Android ve iOS); reklam kodu Google'ın 11.6.0 kaynağıyla derlendi; statik doğrulama 241/241. Unity'de oynatma ve cihaz testi burada yapılamadı.
+
+---
+
 # DERBY ARENA — v2.0.0 (versionCode 200)
 
 Paket kimliği ve uygulama logosu aynı. Kayıtlar korunur (kayıt sürümü 4'e otomatik yükselir).
@@ -14,7 +33,7 @@ Paket kimliği ve uygulama logosu aynı. Kayıtlar korunur (kayıt sürümü 4'e
 | 8 | Android geri tuşu | Menü alt sayfaları → ana sayfa; yasal sayfa → ayarlar; sonuç ekranı → menü |
 | 9 | Gizlilik | Unity analitiği kapatıldı (`submitAnalytics=false`); targetSdk otomatik (en yüksek kurulu) |
 
-Yapılmadı: Sezon 6 ve yeni arena; bir sonraki sürüm.
+Yapılmadı: Sezon 6 ve yeni arena (2.1.0'da eklendi).
 
 ---
 

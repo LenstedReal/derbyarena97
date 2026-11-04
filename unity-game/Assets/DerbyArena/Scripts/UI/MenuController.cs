@@ -200,7 +200,9 @@ namespace DerbyArena.UI
                 bool open = upcoming || Save.Data.Unlocked >= first;
                 string caption = upcoming ? Loc.T("YAKINDA · YOL HARİTASI", "COMING SOON · ROADMAP") : c + ". " + Campaign.ChapterName(c);
                 Color col = c == chapter ? UiKit.Amber : (upcoming ? new Color(0.35f, 0.22f, 0.08f, 0.92f) : (open ? UiKit.PanelLight : LockedTab));
-                var tab = Btn(P, caption, col, 0f, 1f, 300f, 70f, 0f, 1f, 20, () =>
+                // 2.1: seven tabs (six seasons + roadmap) must fit 1840 reference pixels
+                float tabW = tabs >= 7 ? 254f : 300f, tabStep = tabs >= 7 ? 264f : 310f;
+                var tab = Btn(P, caption, col, 0f, 1f, tabW, 70f, 0f, 1f, tabs >= 7 ? 18 : 20, () =>
                 {
                     chapter = cc;
                     if (cc <= Campaign.Seasons)
@@ -210,7 +212,7 @@ namespace DerbyArena.UI
                     }
                     Show("levels");
                 });
-                tab.Background.rectTransform.anchoredPosition = new Vector2((c - 1) * 310f, -100f);
+                tab.Background.rectTransform.anchoredPosition = new Vector2((c - 1) * tabStep, -100f);
                 if (c == chapter) tab.Caption.color = DarkText;
                 tab.Interactable = open;
             }
@@ -258,7 +260,7 @@ namespace DerbyArena.UI
             var d = detail.transform;
             Move(Txt(d, Loc.T("BÖLÜM ", "LEVEL ") + selected, 30, UiKit.TextDim, TextAnchor.MiddleLeft, true, 0f, 1f, 500f, 50f, 0f, 1f), 30f, -20f);
             Move(Txt(d, sel.Title, 42, UiKit.Amber, TextAnchor.MiddleLeft, true, 0f, 1f, 520f, 60f, 0f, 1f), 30f, -70f);
-            string arenaName = sel.Arena == ArenaKind.Colosseum ? Loc.T("Kolezyum", "Colosseum") : "Blackout Spillway";
+            string arenaName = sel.Arena == ArenaKind.Colosseum ? Loc.T("Kolezyum", "Colosseum") : (sel.Arena == ArenaKind.Docks ? Loc.T("Konteyner Limanı", "Container Port") : "Blackout Spillway");
             string info = LevelConfig.KindName(sel.Kind) + "\n" + sel.ObjectiveLine
                         + "\n\nArena: " + arenaName
                         + Loc.T("\nRakip: ", "\nRivals: ") + sel.Enemies.Length
@@ -428,8 +430,9 @@ namespace DerbyArena.UI
                 Save.Data.FrameRate = fr < 60 ? 60 : (fr < 90 ? 90 : (fr < 120 ? 120 : 30));
                 DerbyBootstrapQuality.Apply();
             });
-            string[] q = { Loc.T("DÜŞÜK", "LOW"), Loc.T("ORTA", "MEDIUM"), Loc.T("YÜKSEK", "HIGH") };
-            Row(Loc.T("GRAFİK KALİTESİ", "GRAPHICS QUALITY"), q[Mathf.Clamp(Save.Data.Quality, 0, 2)], ref y, () => { Save.Data.Quality = (Save.Data.Quality + 1) % 3; Save.Data.QualityChosen = true; DerbyBootstrapQuality.Apply(); });
+            string[] q = { Loc.T("DÜŞÜK", "LOW"), Loc.T("ORTA", "MEDIUM"), Loc.T("YÜKSEK", "HIGH"), Loc.T("ULTRA", "ULTRA") };
+            Row(Loc.T("GRAFİK KALİTESİ", "GRAPHICS QUALITY"), q[Mathf.Clamp(Save.Data.Quality, 0, 3)], ref y, () => { Save.Data.Quality = (Save.Data.Quality + 1) % 4; Save.Data.QualityChosen = true; DerbyBootstrapQuality.Apply(); });
+            Row(Loc.T("EKRAN EFEKTLERİ", "SCREEN EFFECTS"), Save.Data.ScreenEffects ? on : off, ref y, () => { Save.Data.ScreenEffects = !Save.Data.ScreenEffects; });
             Row(Loc.T("DİNAMİK ÇÖZÜNÜRLÜK", "DYNAMIC RESOLUTION"), Save.Data.DynamicResolution ? on : off, ref y, () => { Save.Data.DynamicResolution = !Save.Data.DynamicResolution; DerbyBootstrapQuality.Apply(); });
 
             // right column: privacy, legal, rating, version
@@ -482,13 +485,13 @@ namespace DerbyArena.UI
         void Row(string label, string value, ref float y, Action change)
         {
             var row = UiKit.Image("Row", P, UiKit.Rounded, UiKit.Panel);
-            UiKit.Place(row.rectTransform, 0f, 1f, 1180f, 72f, 0f, 1f);
+            UiKit.Place(row.rectTransform, 0f, 1f, 1180f, 66f, 0f, 1f);
             row.rectTransform.anchoredPosition = new Vector2(0f, y);
-            Move(Txt(row.transform, label, 28, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, 640f, 70f, 0f, 0.5f), 26f, 0f);
-            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 420f, 58f, 1f, 0.5f, 26, () => { change(); Save.Write(); Show("settings"); });
+            Move(Txt(row.transform, label, 28, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, 640f, 64f, 0f, 0.5f), 26f, 0f);
+            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 420f, 54f, 1f, 0.5f, 26, () => { change(); Save.Write(); Show("settings"); });
             b.Background.rectTransform.anchoredPosition = new Vector2(-12f, 0f);
             b.Caption.color = UiKit.Amber;
-            y -= 78f;
+            y -= 72f;
         }
     }
 }

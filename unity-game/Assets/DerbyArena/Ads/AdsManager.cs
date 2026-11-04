@@ -226,9 +226,10 @@ namespace DerbyArena.Ads
 
         void OnFullscreenClosed()
         {
+            // a failed show calls this without a matching "opened": only restore audio we actually paused
+            if (showing) AudioListener.pause = audioWasPaused;
             showing = false;
             lastFullscreenAdTime = Time.unscaledTime;
-            AudioListener.pause = audioWasPaused;
             // On some devices the reward callback arrives just after the close event: wait a moment
             // (real time, the game may be paused) before telling the game whether the reward was earned.
             StartCoroutine(ResolveAfterClose());
@@ -236,7 +237,9 @@ namespace DerbyArena.Ads
 
         System.Collections.IEnumerator ResolveAfterClose()
         {
-            yield return new WaitForSecondsRealtime(0.3f);
+            // up to 1 s for the reward callback; resolve at once if it is already in
+            float waited = 0f;
+            while (!rewardEarned && pendingReward != null && waited < 1f) { waited += Time.unscaledDeltaTime; yield return null; }
             var closed = pendingClosed; pendingClosed = null;
             var reward = pendingReward; pendingReward = null;
             bool earned = rewardEarned; rewardEarned = false;

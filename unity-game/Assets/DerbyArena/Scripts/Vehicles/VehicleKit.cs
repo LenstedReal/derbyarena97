@@ -153,6 +153,65 @@ namespace DerbyArena.Vehicles
                     Part("PipeTip", cyl, Glow(new Color(1f, 0.45f, 0.15f), 1.4f), root, new Vector3(side * (halfW + 0.07f), low + 0.28f, c.z - s.z * 0.25f - 0.02f), new Vector3(0.1f, 0.03f, 0.1f), Quaternion.Euler(90f, 0f, 0f));
                 }
             }
+
+            Merge(root);
         }
+
+        /// <summary>
+        /// 2.1: the 20-35 kit parts become one mesh per material (usually 4-6 draw calls per car instead of ~30).
+        /// The merged children move with the car; the originals are removed at once so the renderer list the visual
+        /// collects next (hit flash, wreck look) only sees the merged pieces.
+        /// </summary>
+        static void Merge(Transform root)
+        {
+            var filters = root.GetComponentsInChildren<MeshFilter>(true);
+            if (filters.Length < 2) return;
+            var groups = new Dictionary<Material, List<CombineInstance>>();
+            var order = new List<Material>();
+            Matrix4x4 toRoot = root.worldToLocalMatrix;
+            for (int i = 0; i < filters.Length; i++)
+            {
+                var f = filters[i];
+                var r = f.GetComponent<MeshRenderer>();
+                if (r == null || f.sharedMesh == null || r.sharedMaterial == null) continue;
+                List<CombineInstance> list;
+                if (!groups.TryGetValue(r.sharedMaterial, out list))
+                {
+                    list = new List<CombineInstance>();
+                    groups[r.sharedMaterial] = list;
+                    order.Add(r.sharedMaterial);
+                }
+                var ci = new CombineInstance();
+                ci.mesh = f.sharedMesh;
+                ci.subMeshIndex = 0;
+                ci.transform = toRoot * f.transform.localToWorldMatrix;
+                list.Add(ci);
+            }
+            for (int i = 0; i < order.Count; i++)
+            {
+                var mesh = new Mesh();
+                mesh.name = "BattleKit";
+                mesh.CombineMeshes(groups[order[i]].ToArray(), true, true);
+                mesh.RecalculateBounds();
+                var go = new GameObject("KitMerged");
+                go.transform.SetParent(root, false);
+                go.layer = VehicleVisual.VehicleLayer;
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = order[i];
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                mr.receiveShadows = true;
+                go.AddComponent<OwnedMesh>().Mesh = mesh;
+            }
+            for (int i = 0; i < filters.Length; i++)
+                if (filters[i] != null) Object.DestroyImmediate(filters[i].gameObject);
+        }
+    }
+
+    /// <summary>Frees a mesh created at runtime together with its GameObject.</summary>
+    public sealed class OwnedMesh : MonoBehaviour
+    {
+        public Mesh Mesh;
+        void OnDestroy() { if (Mesh != null) Destroy(Mesh); }
     }
 }

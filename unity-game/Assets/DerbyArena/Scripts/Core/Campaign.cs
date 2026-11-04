@@ -3,7 +3,7 @@ using UnityEngine;
 namespace DerbyArena.Core
 {
     public enum ObjectiveKind { Reactor, Demolition, Boss, Checkpoint, Survival, LastStand }
-    public enum ArenaKind { Spillway, Colosseum }
+    public enum ArenaKind { Spillway, Colosseum, Docks }
     public enum EnemyKind { Drifter, Rammer, Hunter, WarRig }
 
     public sealed class LevelConfig
@@ -79,20 +79,21 @@ namespace DerbyArena.Core
     }
 
     /// <summary>
-    /// 50 levels in 5 chapters. Each chapter introduces something new: checkpoint runs (ch1), survival and the
-    /// shrinking-zone "last one standing" mode (ch2), acid pools (ch3), night races with headlights (ch4) and elite
-    /// enemies (ch5). Every 10th level is a boss. Deterministic and data driven.
+    /// 60 levels in 6 chapters. Each chapter introduces something new: checkpoint runs (ch1), survival and the
+    /// shrinking-zone "last one standing" mode (ch2), acid pools (ch3), night races with headlights (ch4), elite
+    /// enemies (ch5) and the Container Port arena with ramps and container cover (ch6, 2.1). Every 10th level is a
+    /// boss. Deterministic and data driven.
     /// </summary>
     public static class Campaign
     {
         // To add a season in an update: append a Plan string, its names/features/boss below, and raise
         // Total by 10. Saves resize automatically (SaveData.Sanitize), progress is kept.
-        public const int Total = 50;
+        public const int Total = 60;
         public const int PerChapter = 10;
         public const int Seasons = Total / PerChapter;
 
-        static readonly string[] ChapterNamesTr = { "ACEMİ KOLEZYUM", "HURDA ÇORAKLIK", "ZEHİRLİ DÖKÜMHANE", "GECE SİBER-RİNG", "DEMİR KIYAMET" };
-        static readonly string[] ChapterNamesEn = { "ROOKIE COLOSSEUM", "SCRAP BADLANDS", "TOXIC FOUNDRY", "NIGHT CYBER RING", "IRON APOCALYPSE" };
+        static readonly string[] ChapterNamesTr = { "ACEMİ KOLEZYUM", "HURDA ÇORAKLIK", "ZEHİRLİ DÖKÜMHANE", "GECE SİBER-RİNG", "DEMİR KIYAMET", "KONTEYNER LİMANI" };
+        static readonly string[] ChapterNamesEn = { "ROOKIE COLOSSEUM", "SCRAP BADLANDS", "TOXIC FOUNDRY", "NIGHT CYBER RING", "IRON APOCALYPSE", "CONTAINER PORT" };
 
         static readonly string[] ChapterFeaturesTr =
         {
@@ -100,7 +101,8 @@ namespace DerbyArena.Core
             "Yeni: Hayatta Kal ve daralan bölgeli Son Kalan",
             "Yeni: asit havuzları, daha akıllı rakipler",
             "Yeni: gece yarışları, farlar ve neon",
-            "Yeni: elit rakipler, en zor patron"
+            "Yeni: elit rakipler, en zor patron",
+            "Yeni arena: Konteyner Limanı. Konteyner siperleri, rampalar, dev vinç"
         };
         static readonly string[] ChapterFeaturesEn =
         {
@@ -108,7 +110,8 @@ namespace DerbyArena.Core
             "New: Survival and Last Stand with a shrinking zone",
             "New: acid pools, smarter rivals",
             "New: night races, headlights and neon",
-            "New: elite rivals, the toughest boss"
+            "New: elite rivals, the toughest boss",
+            "New arena: Container Port. Container cover, jump ramps, a giant crane"
         };
 
         /// <summary>Season (1-based) name in the current language.</summary>
@@ -128,7 +131,7 @@ namespace DerbyArena.Core
 
         static readonly string[] BossNames =
         {
-            "CRUSHER ALPHA", "SCRAPGUN PRIME", "FOUNDRY TYRANT", "MIDNIGHT BERSERKER", "OMEGA WAR RIG"
+            "CRUSHER ALPHA", "SCRAPGUN PRIME", "FOUNDRY TYRANT", "MIDNIGHT BERSERKER", "OMEGA WAR RIG", "DOCKYARD KRAKEN"
         };
 
         // R reactor, D demolition, C checkpoint, S survival, L last stand, B boss
@@ -138,10 +141,11 @@ namespace DerbyArena.Core
             "RDSCLRDSCB",
             "SLRCDLRSCB",
             "LRCSDLCRSB",
-            "RLSCDLRSCB"
+            "RLSCDLRSCB",
+            "CDRSLCDRLB"
         };
 
-        static readonly float[] BossHealthByChapter = { 380f, 520f, 680f, 840f, 1000f };
+        static readonly float[] BossHealthByChapter = { 380f, 520f, 680f, 840f, 1000f, 1150f };
 
         static ObjectiveKind KindOf(char c)
         {
@@ -180,8 +184,11 @@ namespace DerbyArena.Core
                     c.Arena = ArenaKind.Colosseum;
                     break;
             }
+            if (c.Chapter == 6) c.Arena = ArenaKind.Docks;   // the Container Port hosts every mode
 
-            float t = (n - 1) / (float)(Total - 1);
+            // Difficulty runs over the original 50 levels (1.4.0 curve, unchanged for them); season 6 continues
+            // past 1 (enemy health / speed / damage keep rising, aim error is clamped by the Lerp).
+            float t = (n - 1) / 49f;
             c.Cells = c.Kind == ObjectiveKind.Reactor ? (n <= 12 ? 3 : (n <= 32 ? 4 : 5)) : 0;
             c.Gates = c.Kind == ObjectiveKind.Checkpoint ? (c.Chapter == 1 ? 6 : (c.Chapter == 2 ? 7 : 8)) : 0;
 
@@ -215,7 +222,7 @@ namespace DerbyArena.Core
             c.EnemyDamage = 0.6f + 0.5f * t;
             c.AimErrorDeg = Mathf.Lerp(11f, 4.5f, t);
             c.MaxShooters = 2 + (c.Chapter >= 4 ? 1 : 0);
-            c.EliteChance = c.Chapter >= 5 ? 0.4f : (c.Chapter == 4 ? 0.15f : 0f);
+            c.EliteChance = c.Chapter >= 6 ? 0.5f : (c.Chapter == 5 ? 0.4f : (c.Chapter == 4 ? 0.15f : 0f));
             c.AcidPools = c.Chapter == 3 || (c.Chapter == 5 && c.Arena == ArenaKind.Spillway);
             c.Night = c.Chapter == 4;
             c.BossHealth = BossHealthByChapter[c.Chapter - 1];
@@ -264,6 +271,7 @@ namespace DerbyArena.Core
                 case 21: return Loc.T("Yeşil asit havuzları araçları eritir. Rakipleri içine it!", "Green acid pools melt cars. Push your rivals in!");
                 case 31: return Loc.T("Gece yarışı: farların yolu aydınlatır, neon şeritleri takip et.", "Night race: your headlights light the way, follow the neon strips.");
                 case 41: return Loc.T("Elit rakipler (mor) daha dayanıklı ve isabetlidir.", "Elite rivals (purple) are tougher and more accurate.");
+                case 51: return Loc.T("Konteyner Limanı: ortadaki rampalardan uçarak kestirme yap, konteynerlerin arkasına saklan.", "Container Port: fly off the centre ramps for a shortcut, hide behind the containers.");
                 default: return null;
             }
         }

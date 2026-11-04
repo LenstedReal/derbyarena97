@@ -11,6 +11,8 @@ namespace DerbyArena.Core
     public sealed class AdaptivePerformance : MonoBehaviour
     {
         static int step;          // persists across matches of this session
+        /// <summary>Current step (0 none, 1 shadows off, 2-3 lower render scale). Re-applied by DerbyBootstrapQuality.</summary>
+        public static int Step { get { return step; } }
         float window, frames;
         int slowWindows;
         float warmup = 6f;        // loading, shader warm-up and countdown are not representative
