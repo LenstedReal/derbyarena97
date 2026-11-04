@@ -229,6 +229,7 @@ namespace DerbyArena.Vehicles
 
             Vector3 contact = collision.contactCount > 0 ? collision.GetContact(0).point : (transform.position + other.transform.position) * 0.5f;
             victim.Apply(baseDmg * mul, rammer, contact);
+            if (rammer.Team == 0 && baseDmg * mul >= 10f) DerbyArena.Core.DailyMissions.Tick(DerbyArena.Core.MissionGoal.Rams, 1);
             var victimCar = iAmRammer ? theirCar : myCar;
             if (victimCar != null && victimCar.Body != null && !victimCar.Body.isKinematic)
             {

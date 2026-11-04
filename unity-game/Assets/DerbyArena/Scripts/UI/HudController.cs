@@ -121,13 +121,14 @@ namespace DerbyArena.UI
             UiKit.Place(hitMark.rectTransform, 0.5f, 0.5f, 22f, 22f, 0.5f, 0.5f);
 
             // countdown + message feed
+            // the countdown sits over the screen centre, the message feed above it (4.0: they no longer overlap)
             var cd = UiKit.Rect("Countdown", canvasRt);
-            UiKit.Stretch(cd, 0.3f, 0.45f, 0.7f, 0.75f);
+            UiKit.Stretch(cd, 0.3f, 0.36f, 0.7f, 0.62f);
             countText = UiKit.Label("Text", cd, "", 190, Color.white, TextAnchor.MiddleCenter, true);
             for (int i = 0; i < 3; i++)
             {
                 var r = UiKit.Rect("Feed" + i, safe);
-                UiKit.Place(r, 0.5f, 0.71f - i * 0.055f, 1100f, 56f, 0.5f, 0.5f);
+                UiKit.Place(r, 0.5f, 0.775f - i * 0.052f, 1100f, 56f, 0.5f, 0.5f);
                 var t = UiKit.Label("Text", r, "", 40, Color.white, TextAnchor.MiddleCenter, true);
                 t.color = new Color(1f, 1f, 1f, 0f);
                 feed.Add(t);
@@ -206,10 +207,13 @@ namespace DerbyArena.UI
 
             var bars = UiKit.Rect("Bars", safe);
             UiKit.Place(bars, 0f, 1f, 470f, 170f, 0f, 1f);
-            bars.anchoredPosition = new Vector2(236f, 0f);
+            bars.anchoredPosition = new Vector2(272f, 0f);
 
             var hp = UiKit.Bar(bars, UiKit.Green, out hpFill);
             UiKit.Place(hp.rectTransform, 0f, 1f, 470f, 52f, 0f, 1f);
+            HudIcon(bars, "heart", UiKit.Green, -34f, -26f, 30f);
+            HudIcon(bars, "flame", UiKit.Cyan, -30f, -77f, 24f);
+            HudIcon(bars, "bullets", UiKit.Amber, -30f, -119f, 24f);
             var sh = UiKit.Image("Shield", hp.transform, UiKit.Square, new Color(0.7f, 0.8f, 1f, 0.75f));
             sh.type = Image.Type.Filled; sh.fillMethod = Image.FillMethod.Horizontal;
             UiKit.Stretch(sh.rectTransform, 0f, 0f, 1f, 0.22f);
@@ -232,14 +236,18 @@ namespace DerbyArena.UI
 
         void BuildTopCenter()
         {
-            var tp = UiKit.Image("Timer", safe, UiKit.Rounded, UiKit.Panel);
-            UiKit.Place(tp.rectTransform, 0.5f, 1f, 220f, 84f, 0.5f, 1f);
-            timeText = UiKit.Label("Text", tp.transform, "0:00", 52, Color.white, TextAnchor.MiddleCenter, true);
+            var tp = UiKit.Image("Timer", safe, UiKit.Pill, new Color(0.03f, 0.035f, 0.045f, 0.82f));
+            UiKit.Place(tp.rectTransform, 0.5f, 1f, 250f, 80f, 0.5f, 1f);
+            HudIcon(tp.transform, "clock", UiKit.Amber, 22f, -40f, 34f);
+            timeText = UiKit.Label("Text", tp.transform, "0:00", 50, Color.white, TextAnchor.MiddleCenter, true);
+            timeText.rectTransform.offsetMin = new Vector2(44f, 0f);
 
-            var op = UiKit.Image("Objective", safe, UiKit.Rounded, new Color(0.04f, 0.05f, 0.06f, 0.6f));
-            UiKit.Place(op.rectTransform, 0.5f, 1f, 820f, 60f, 0.5f, 1f);
-            op.rectTransform.anchoredPosition = new Vector2(0f, -92f);
-            objText = UiKit.Label("Text", op.transform, "", 28, Color.white, TextAnchor.MiddleCenter, true);
+            var op = UiKit.Image("Objective", safe, UiKit.Card, new Color(0.03f, 0.035f, 0.045f, 0.62f));
+            UiKit.Place(op.rectTransform, 0.5f, 1f, 820f, 58f, 0.5f, 1f);
+            op.rectTransform.anchoredPosition = new Vector2(0f, -88f);
+            if (match != null) HudIcon(op.transform, MenuControllerKindIcon(match.Config.Kind), KindColor(match.Config.Kind), 18f, -29f, 30f);
+            objText = UiKit.Label("Text", op.transform, "", 26, Color.white, TextAnchor.MiddleCenter, true);
+            objText.rectTransform.offsetMin = new Vector2(52f, 0f);
 
             var pr = UiKit.Rect("Progress", safe);
             UiKit.Place(pr, 0.5f, 1f, 600f, 44f, 0.5f, 1f);
@@ -259,21 +267,54 @@ namespace DerbyArena.UI
             bossBar.SetActive(false);
         }
 
-        Image RoundButton(string caption, float ax, float ay, float size, Color c, int font)
+        static void HudIcon(Transform parent, string icon, Color c, float x, float y, float size)
+        {
+            if (UiKit.Icon(icon) == null) return;
+            var im = UiKit.IconImage(parent, icon, size, c, 0f, 1f, 0.5f, 0.5f);
+            im.rectTransform.anchoredPosition = new Vector2(x, y);
+        }
+
+        static string MenuControllerKindIcon(ObjectiveKind k)
+        {
+            switch (k)
+            {
+                case ObjectiveKind.Reactor: return "reactor";
+                case ObjectiveKind.Demolition: return "skull";
+                case ObjectiveKind.Checkpoint: return "flag";
+                case ObjectiveKind.Survival: return "heart";
+                case ObjectiveKind.LastStand: return "crosshair";
+                default: return "crown";
+            }
+        }
+
+        Image RoundButton(string caption, float ax, float ay, float size, Color c, int font, string icon)
         {
             var img = UiKit.Image(caption, safe, UiKit.Circle, new Color(c.r, c.g, c.b, 0.5f));
             UiKit.Place(img.rectTransform, ax, ay, size, size, 0.5f, 0.5f);
             var ring = UiKit.Image("Ring", img.transform, UiKit.RingSprite, new Color(1f, 1f, 1f, 0.35f));
             UiKit.Stretch(ring.rectTransform, 0f, 0f, 1f, 1f);
-            UiKit.Label("Label", img.transform, caption, font, Color.white, TextAnchor.MiddleCenter, true);
+            bool hasIcon = !string.IsNullOrEmpty(icon) && UiKit.Icon(icon) != null;
+            if (hasIcon)
+            {
+                var ic = UiKit.IconImage(img.transform, icon, size * 0.36f, new Color(1f, 1f, 1f, 0.95f), 0.5f, 0.5f, 0.5f, 0.5f);
+                ic.rectTransform.anchoredPosition = new Vector2(0f, size * 0.13f);
+            }
+            var lbl = UiKit.Label("Label", img.transform, caption, font, Color.white, TextAnchor.MiddleCenter, true);
+            if (hasIcon) { lbl.rectTransform.offsetMax = new Vector2(0f, -size * 0.3f); lbl.fontSize = Mathf.RoundToInt(font * 0.8f); }
             return img;
         }
 
-        Image Pedal(string caption, float ax, float ay, float w, float h, Color c)
+        Image Pedal(string caption, float ax, float ay, float w, float h, Color c, string icon)
         {
-            var img = UiKit.Image(caption, safe, UiKit.Rounded, new Color(c.r, c.g, c.b, 0.5f));
+            var img = UiKit.Image(caption, safe, UiKit.ButtonSprite, new Color(c.r, c.g, c.b, 0.6f));
             UiKit.Place(img.rectTransform, ax, ay, w, h, 0.5f, 0f);
-            UiKit.Label("Label", img.transform, caption, 32, Color.white, TextAnchor.MiddleCenter, true);
+            if (!string.IsNullOrEmpty(icon) && UiKit.Icon(icon) != null)
+            {
+                var ic = UiKit.IconImage(img.transform, icon, 48f, new Color(1f, 1f, 1f, 0.9f), 0.5f, 1f, 0.5f, 1f);
+                ic.rectTransform.anchoredPosition = new Vector2(0f, -h * 0.16f);
+            }
+            var lbl = UiKit.Label("Label", img.transform, caption, 30, Color.white, TextAnchor.MiddleCenter, true);
+            lbl.rectTransform.offsetMax = new Vector2(0f, -h * 0.2f);
             return img;
         }
 
@@ -305,13 +346,14 @@ namespace DerbyArena.UI
             controls.LeftRect = leftImg.rectTransform;
             controls.RightRect = rightImg.rectTransform;
 
-            gasImg = Pedal(Loc.T("GAZ", "GAS"), 0.885f, 0.02f, 190f, 270f, new Color(0.15f, 0.7f, 0.32f));
-            brakeImg = Pedal(Loc.T("FREN", "BRAKE"), 0.745f, 0.02f, 170f, 190f, new Color(0.75f, 0.18f, 0.14f));
-            fireImg = RoundButton(Loc.T("ATEŞ", "FIRE"), 0.86f, 0.58f, 230f, new Color(0.95f, 0.3f, 0.12f), 36);
-            rocketImg = RoundButton(Loc.T("ROKET", "ROCKET"), 0.71f, 0.5f, 150f, new Color(1f, 0.55f, 0.1f), 24);
+            bool tank = match != null && match.Config != null && Fleet.Current().Tank;
+            gasImg = Pedal(Loc.T("GAZ", "GAS"), 0.885f, 0.02f, 190f, 270f, new Color(0.15f, 0.7f, 0.32f), "play");
+            brakeImg = Pedal(Loc.T("FREN", "BRAKE"), 0.745f, 0.02f, 170f, 190f, new Color(0.75f, 0.18f, 0.14f), "brake");
+            fireImg = RoundButton(Loc.T("ATEŞ", "FIRE"), 0.86f, 0.58f, 230f, new Color(0.95f, 0.3f, 0.12f), 36, "crosshair");
+            rocketImg = RoundButton(tank ? Loc.T("HE MERMİ", "HE SHELL") : Loc.T("ROKET", "ROCKET"), 0.71f, 0.5f, 150f, new Color(1f, 0.55f, 0.1f), 24, "rocket");
             rocketText = rocketImg.GetComponentsInChildren<Text>()[0];
-            nitroImg = RoundButton(Loc.T("NİTRO", "NITRO"), 0.615f, 0.27f, 140f, new Color(0.2f, 0.45f, 1f), 24);
-            driftImg = RoundButton(Loc.T("DRİFT", "DRIFT"), 0.62f, 0.1f, 125f, new Color(0.45f, 0.47f, 0.55f), 24);
+            nitroImg = RoundButton(Loc.T("NİTRO", "NITRO"), 0.615f, 0.27f, 140f, new Color(0.2f, 0.45f, 1f), 24, "flame");
+            driftImg = RoundButton(Loc.T("DRİFT", "DRIFT"), 0.62f, 0.1f, 125f, new Color(0.45f, 0.47f, 0.55f), 24, "skid");
 
             controls.GasRect = gasImg.rectTransform;
             controls.BrakeRect = brakeImg.rectTransform;
@@ -752,12 +794,13 @@ namespace DerbyArena.UI
             var bg = UiKit.Image("SecondChance", canvasRt, UiKit.Square, new Color(0f, 0f, 0f, 0.6f));
             UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
             revivePage = bg.gameObject;
-            var panel = UiKit.Image("Panel", bg.transform, UiKit.Rounded, UiKit.Panel);
+            var panel = UiKit.Frame("Panel", bg.transform, UiKit.Panel);
             UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 820f, 520f, 0.5f, 0.5f);
             var t = panel.transform;
             var title = UiKit.Rect("Title", t);
             UiKit.Place(title, 0.5f, 1f, 780f, 100f, 0.5f, 1f);
-            UiKit.Label("Text", title, Loc.T("İKİNCİ ŞANS?", "SECOND CHANCE?"), 60, UiKit.Amber, TextAnchor.MiddleCenter, true);
+            HudIcon(title, "heart", UiKit.Red, 150f, -50f, 48f);
+            UiKit.Label("Text", title, Loc.T("İKİNCİ ŞANS?", "SECOND CHANCE?"), 56, UiKit.Amber, TextAnchor.MiddleCenter, true);
             var body = UiKit.Rect("Body", t);
             UiKit.Place(body, 0.5f, 1f, 760f, 90f, 0.5f, 1f);
             body.anchoredPosition = new Vector2(0f, -100f);
@@ -774,12 +817,12 @@ namespace DerbyArena.UI
             count.anchoredPosition = new Vector2(0f, -240f);
             reviveText = UiKit.Label("Text", count, "", 54, Color.white, TextAnchor.MiddleCenter, true);
 
-            var yes = UiKit.Button(t, Loc.T("REKLAM İZLE · DEVAM ET", "WATCH AD · CONTINUE"), UiKit.Green, 32, () =>
+            var yes = UiKit.Button(t, Loc.T("REKLAM İZLE · DEVAM ET", "WATCH AD · CONTINUE"), UiKit.Green, 30, () =>
             {
                 if (adPending) return;
                 adPending = true;
                 m.AcceptSecondChance();
-            });
+            }, true, "ad");
             yes.IgnoreBlock = true;
             UiKit.Place(yes.Background.rectTransform, 0.5f, 0f, 520f, 100f, 0.5f, 0f);
             yes.Background.rectTransform.anchoredPosition = new Vector2(-120f, 30f);
@@ -814,11 +857,12 @@ namespace DerbyArena.UI
             var bg = UiKit.Image("Pause", canvasRt, UiKit.Square, new Color(0f, 0f, 0f, 0.7f));
             UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
             pausePage = bg.gameObject;
-            var panel = UiKit.Image("Panel", bg.transform, UiKit.Rounded, UiKit.Panel);
+            var panel = UiKit.Frame("Panel", bg.transform, UiKit.Panel);
             UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 760f, 900f, 0.5f, 0.5f);
             var title = UiKit.Rect("Title", panel.transform);
             UiKit.Place(title, 0.5f, 1f, 700f, 110f, 0.5f, 1f);
-            UiKit.Label("Text", title, Loc.T("DURAKLATILDI", "PAUSED"), 60, Color.white, TextAnchor.MiddleCenter, true);
+            HudIcon(title, "pause", UiKit.Amber, 120f, -55f, 48f);
+            UiKit.Label("Text", title, Loc.T("DURAKLATILDI", "PAUSED"), 56, Color.white, TextAnchor.MiddleCenter, true);
 
             float y = -130f;
             AddPauseButton(panel.transform, Loc.T("DEVAM ET", "RESUME"), UiKit.Green, ref y, () => TogglePause());
@@ -853,7 +897,7 @@ namespace DerbyArena.UI
 
         void AddPauseButton(Transform parent, string caption, Color color, ref float y, System.Action a)
         {
-            var b = UiKit.Button(parent, caption, color, 36, a);
+            var b = UiKit.Button(parent, caption, color, 34, a, color == UiKit.Green || color == UiKit.Amber, null);
             b.IgnoreBlock = true;
             UiKit.Place(b.Background.rectTransform, 0.5f, 1f, 560f, 96f, 0.5f, 1f);
             b.Background.rectTransform.anchoredPosition = new Vector2(0f, y);
@@ -902,12 +946,19 @@ namespace DerbyArena.UI
             var bg = UiKit.Image("Result", canvasRt, UiKit.Square, new Color(0f, 0f, 0f, 0.72f));
             UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
             resultPage = bg.gameObject;
-            var panel = UiKit.Image("Panel", bg.transform, UiKit.Rounded, UiKit.Panel);
+            var panel = UiKit.Frame("Panel", bg.transform, UiKit.Panel);
             UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 900f, 820f, 0.5f, 0.5f);
+            if (UiKit.Hazard != null)
+            {
+                var hz = UiKit.Image("Hazard", panel.transform, UiKit.Hazard, new Color(won ? 0.25f : 0.95f, won ? 0.88f : 0.22f, won ? 0.45f : 0.18f, 0.7f));
+                hz.type = Image.Type.Tiled;
+                UiKit.Place(hz.rectTransform, 0.5f, 1f, 860f, 8f, 0.5f, 1f);
+                hz.rectTransform.anchoredPosition = new Vector2(0f, -112f);
+            }
 
             var title = UiKit.Rect("Title", panel.transform);
             UiKit.Place(title, 0.5f, 1f, 860f, 120f, 0.5f, 1f);
-            UiKit.Label("Text", title, won ? Loc.T("GÖREV TAMAM", "MISSION COMPLETE") : Loc.T("KAYBETTİN", "YOU LOST"), 72, won ? UiKit.Green : UiKit.Red, TextAnchor.MiddleCenter, true);
+            UiKit.Label("Text", title, won ? Loc.T("GÖREV TAMAM", "MISSION COMPLETE") : Loc.T("KAYBETTİN", "YOU LOST"), 68, won ? UiKit.Green : UiKit.Red, TextAnchor.MiddleCenter, true);
             var sub = UiKit.Rect("Sub", panel.transform);
             UiKit.Place(sub, 0.5f, 1f, 860f, 50f, 0.5f, 1f);
             sub.anchoredPosition = new Vector2(0f, -118f);
@@ -916,9 +967,10 @@ namespace DerbyArena.UI
             for (int i = 0; i < 3; i++)
             {
                 bool on = won && i < m.Stars;
-                var s = UiKit.Image("Star", panel.transform, Star(), on ? UiKit.Amber : new Color(1f, 1f, 1f, 0.12f));
+                var s = UiKit.Image("Star", panel.transform, UiKit.Icon("star") ?? Star(), on ? UiKit.Amber : new Color(1f, 1f, 1f, 0.12f));
                 UiKit.Place(s.rectTransform, 0.5f, 1f, i == 1 ? 150f : 120f, i == 1 ? 150f : 120f, 0.5f, 0.5f);
                 s.rectTransform.anchoredPosition = new Vector2((i - 1) * 170f, i == 1 ? -255f : -245f);
+                if (on) s.gameObject.AddComponent<StarPop>().Delay = 0.25f + i * 0.3f;
             }
 
             string stats = Loc.T("SÜRE  ", "TIME  ") + FormatTime(m.Elapsed) + Loc.T("     İMHA  ", "     KILLS  ") + m.Kills + "\n+" + m.Reward + Loc.T(" HURDA", " SCRAP");
@@ -939,15 +991,24 @@ namespace DerbyArena.UI
             int n = m.Config.Number;
             var ads = DerbyArena.Ads.AdsManager.Instance;
             interstitialDue = ads != null && ads.MatchFinished(n);
-            if (hasNext) { ResultButton(panel.transform, Loc.T("SONRAKİ", "NEXT"), UiKit.Green, x, () => Transition(() => GameFlow.Play(n + 1))); x += 270f; }
-            ResultButton(panel.transform, Loc.T("TEKRAR", "RETRY"), UiKit.Amber, hasNext ? x : -135f, () => Transition(() => GameFlow.Play(n)));
+            bool nextOpen = hasNext && Campaign.IsOpen(n + 1);
+            if (hasNext && !nextOpen)
+            {
+                // star gate: the next level needs more stars, say so instead of a dead NEXT button
+                var gate = UiKit.Rect("Gate", panel.transform);
+                UiKit.Place(gate, 0.5f, 0f, 820f, 44f, 0.5f, 0f);
+                gate.anchoredPosition = new Vector2(0f, 214f);
+                UiKit.Label("Text", gate, Loc.T("Sıradaki bölüm için ★ ", "Next level needs ★ ") + Campaign.StarsRequired(n + 1) + Loc.T(" gerek (sende ", " (you have ") + Save.TotalStars() + ")", 24, UiKit.Amber, TextAnchor.MiddleCenter, true);
+            }
+            if (nextOpen) { ResultButton(panel.transform, Loc.T("SONRAKİ", "NEXT"), UiKit.Green, x, () => Transition(() => GameFlow.Play(n + 1)), "play"); x += 270f; }
+            ResultButton(panel.transform, Loc.T("TEKRAR", "RETRY"), UiKit.Amber, nextOpen ? x : -135f, () => Transition(() => GameFlow.Play(n)), "flag");
             x += 270f;
-            ResultButton(panel.transform, Loc.T("MENÜ", "MENU"), UiKit.PanelLight, hasNext ? x : 135f, () => Transition(() => GameFlow.ToMenu(won ? "levels" : "home")));
+            ResultButton(panel.transform, Loc.T("MENÜ", "MENU"), UiKit.PanelLight, nextOpen ? x : 135f, () => Transition(() => GameFlow.ToMenu(won ? "levels" : "home")), "back");
 
             // rewarded: double the match scrap (only when an ad is loaded, so the button never lies)
             if (won && m.Reward > 0 && ads != null && ads.RewardedReady && !m.RewardDoubled)
             {
-                var dbl = UiKit.Button(panel.transform, Loc.T("REKLAM İZLE · HURDAYI 2 KATINA ÇIKAR (+" + m.Reward + ")", "WATCH AD · DOUBLE THE SCRAP (+" + m.Reward + ")"), new Color(0.2f, 0.45f, 1f, 0.95f), 26, null);
+                var dbl = UiKit.Button(panel.transform, Loc.T("REKLAM İZLE · HURDAYI 2 KATINA ÇIKAR (+" + m.Reward + ")", "WATCH AD · DOUBLE THE SCRAP (+" + m.Reward + ")"), new Color(0.2f, 0.45f, 1f, 0.95f), 24, null, false, "ad");
                 dbl.IgnoreBlock = true;
                 UiKit.Place(dbl.Background.rectTransform, 0.5f, 0f, 800f, 70f, 0.5f, 0f);
                 dbl.Background.rectTransform.anchoredPosition = new Vector2(0f, 224f);
@@ -1016,9 +1077,9 @@ namespace DerbyArena.UI
             never.Background.rectTransform.anchoredPosition = new Vector2(-15f, 0f);
         }
 
-        void ResultButton(Transform parent, string caption, Color color, float x, System.Action a)
+        void ResultButton(Transform parent, string caption, Color color, float x, System.Action a, string icon)
         {
-            var b = UiKit.Button(parent, caption, color, 34, a);
+            var b = UiKit.Button(parent, caption, color, 30, a, color == UiKit.Green || color == UiKit.Amber, icon);
             b.IgnoreBlock = true;
             UiKit.Place(b.Background.rectTransform, 0.5f, 0f, 250f, 100f, 0.5f, 0f);
             b.Background.rectTransform.anchoredPosition = new Vector2(x, 110f);
@@ -1028,6 +1089,22 @@ namespace DerbyArena.UI
         {
             int t = Mathf.Max(0, Mathf.RoundToInt(s));
             return (t / 60) + ":" + (t % 60).ToString("00");
+        }
+    }
+
+    /// <summary>Result-screen star: pops in with an overshoot after a delay (unscaled time).</summary>
+    public sealed class StarPop : MonoBehaviour
+    {
+        public float Delay;
+        float t;
+        void Start() { transform.localScale = Vector3.zero; }
+        void Update()
+        {
+            t += Time.unscaledDeltaTime;
+            float k = Mathf.Clamp01((t - Delay) / 0.35f);
+            float sc = k < 1f ? 1.25f * Mathf.Sin(k * Mathf.PI * 0.5f) - 0.25f * k * k : 1f;
+            transform.localScale = Vector3.one * Mathf.Max(0f, sc);
+            if (k >= 1f) enabled = false;
         }
     }
 }

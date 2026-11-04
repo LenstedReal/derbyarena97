@@ -7,7 +7,7 @@ namespace DerbyArena.Core
     [Serializable]
     public sealed class SaveData
     {
-        public int Version = 4;
+        public int Version = 5;             // 5 = 4.0 (20 levels per season; older saves are remapped in Sanitize)
         public int Scrap = 0;
         public int Unlocked = 1;
         public int LastPlayed = 1;
@@ -40,6 +40,16 @@ namespace DerbyArena.Core
 
         // 2.1
         public bool ScreenEffects = true;     // post effects: blast flash, hit jolt, nitro split, film grain (HUD damage edges stay)
+
+        // 4.0: garage shop and vehicle collection (ids from Garage.Catalog / Fleet.Defs; "vehicle:<id>" for cars)
+        public string[] Owned = new string[0];
+        public string[] Equipped = new string[Garage.SlotCount];
+        public string Vehicle = Fleet.DefaultId;
+        public int MatchesPlayed = 0;         // for ad pacing and the daily missions
+        public string MissionDay = "";        // yyyyMMdd of the daily mission set in progress
+        public int[] MissionProgress = new int[3];
+        public bool[] MissionClaimed = new bool[3];
+        public int BestStreak = 0;
     }
 
     public static class Save
@@ -85,6 +95,7 @@ namespace DerbyArena.Core
         static void Sanitize()
         {
             var d = Data;
+            if (d.Version < 5) MigrateLegacyLevels(d);
             if (d.Stars == null || d.Stars.Length != Campaign.Total + 1)
             {
                 var s = new int[Campaign.Total + 1];
@@ -121,6 +132,51 @@ namespace DerbyArena.Core
             if (d.RateAskAtWin < 1) d.RateAskAtWin = 3;
             if (d.RewardDay == null) d.RewardDay = "";
             d.RewardCount = Mathf.Max(0, d.RewardCount);
+            if (d.Owned == null) d.Owned = new string[0];
+            if (d.Equipped == null || d.Equipped.Length != Garage.SlotCount)
+            {
+                var e = new string[Garage.SlotCount];
+                if (d.Equipped != null) Array.Copy(d.Equipped, e, Mathf.Min(d.Equipped.Length, e.Length));
+                d.Equipped = e;
+            }
+            if (string.IsNullOrEmpty(d.Vehicle) || Fleet.Find(d.Vehicle) == null) d.Vehicle = Fleet.DefaultId;
+            if (d.MissionDay == null) d.MissionDay = "";
+            if (d.MissionProgress == null || d.MissionProgress.Length != 3) d.MissionProgress = new int[3];
+            if (d.MissionClaimed == null || d.MissionClaimed.Length != 3) d.MissionClaimed = new bool[3];
+            d.MatchesPlayed = Mathf.Max(0, d.MatchesPlayed);
+        }
+
+        /// <summary>
+        /// 4.0: seasons grew from 10 to 20 levels. A save written before that (Version 4 and older, arrays of 51 or
+        /// 61 entries) keeps every star: old level (season c, index i) becomes new level (c - 1) * 20 + i, so the
+        /// cleared levels stay cleared and the new second half of each season is simply unplayed.
+        /// </summary>
+        static void MigrateLegacyLevels(SaveData d)
+        {
+            int oldPer = Campaign.LegacyPerChapter;
+            System.Func<int, int> map = delegate (int k)
+            {
+                if (k < 1) return k;
+                int c = (k - 1) / oldPer, i = (k - 1) % oldPer + 1;
+                return Mathf.Clamp(c * Campaign.PerChapter + i, 1, Campaign.Total);
+            };
+            d.Stars = Remap(d.Stars, map);
+            d.Fails = Remap(d.Fails, map);
+            d.Unlocked = map(Mathf.Max(1, d.Unlocked));
+            d.LastPlayed = map(Mathf.Max(1, d.LastPlayed));
+            d.Version = 5;
+        }
+
+        static int[] Remap(int[] old, System.Func<int, int> map)
+        {
+            var n = new int[Campaign.Total + 1];
+            if (old == null) return n;
+            for (int k = 1; k < old.Length; k++)
+            {
+                int nk = map(k);
+                if (nk >= 1 && nk <= Campaign.Total) n[nk] = Mathf.Max(n[nk], old[k]);
+            }
+            return n;
         }
 
         /// <summary>Rewarded scrap ads left today (the counter resets with the calendar day).</summary>

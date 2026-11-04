@@ -109,7 +109,7 @@ namespace DerbyArena.Mission
         IEnumerator Setup()
         {
             // preload vehicle models while the arena streams in
-            var preSpec = VehicleSpec.Interceptor();
+            var preSpec = VehicleSpec.ForPlayer();
             GlbLibrary.Preload(preSpec.GlbFile, preSpec.ModelOptions());
             foreach (var k in Config.Enemies)
             {
@@ -139,8 +139,8 @@ namespace DerbyArena.Mission
             while (!Arena.Ready && wait < 15f) { wait += Time.unscaledDeltaTime; yield return null; }
             var info = Arena.Info;
 
-            // player
-            var spec = VehicleSpec.Interceptor();
+            // player: the selected garage vehicle with its upgrades
+            var spec = VehicleSpec.ForPlayer();
             spec.Health += Upgrades.HealthBonus();
             var player = SpawnVehicle(spec, info.PlayerSpawn, info.PlayerYaw, 0);
             PlayerCar = player.GetComponent<ArcadeCar>();
@@ -388,6 +388,7 @@ namespace DerbyArena.Mission
             if (killer == PlayerHealth || killer == null)
             {
                 Kills++;
+                DailyMissions.Tick(MissionGoal.Kills, 1);
                 Say(Loc.T("İMHA! +", "DESTROYED! +") + scrap, UiKit.Amber);
                 Haptics(false);
             }
@@ -546,6 +547,9 @@ namespace DerbyArena.Mission
             Reward = Config.Reward + Kills * 15;
             if (prevStars > 0) Reward = Mathf.RoundToInt(Reward * 0.45f);
             Save.Data.Stars[Config.Number] = Mathf.Max(prevStars, Stars);
+            DailyMissions.Tick(MissionGoal.Wins, 1);
+            DailyMissions.Tick(MissionGoal.Stars, Mathf.Max(0, Stars - prevStars));
+            Save.Data.MatchesPlayed++;
             if (Config.Number < Campaign.Total && Save.Data.Unlocked <= Config.Number)
             {
                 Save.Data.Unlocked = Config.Number + 1;
@@ -567,6 +571,7 @@ namespace DerbyArena.Mission
             Phase = MatchPhase.Lost;
             endTimer = 2.2f;
             Reward = Kills * 10;
+            Save.Data.MatchesPlayed++;
             Save.Data.Fails[Config.Number] = Mathf.Min(9, Save.Data.Fails[Config.Number] + 1);
             Save.Data.Scrap += Reward;
             Save.Data.TotalKills += Kills;

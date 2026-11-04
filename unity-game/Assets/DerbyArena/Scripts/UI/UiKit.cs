@@ -91,18 +91,68 @@ namespace DerbyArena.UI
         public static readonly Color Green = new Color(0.25f, 0.88f, 0.45f, 1f);
         public static readonly Color TextDim = new Color(0.7f, 0.73f, 0.78f, 1f);
 
-        static Font font;
-        static Sprite rounded, roundedSmall, circle, ring, glow, square, wheel, vignette;
+        public static readonly Color Ink = new Color(0.08f, 0.06f, 0.03f, 1f);          // text on amber
+        public static readonly Color Primary = new Color(1f, 0.6f, 0.13f, 1f);
+        public static readonly Color PanelRing = new Color(1f, 1f, 1f, 0.09f);
+        public static readonly Color Violet = new Color(0.72f, 0.42f, 1f, 1f);
 
+        static Font font, fontBold;
+        static Sprite rounded, roundedSmall, circle, ring, glow, square, wheel, vignette;
+        static Sprite panelRing, button, buttonPrimary, pill, card, cardRing, tab, carbon, radial, hazard;
+        static readonly Dictionary<string, Sprite> icons = new Dictionary<string, Sprite>();
+
+        /// <summary>Body font (Poppins Medium, OFL) with the engine font as a fallback.</summary>
         public static Font Font
         {
             get
             {
+                if (font == null) font = Resources.Load<Font>("Derby/Fonts/Poppins-Medium");
                 if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 if (font == null) font = Font.CreateDynamicFontFromOSFont("Arial", 32);
                 return font;
             }
         }
+
+        /// <summary>Display font (Poppins Bold) for titles, buttons and numbers.</summary>
+        public static Font FontBold
+        {
+            get
+            {
+                if (fontBold == null) fontBold = Resources.Load<Font>("Derby/Fonts/Poppins-Bold");
+                if (fontBold == null) fontBold = Font;
+                return fontBold;
+            }
+        }
+
+        /// <summary>A 9-slice sprite from Resources/Derby/UI (null when the file is missing).</summary>
+        static Sprite Load(string file, float border)
+        {
+            var tex = Resources.Load<Texture2D>("Derby/UI/" + file);
+            if (tex == null) return null;
+            var b = new Vector4(border, border, border, border);
+            return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, b);
+        }
+
+        /// <summary>White icon sprite by name (ic_<name>.png in Resources/Derby/UI); tint with Image.color.</summary>
+        public static Sprite Icon(string name)
+        {
+            Sprite sp;
+            if (icons.TryGetValue(name, out sp)) return sp;
+            sp = Load("ic_" + name, 0f);
+            icons[name] = sp;
+            return sp;
+        }
+
+        public static Sprite PanelRingSprite { get { if (panelRing == null) panelRing = Load("panel_ring", 30f); return panelRing; } }
+        public static Sprite ButtonSprite { get { if (button == null) button = Load("button", 30f) ?? Rounded; return button; } }
+        public static Sprite ButtonPrimarySprite { get { if (buttonPrimary == null) buttonPrimary = Load("button_primary", 30f) ?? Rounded; return buttonPrimary; } }
+        public static Sprite Pill { get { if (pill == null) pill = Load("pill", 46f) ?? Rounded; return pill; } }
+        public static Sprite Card { get { if (card == null) card = Load("card", 22f) ?? RoundedSmall; return card; } }
+        public static Sprite CardRing { get { if (cardRing == null) cardRing = Load("card_ring", 22f); return cardRing; } }
+        public static Sprite Tab { get { if (tab == null) tab = Load("tab", 18f) ?? RoundedSmall; return tab; } }
+        public static Sprite Carbon { get { if (carbon == null) carbon = Load("carbon", 0f); return carbon; } }
+        public static Sprite Radial { get { if (radial == null) radial = Load("glow", 0f) ?? Glow; return radial; } }
+        public static Sprite Hazard { get { if (hazard == null) hazard = Load("hazard", 0f); return hazard; } }
 
         // ------------------------------------------------------------------ sprites
         static Sprite FromPixels(int w, int h, Color32[] px, Vector4 border)
@@ -191,7 +241,7 @@ namespace DerbyArena.UI
             return FromPixels(size, size, px, Vector4.zero);
         }
 
-        public static Sprite Rounded { get { if (rounded == null) rounded = RoundRect(64, 18); return rounded; } }
+        public static Sprite Rounded { get { if (rounded == null) rounded = Load("panel", 30f) ?? RoundRect(64, 18); return rounded; } }
         public static Sprite RoundedSmall { get { if (roundedSmall == null) roundedSmall = RoundRect(32, 8); return roundedSmall; } }
         public static Sprite Circle { get { if (circle == null) circle = Disc(128, 0f, 0f); return circle; } }
         public static Sprite RingSprite { get { if (ring == null) ring = Disc(128, 0.86f, 0f); return ring; } }
@@ -261,7 +311,29 @@ namespace DerbyArena.UI
             img.sprite = sprite;
             img.color = color;
             img.raycastTarget = false;
-            if (sprite == Rounded || sprite == RoundedSmall) img.type = UnityEngine.UI.Image.Type.Sliced;
+            if (sprite != null && (sprite.border.x > 0f || sprite.border.y > 0f)) img.type = UnityEngine.UI.Image.Type.Sliced;
+            return img;
+        }
+
+        /// <summary>Panel with a soft 1px ring (4.0 look). Returns the fill image; the ring is a child.</summary>
+        public static Image Frame(string name, Transform parent, Color color)
+        {
+            var img = Image(name, parent, Rounded, color);
+            if (PanelRingSprite != null)
+            {
+                var r = Image("Ring", img.transform, PanelRingSprite, PanelRing);
+                Stretch(r.rectTransform, 0f, 0f, 1f, 1f);
+            }
+            return img;
+        }
+
+        /// <summary>Icon image of a fixed size anchored inside its parent.</summary>
+        public static Image IconImage(Transform parent, string icon, float size, Color color, float ax, float ay, float px, float py)
+        {
+            var sp = Icon(icon);
+            var img = Image("Icon_" + icon, parent, sp ?? Circle, color);
+            img.preserveAspect = true;
+            Place(img.rectTransform, ax, ay, size, size, px, py);
             return img;
         }
 
@@ -270,18 +342,18 @@ namespace DerbyArena.UI
             var rt = Rect(name, parent);
             Stretch(rt, 0f, 0f, 1f, 1f);
             var t = rt.gameObject.AddComponent<Text>();
-            t.font = Font;
+            t.font = bold ? FontBold : Font;
             t.text = text;
             t.fontSize = size;
             t.color = color;
             t.alignment = anchor;
-            t.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            t.fontStyle = FontStyle.Normal;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;
             var sh = rt.gameObject.AddComponent<Shadow>();
-            sh.effectColor = new Color(0f, 0f, 0f, 0.6f);
-            sh.effectDistance = new Vector2(2f, -2f);
+            sh.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            sh.effectDistance = new Vector2(0f, -2f);
             return t;
         }
 
@@ -301,14 +373,57 @@ namespace DerbyArena.UI
 
         public static UiButton Button(Transform parent, string caption, Color color, int fontSize, Action onTap)
         {
-            var img = Image(caption, parent, Rounded, color);
-            var label = Label("Label", img.transform, caption, fontSize, Color.white, TextAnchor.MiddleCenter, true);
+            return Button(parent, caption, color, fontSize, onTap, false, null);
+        }
+
+        /// <summary>
+        /// Tap button. primary = amber gradient sprite with dark caption; icon (optional) sits left of the caption.
+        /// </summary>
+        public static UiButton Button(Transform parent, string caption, Color color, int fontSize, Action onTap, bool primary, string icon)
+        {
+            var img = Image(caption, parent, primary ? ButtonPrimarySprite : ButtonSprite, color);
+            var label = Label("Label", img.transform, caption, fontSize, primary ? Ink : Color.white, TextAnchor.MiddleCenter, true);
+            if (!string.IsNullOrEmpty(icon) && Icon(icon) != null)
+            {
+                float sz = fontSize * 1.15f;
+                var ic = IconImage(img.transform, icon, sz, primary ? Ink : Color.white, 0f, 0.5f, 0f, 0.5f);
+                ic.rectTransform.anchoredPosition = new Vector2(fontSize * 0.7f, 0f);
+                label.rectTransform.offsetMin = new Vector2(fontSize * 0.7f + sz + 4f, 0f);
+                label.alignment = TextAnchor.MiddleLeft;
+            }
             var b = img.gameObject.AddComponent<UiButton>();
             b.Background = img;
             b.Caption = label;
             b.OnTap = onTap;
             b.BaseColor = color;
             return b;
+        }
+
+        /// <summary>Small pill chip with an icon and a value (scrap, stars, level).</summary>
+        public static Image Chip(Transform parent, string icon, string text, Color iconColor, float w, float h, int fontSize)
+        {
+            var bg = Image("Chip", parent, Pill, new Color(0f, 0f, 0f, 0.55f));
+            Place(bg.rectTransform, 0f, 0.5f, w, h, 0f, 0.5f);
+            if (Icon(icon) != null)
+            {
+                var ic = IconImage(bg.transform, icon, h * 0.62f, iconColor, 0f, 0.5f, 0f, 0.5f);
+                ic.rectTransform.anchoredPosition = new Vector2(h * 0.28f, 0f);
+            }
+            var t = Label("Text", bg.transform, text, fontSize, Color.white, TextAnchor.MiddleLeft, true);
+            t.rectTransform.offsetMin = new Vector2(h * 0.95f, 0f);
+            t.rectTransform.offsetMax = new Vector2(-h * 0.3f, 0f);
+            return bg;
+        }
+
+        /// <summary>Three stars in a row (filled / outline).</summary>
+        public static void Stars(Transform parent, int count, float size, float ax, float ay, float px, float py, Vector2 offset)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                bool on = i < count;
+                var img = IconImage(parent, on ? "star" : "star_outline", size, on ? Amber : new Color(1f, 1f, 1f, 0.3f), ax, ay, px, py);
+                img.rectTransform.anchoredPosition = offset + new Vector2((i - 1) * size * 1.05f, 0f);
+            }
         }
     }
 

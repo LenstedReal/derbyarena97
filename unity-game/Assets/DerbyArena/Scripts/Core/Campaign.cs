@@ -3,7 +3,7 @@ using UnityEngine;
 namespace DerbyArena.Core
 {
     public enum ObjectiveKind { Reactor, Demolition, Boss, Checkpoint, Survival, LastStand }
-    public enum ArenaKind { Spillway, Colosseum, Docks }
+    public enum ArenaKind { Spillway, Colosseum, Docks, Ruins }
     public enum EnemyKind { Drifter, Rammer, Hunter, WarRig }
 
     public sealed class LevelConfig
@@ -37,6 +37,7 @@ namespace DerbyArena.Core
         public bool Night;
         public string Hint;
         public string BossName = "";
+        public int StarsRequired;
 
         public string ObjectiveLine
         {
@@ -79,20 +80,24 @@ namespace DerbyArena.Core
     }
 
     /// <summary>
-    /// 50 released levels in 5 chapters (a sixth, the Container Port, is prepared but gated). Each chapter introduces
-    /// something new: checkpoint runs (ch1), survival and the shrinking-zone "last one standing" mode (ch2), acid
-    /// pools (ch3), night races with headlights (ch4), elite enemies (ch5) and the Container Port arena with ramps
-    /// and container cover (ch6). Every 10th level is a boss. Deterministic and data driven.
+    /// 100 released levels in 5 seasons of 20 (a sixth season, the Container Port, is prepared but gated). Each season
+    /// introduces something new: checkpoint runs (s1), survival and the shrinking-zone "last one standing" mode (s2),
+    /// acid pools (s3), night races with headlights (s4), elite enemies (s5) and the Container Port arena with ramps
+    /// and container cover (s6). Level 10 of every season is a big demolition, level 20 the boss. Levels 6, 11, 16 and
+    /// every season after the first are star gated (StarsRequired): the player needs a share of the stars available
+    /// so far. Deterministic and data driven.
     /// </summary>
     public static class Campaign
     {
-        // Season 6 (Container Port, levels 51-60: DocksArena, theme 5, the sixth plan/boss/name entries below) is
+        // Season 6 (Container Port, levels 101-120: DocksArena, theme 5, the sixth plan/boss/name entries below) is
         // built and statically tested but NOT released yet: the level list keeps the roadmap tab in its place.
         // To ship it raise ReleasedSeasons to 6. Saves resize automatically (SaveData.Sanitize), progress is kept.
         public const int ReleasedSeasons = 5;
-        public const int PerChapter = 10;
+        public const int PerChapter = 20;
         public const int Total = ReleasedSeasons * PerChapter;
         public const int Seasons = Total / PerChapter;
+        /// <summary>Levels per season before 4.0 (saves written by 1.x-2.1 are remapped, see SaveData).</summary>
+        public const int LegacyPerChapter = 10;
 
         static readonly string[] ChapterNamesTr = { "ACEMİ KOLEZYUM", "HURDA ÇORAKLIK", "ZEHİRLİ DÖKÜMHANE", "GECE SİBER-RİNG", "DEMİR KIYAMET", "KONTEYNER LİMANI" };
         static readonly string[] ChapterNamesEn = { "ROOKIE COLOSSEUM", "SCRAP BADLANDS", "TOXIC FOUNDRY", "NIGHT CYBER RING", "IRON APOCALYPSE", "CONTAINER PORT" };
@@ -136,15 +141,16 @@ namespace DerbyArena.Core
             "CRUSHER ALPHA", "SCRAPGUN PRIME", "FOUNDRY TYRANT", "MIDNIGHT BERSERKER", "OMEGA WAR RIG", "DOCKYARD KRAKEN"
         };
 
-        // R reactor, D demolition, C checkpoint, S survival, L last stand, B boss
+        // R reactor, D demolition, C checkpoint, S survival, L last stand, B boss (20 per season; index 10 is a big
+        // demolition, index 20 the boss)
         static readonly string[] Plan =
         {
-            "RDRCDRCDRB",
-            "RDSCLRDSCB",
-            "SLRCDLRSCB",
-            "LRCSDLCRSB",
-            "RLSCDLRSCB",
-            "CDRSLCDRLB"
+            "RDRCDRCDRD" + "RCDRCRDCRB",
+            "RDSCLRDSCD" + "RSDCLRSDCB",
+            "SLRCDLRSCD" + "RLSCDRLSCB",
+            "LRCSDLCRSD" + "CLRSDCLRSB",
+            "RLSCDLRSCD" + "LRSCDLRSCB",
+            "CDRSLCDRLD" + "CDRSLCDRLB"
         };
 
         static readonly float[] BossHealthByChapter = { 380f, 520f, 680f, 840f, 1000f, 1150f };
@@ -188,18 +194,19 @@ namespace DerbyArena.Core
             }
             if (c.Chapter == 6) c.Arena = ArenaKind.Docks;   // the Container Port hosts every mode
 
-            // Difficulty runs over the original 50 levels (1.4.0 curve, unchanged for them); season 6 continues
-            // past 1 (enemy health / speed / damage keep rising, aim error is clamped by the Lerp).
-            float t = (n - 1) / 49f;
-            c.Cells = c.Kind == ObjectiveKind.Reactor ? (n <= 12 ? 3 : (n <= 32 ? 4 : 5)) : 0;
+            // Difficulty runs over the 100 released levels; season 6 continues past 1 (enemy health / speed / damage
+            // keep rising, aim error is clamped by the Lerp).
+            float t = (n - 1) / (float)(Total - 1);
+            bool big = c.IndexInChapter == PerChapter / 2;          // level 10 of each season: the big derby
+            c.Cells = c.Kind == ObjectiveKind.Reactor ? (n <= 24 ? 3 : (n <= 64 ? 4 : 5)) : 0;
             c.Gates = c.Kind == ObjectiveKind.Checkpoint ? (c.Chapter == 1 ? 6 : (c.Chapter == 2 ? 7 : 8)) : 0;
 
             int count;
             switch (c.Kind)
             {
-                case ObjectiveKind.Reactor: count = Mathf.Clamp(2 + n / 9, 2, 6); break;
-                case ObjectiveKind.Demolition: count = Mathf.Clamp(2 + n / 8, 2, 7); break;
-                case ObjectiveKind.Checkpoint: count = Mathf.Clamp(1 + n / 12, 1, 5); break;
+                case ObjectiveKind.Reactor: count = Mathf.Clamp(2 + n / 18, 2, 6); break;
+                case ObjectiveKind.Demolition: count = Mathf.Clamp(2 + n / 14, 2, 7) + (big ? 1 : 0); break;
+                case ObjectiveKind.Checkpoint: count = Mathf.Clamp(1 + n / 24, 1, 5); break;
                 case ObjectiveKind.Survival: count = 3; break;
                 case ObjectiveKind.LastStand: count = Mathf.Clamp(3 + c.Chapter, 4, 8); break;
                 default: count = c.Chapter - 1; break;
@@ -225,6 +232,7 @@ namespace DerbyArena.Core
             c.AimErrorDeg = Mathf.Lerp(11f, 4.5f, t);
             c.MaxShooters = 2 + (c.Chapter >= 4 ? 1 : 0);
             c.EliteChance = c.Chapter >= 6 ? 0.5f : (c.Chapter == 5 ? 0.4f : (c.Chapter == 4 ? 0.15f : 0f));
+            if (big) c.EliteChance = Mathf.Max(c.EliteChance, c.Chapter >= 3 ? 0.35f : 0.15f);
             c.AcidPools = c.Chapter == 3 || (c.Chapter == 5 && c.Arena == ArenaKind.Spillway);
             c.Night = c.Chapter == 4;
             c.BossHealth = BossHealthByChapter[c.Chapter - 1];
@@ -240,12 +248,12 @@ namespace DerbyArena.Core
             }
             c.ParTime = c.TimeLimit * (c.Kind == ObjectiveKind.Checkpoint ? 0.7f : 0.55f);
             c.KillTarget = 2 + c.Chapter;
-            c.Reward = 70 + 18 * n + (c.Boss ? 250 : 0);
+            c.Reward = 70 + 18 * n + (c.Boss ? 250 : 0) + (big ? 120 : 0);
 
             switch (c.Kind)
             {
                 case ObjectiveKind.Boss: c.Title = Loc.T("PATRON: ", "BOSS: ") + BossNames[c.Chapter - 1]; break;
-                case ObjectiveKind.Demolition: c.Title = Loc.T("YIKIM DERBİSİ", "DEMOLITION DERBY"); break;
+                case ObjectiveKind.Demolition: c.Title = big ? Loc.T("BÜYÜK DERBİ", "GRAND DERBY") : Loc.T("YIKIM DERBİSİ", "DEMOLITION DERBY"); break;
                 case ObjectiveKind.Checkpoint: c.Title = Loc.T("KONTROL NOKTASI", "CHECKPOINT RUN"); break;
                 case ObjectiveKind.Survival: c.Title = Loc.T("HAYATTA KAL", "SURVIVAL"); break;
                 case ObjectiveKind.LastStand: c.Title = Loc.T("SON KALAN", "LAST STAND"); break;
@@ -253,11 +261,64 @@ namespace DerbyArena.Core
             }
             c.BossName = c.Boss ? BossNames[c.Chapter - 1] : "";
             c.Subtitle = Loc.T("SEZON ", "SEASON ") + c.Chapter + " · " + ChapterName(c.Chapter);
-            c.Hint = HintFor(n);
+            c.Hint = HintFor(n, c);
+            c.StarsRequired = StarsRequired(n);
             return c;
         }
 
-        static string HintFor(int n)
+        /// <summary>
+        /// Stars the player must own before level n opens (besides having cleared level n - 1): the first level of
+        /// every season after the first asks for half of the stars available before it, levels 6, 11 and 16 of a
+        /// season for 45%. Everything else only needs the previous level cleared.
+        /// </summary>
+        public static int StarsRequired(int n)
+        {
+            if (n <= 1) return 0;
+            int idx = (n - 1) % PerChapter + 1;
+            int before = (n - 1) * 3;
+            if (idx == 1) return Mathf.RoundToInt(before * 0.5f);
+            if (idx == 6 || idx == 11 || idx == 16) return Mathf.RoundToInt(before * 0.45f);
+            return 0;
+        }
+
+        /// <summary>Level n can be played: the previous level is cleared and the star gate (if any) is met.</summary>
+        public static bool IsOpen(int n)
+        {
+            if (n < 1 || n > Total) return false;
+            return n <= Save.Data.Unlocked && Save.TotalStars() >= StarsRequired(n);
+        }
+
+        /// <summary>Stars still missing for level n (0 when the gate is met).</summary>
+        public static int StarsMissing(int n)
+        {
+            return Mathf.Max(0, StarsRequired(n) - Save.TotalStars());
+        }
+
+        /// <summary>The level the PLAY button should offer: the first open level without a star, else the last open one.</summary>
+        public static int NextToPlay()
+        {
+            int last = 1;
+            for (int n = 1; n <= Total; n++)
+            {
+                if (!IsOpen(n)) break;
+                last = n;
+                if (Save.Data.Stars[n] == 0) return n;
+            }
+            return last;
+        }
+
+        /// <summary>First level (1-based) whose plan code is the given one, 0 if none.</summary>
+        static int FirstOf(char code)
+        {
+            for (int ch = 0; ch < Plan.Length; ch++)
+            {
+                int i = Plan[ch].IndexOf(code);
+                if (i >= 0) return ch * PerChapter + i + 1;
+            }
+            return 0;
+        }
+
+        static string HintFor(int n, LevelConfig c)
         {
             switch (n)
             {
@@ -267,15 +328,22 @@ namespace DerbyArena.Core
                 case 4: return Loc.T("Kontrol noktaları sırayla yanar. Her geçiş süreye +5 saniye ekler.", "Checkpoints light up in order. Each one adds +5 seconds.");
                 case 5: return Loc.T("DRİFT tuşuyla keskin dön, NİTRO ile kaç ya da bindir.", "Use DRIFT for sharp turns, NITRO to escape or ram.");
                 case 6: return Loc.T("ROKET ağır hasar verir. Turuncu sandıklar roket verir.", "ROCKETS hit hard. Orange crates refill them.");
-                case 10: return Loc.T("Patron güçsüzleşince şok dalgası atar. Kırmızı halkadan uzak dur.", "When the boss weakens it fires a shockwave. Keep out of the red ring.");
-                case 13: return Loc.T("Hayatta Kal: süre bitene kadar ayakta kal. Rakipler dalgalar hâlinde gelir.", "Survival: stay alive until the timer ends. Rivals come in waves.");
-                case 15: return Loc.T("Son Kalan: bölge daralır, dışında kalan herkes hasar alır. Merkeze yakın kal.", "Last Stand: the zone shrinks and hurts anyone outside. Stay near the center.");
-                case 21: return Loc.T("Yeşil asit havuzları araçları eritir. Rakipleri içine it!", "Green acid pools melt cars. Push your rivals in!");
-                case 31: return Loc.T("Gece yarışı: farların yolu aydınlatır, neon şeritleri takip et.", "Night race: your headlights light the way, follow the neon strips.");
-                case 41: return Loc.T("Elit rakipler (mor) daha dayanıklı ve isabetlidir.", "Elite rivals (purple) are tougher and more accurate.");
-                case 51: return Loc.T("Konteyner Limanı: ortadaki rampalardan uçarak kestirme yap, konteynerlerin arkasına saklan.", "Container Port: fly off the centre ramps for a shortcut, hide behind the containers.");
-                default: return null;
             }
+            if (n == FirstOf('B')) return Loc.T("Patron güçsüzleşince şok dalgası atar. Kırmızı halkadan uzak dur.", "When the boss weakens it fires a shockwave. Keep out of the red ring.");
+            if (n == FirstOf('S')) return Loc.T("Hayatta Kal: süre bitene kadar ayakta kal. Rakipler dalgalar hâlinde gelir.", "Survival: stay alive until the timer ends. Rivals come in waves.");
+            if (n == FirstOf('L')) return Loc.T("Son Kalan: bölge daralır, dışında kalan herkes hasar alır. Merkeze yakın kal.", "Last Stand: the zone shrinks and hurts anyone outside. Stay near the center.");
+            if (c.IndexInChapter == PerChapter / 2) return Loc.T("Büyük Derbi: daha kalabalık, daha sert. Siperleri kullan, rakipleri birbirine düşür.", "Grand Derby: more rivals, harder hits. Use cover and let rivals ram each other.");
+            if (c.IndexInChapter == 1)
+            {
+                switch (c.Chapter)
+                {
+                    case 3: return Loc.T("Yeşil asit havuzları araçları eritir. Rakipleri içine it!", "Green acid pools melt cars. Push your rivals in!");
+                    case 4: return Loc.T("Gece yarışı: farların yolu aydınlatır, neon şeritleri takip et.", "Night race: your headlights light the way, follow the neon strips.");
+                    case 5: return Loc.T("Elit rakipler (mor) daha dayanıklı ve isabetlidir.", "Elite rivals (purple) are tougher and more accurate.");
+                    case 6: return Loc.T("Konteyner Limanı: ortadaki rampalardan uçarak kestirme yap, konteynerlerin arkasına saklan.", "Container Port: fly off the centre ramps for a shortcut, hide behind the containers.");
+                }
+            }
+            return null;
         }
     }
 }

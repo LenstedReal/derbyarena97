@@ -178,7 +178,9 @@ namespace DerbyArena.Vehicles
             LateralSpeed = Vector3.Dot(v, right);
 
             bool wantNitro = !Locked && NitroHeld && Throttle > 0.1f;
-            NitroActive = wantNitro && Nitro > 0.02f;
+            bool nitroNow = wantNitro && Nitro > 0.02f;
+            if (nitroNow && !NitroActive && Spec != null && Spec.Role == DriverRole.Player) DerbyArena.Core.DailyMissions.Tick(DerbyArena.Core.MissionGoal.Nitro, 1);
+            NitroActive = nitroNow;
             if (NitroActive) Nitro = Mathf.Max(0f, Nitro - dt * 0.3f * NitroDrainMul);
             else if (!wantNitro) Nitro = Mathf.Min(1f, Nitro + dt * 0.075f * NitroRegenMul);
 

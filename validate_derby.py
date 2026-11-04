@@ -84,7 +84,7 @@ scene = text(ROOT / 'Assets/DerbyArena/Scenes/BlackoutSpillway.unity')
 g = re.search(r'guid: (\w+)', meta)
 check(g is not None and g.group(1) in scene, 'Scene references DerbyBootstrap script GUID')
 camp = text(SCRIPTS / 'Core/Campaign.cs')
-check('public const int ReleasedSeasons = 5;' in camp and 'Total = ReleasedSeasons * PerChapter' in camp, '50-level campaign (season 6 gated behind ReleasedSeasons)')
+check('public const int ReleasedSeasons = 5;' in camp and 'Total = ReleasedSeasons * PerChapter' in camp, '100-level campaign (season 6 gated behind ReleasedSeasons)')
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
@@ -223,12 +223,29 @@ check(total == 0, 'Total is derived from ReleasedSeasons')
 def arr(name):
     mm = re.search(name + r'\s*=\s*(?:new\s+\w+\[\]\s*)?\{(.*?)\};', camp, re.S)
     return [x for x in re.findall(r'"[^"]*"|[\d.]+f', mm.group(1))] if mm else []
-for name in ['ChapterNamesTr', 'ChapterNamesEn', 'ChapterFeaturesTr', 'ChapterFeaturesEn', 'BossNames', 'Plan', 'BossHealthByChapter']:
+for name in ['ChapterNamesTr', 'ChapterNamesEn', 'ChapterFeaturesTr', 'ChapterFeaturesEn', 'BossNames', 'BossHealthByChapter']:
     check(len(arr(name)) == 6, 'Campaign.%s has six entries (5 released + prepared season 6)' % name, str(len(arr(name))))
-plans = arr('Plan')
-check(all(len(p.strip('"')) == 10 and set(p.strip('"')) <= set('RDCSLB') and p.strip('"').endswith('B') for p in plans), 'Every season plan: 10 known missions ending with a boss')
-check('ArenaKind { Spillway, Colosseum, Docks }' in camp and 'c.Chapter == 6) c.Arena = ArenaKind.Docks' in camp, 'Season 6 plays in the Container Port')
-check('(n - 1) / 49f' in camp, 'Difficulty curve of levels 1-50 unchanged')
+# 4.0: 20 levels per season written as two 10-char halves joined with +
+plan_src = re.search(r'string\[\] Plan\s*=\s*\{(.*?)\};', camp, re.S)
+plans = [''.join(re.findall(r'"([^"]*)"', line)) for line in plan_src.group(1).strip().split('\n') if '"' in line] if plan_src else []
+check(len(plans) == 6, 'Campaign.Plan has six seasons', str(len(plans)))
+check(all(len(p) == 20 and set(p) <= set('RDCSLB') and p.endswith('B') and p[9] == 'D' for p in plans), 'Every season plan: 20 known missions, big derby at 10, boss at 20')
+check('public const int PerChapter = 20;' in camp and 'LegacyPerChapter = 10' in camp, '4.0: 20 levels per season, legacy constant kept for save migration')
+check('ArenaKind { Spillway, Colosseum, Docks, Ruins }' in camp and 'c.Chapter == 6) c.Arena = ArenaKind.Docks' in camp, 'Season 6 plays in the Container Port; Ruins arena kind exists')
+check('(n - 1) / (float)(Total - 1)' in camp and 'StarsRequired(int n)' in camp and 'IsOpen(int n)' in camp, 'Difficulty over 100 levels, star gates')
+sdm = text(SCRIPTS / 'Core/SaveData.cs')
+check('MigrateLegacyLevels' in sdm and 'public int Version = 5;' in sdm and 'd.Version < 5' in sdm, 'Save v5 migration from 10-level seasons')
+gar = text(SCRIPTS / 'Core/Garage.cs')
+check('public enum PartSlot' in gar and gar.count('P("paint_') >= 10 and 'TryBuy(string id)' in gar and 'class Fleet' in gar and 'Id = "t12"' in gar, 'Garage shop catalogue and vehicle collection with the T-12')
+check('ForPlayer()' in text(SCRIPTS / 'Vehicles/VehicleSpec.cs') and 'VehicleSpec.ForPlayer()' in text(SCRIPTS / 'Mission/MatchDirector.cs'), 'The match spawns the selected garage vehicle')
+check('KitStyle.ForPlayer()' in text(SCRIPTS / 'Vehicles/VehicleKit.cs') and 'DressRims' in text(SCRIPTS / 'Vehicles/VehicleVisual.cs'), 'Garage cosmetics reach the kit and the rims')
+dm = text(SCRIPTS / 'Core/DailyMissions.cs')
+check('MissionGoal.Kills' in dm and 'Claim(int index)' in dm and 'DailyMissions.Tick' in text(SCRIPTS / 'Mission/MatchDirector.cs'), 'Daily missions tracked and claimable')
+uik = text(SCRIPTS / 'UI/UiKit.cs')
+check('Derby/Fonts/Poppins-Medium' in uik and 'Derby/UI/' in uik, 'UI loads the bundled font and sprites')
+for f in ['Fonts/Poppins-Bold.ttf', 'Fonts/Poppins-Medium.ttf', 'Fonts/OFL-Poppins.txt', 'UI/panel.png', 'UI/button_primary.png', 'UI/ic_star.png', 'UI/ic_lock.png', 'UI/ic_tank.png']:
+    check((ROOT / 'Assets/Resources/Derby' / f).exists(), 'Resource present: ' + f)
+check('OnPreprocessTexture' in text(ROOT / 'Assets/DerbyArena/Editor/DerbyAssetImport.cs'), 'UI texture import rules')
 mn2 = text(SCRIPTS / 'UI/MenuController.cs')
 check('Campaign.Seasons + 1' in mn2 and 'BuildUpcomingSeason' in mn2, 'Level list keeps the roadmap tab after the released seasons')
 arena = text(SCRIPTS / 'World/Arena.cs')

@@ -82,6 +82,43 @@ namespace DerbyArena.Vehicles
             if (Loaded) { try { AlignBeams(visualRoot); } catch (Exception) { } }   // model already in (cached template)
         }
 
+        /// <summary>Idle animation hooks for showcase models (tracks, turret, flag) — see TankVisual.</summary>
+        public static void AnimateIdle(Transform model, VehicleSpec spec)
+        {
+            if (model == null || spec == null || !spec.Tank) return;
+            TankVisual.Attach(model, spec, null);
+        }
+
+        /// <summary>
+        /// Garage rims (4.0): the chrome parts of every Wheel_* node get the equipped rim colour through one
+        /// material instance per car (the template materials stay shared with the rivals' clones).
+        /// </summary>
+        public static void DressRims(Transform car, VehicleSpec spec)
+        {
+            if (car == null || spec == null || spec.Tank) return;
+            var rim = Garage.Equipped(PartSlot.Rim);
+            if (rim == null || rim.Id == Garage.Default(PartSlot.Rim).Id) return;
+            Material inst = null;
+            foreach (var t in car.GetComponentsInChildren<Transform>(true))
+            {
+                if (!t.name.StartsWith("Wheel_")) continue;
+                foreach (var r in t.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    var m = r.sharedMaterial;
+                    if (m == null || m.name == null || m.name.IndexOf("chrome", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    if (inst == null)
+                    {
+                        inst = new Material(m);
+                        inst.name = m.name + "_rim";
+                        inst.color = rim.Color;
+                        if (inst.HasProperty("_Metallic")) inst.SetFloat("_Metallic", rim.Color.maxColorComponent > 0.9f ? 0.95f : 0.7f);
+                        if (inst.HasProperty("_Glossiness")) inst.SetFloat("_Glossiness", rim.Color.maxColorComponent > 0.9f ? 0.9f : 0.6f);
+                    }
+                    r.sharedMaterial = inst;
+                }
+            }
+        }
+
         /// <summary>
         /// Moves the two beam cones to the model's own headlight lamps (materials named *_headlight) once the GLB is
         /// in: the spec-based guess sat 0.3 m below the boss lamps and inside the hunter's bumper (2.1.1).
@@ -336,6 +373,7 @@ namespace DerbyArena.Vehicles
             try
             {
                 Bind(model.transform);
+                if (spec.Role == DriverRole.Player) { try { DressRims(transform, spec); } catch (Exception rimEx) { Debug.LogWarning("DERBY: rims skipped: " + rimEx.Message); } }
                 try { AlignBeams(model.transform); }
                 catch (Exception beamEx) { Debug.LogWarning("DERBY: beam align skipped for " + spec.DisplayName + ": " + beamEx.Message); }
                 try { VehicleKit.Build(transform, spec, car != null ? car.Hull : null); }

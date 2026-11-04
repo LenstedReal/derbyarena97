@@ -37,15 +37,104 @@ namespace DerbyArena.Vehicles
         public Color Accent = new Color(1f, 0.55f, 0.12f);
         public Color Paint = new Color(0.78f, 0.36f, 0.12f);
 
+        // 4.0
+        public bool Tank;                 // tracked vehicle: track scroll, no car battle kit, turret always present
+        public bool Cannon;               // main gun fires shells with a reload instead of a machine gun stream
+        public float CannonReload = 1.6f;
+        public bool FixedPaint;           // camouflage texture: the garage paint is not applied
+        public string FleetId = "";       // id in Fleet.Defs when this is a player vehicle
+
         /// <summary>GLB import options: per-type paint so every vehicle reads clearly against the arena.</summary>
         public DerbyArena.World.GlbOptions ModelOptions()
         {
             var o = new DerbyArena.World.GlbOptions();
-            o.Recolor = true;
+            o.Recolor = !FixedPaint;
             o.Paint = Paint;
             o.EmissionBoost = Role == DriverRole.Player ? 2.2f : 1.6f;
-            o.Key = "paint_" + ColorUtility.ToHtmlStringRGB(Paint);
+            o.Key = FixedPaint ? "fixed" : "paint_" + ColorUtility.ToHtmlStringRGB(Paint);
             return o;
+        }
+
+        /// <summary>
+        /// The player's vehicle (4.0): the selected car of the collection with the garage paint applied. Enemy
+        /// chassis bought by the player get player-grade weapons (see the Player* factories).
+        /// </summary>
+        public static VehicleSpec ForPlayer()
+        {
+            var def = DerbyArena.Core.Fleet.Current();
+            VehicleSpec s = null;
+            try { s = def.Make(); } catch (System.Exception ex) { Debug.LogWarning("DERBY: vehicle spec failed, using the Interceptor. " + ex.Message); }
+            if (s == null) s = Interceptor();
+            s.Role = DriverRole.Player;
+            s.FleetId = def.Id;
+            if (!s.FixedPaint)
+            {
+                var paint = DerbyArena.Core.Garage.Equipped(DerbyArena.Core.PartSlot.Paint);
+                if (paint != null) s.Paint = paint.Color;
+            }
+            return s;
+        }
+
+        static VehicleSpec PlayerGrade(VehicleSpec s)
+        {
+            s.Role = DriverRole.Player;
+            s.Elite = false;
+            s.GunInterval = 0.1f;
+            s.Rockets = true;
+            s.ScrapValue = 0;
+            s.Accent = new Color(1f, 0.55f, 0.12f);
+            return s;
+        }
+
+        public static VehicleSpec PlayerDrifter()
+        {
+            var s = PlayerGrade(Drifter());
+            s.TopSpeed = 29f; s.Accel = 14.5f; s.TurnRate = 2.5f; s.Grip = 8.5f; s.Health = 130f;
+            s.GunDamage = 6.5f; s.GunRange = 42f; s.RocketAmmo = 3; s.RocketDamage = 45f;
+            return s;
+        }
+
+        public static VehicleSpec PlayerRammer()
+        {
+            var s = PlayerGrade(Rammer());
+            s.TopSpeed = 25f; s.Accel = 12.5f; s.TurnRate = 1.9f; s.Grip = 10f; s.Health = 230f;
+            s.GunDamage = 7f; s.GunRange = 40f; s.RocketAmmo = 4; s.RocketDamage = 48f; s.RamMul = 1.4f;
+            return s;
+        }
+
+        public static VehicleSpec PlayerHunter()
+        {
+            var s = PlayerGrade(Hunter());
+            s.TopSpeed = 26f; s.Accel = 12.5f; s.TurnRate = 2f; s.Grip = 9f; s.Health = 160f;
+            s.GunDamage = 7.5f; s.GunRange = 50f; s.RocketAmmo = 6; s.RocketDamage = 50f;
+            return s;
+        }
+
+        public static VehicleSpec PlayerWarRig()
+        {
+            var s = PlayerGrade(WarRig());
+            s.Scale = 1.15f; s.Mass = 3600f; s.TopSpeed = 22f; s.Accel = 10f; s.TurnRate = 1.5f; s.Grip = 11f; s.Health = 420f;
+            s.GunDamage = 8f; s.GunRange = 42f; s.RocketAmmo = 6; s.RocketDamage = 50f; s.RamMul = 1.5f;
+            return s;
+        }
+
+        /// <summary>
+        /// Panzerkampfwagen VI Tiger I (E) "T-12": the endgame vehicle. Built at historical proportions
+        /// (scripts/tankforge.py) and shown at 85% so it still fits the spillway channel. The 8.8 cm gun fires one
+        /// shell per reload (Cannon), the ROCKET button fires HE shells, the tracks crush on contact.
+        /// </summary>
+        public static VehicleSpec TigerT12()
+        {
+            return new VehicleSpec
+            {
+                DisplayName = "Tiger I  T-12", GlbFile = "vehicles/tiger_t12.glb", Role = DriverRole.Player,
+                Tank = true, Cannon = true, CannonReload = 1.6f, FixedPaint = true,
+                Mass = 5600f, TopSpeed = 19f, Accel = 8f, BrakeDecel = 18f, TurnRate = 1.35f, Grip = 14f, Health = 650f, Scale = 0.85f,
+                WheelRadius = 0.4f, WheelFront = new Vector3(1.4f, 0.4f, 2.4f), WheelRear = new Vector3(1.4f, 0.4f, -2.4f),
+                BodySize = new Vector3(3.6f, 1.7f, 6.3f), BodyCenterY = 1.35f, MuzzleHeight = 2.15f, MuzzleForward = 4.6f,
+                GunDamage = 55f, GunInterval = 1.6f, GunRange = 60f, Rockets = true, RocketAmmo = 6, RocketDamage = 60f, RamMul = 2f,
+                ScrapValue = 0, Accent = new Color(0.85f, 0.15f, 0.15f), Paint = new Color(0.72f, 0.62f, 0.40f)
+            };
         }
 
         public static VehicleSpec Interceptor()

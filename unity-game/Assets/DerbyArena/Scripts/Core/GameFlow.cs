@@ -15,7 +15,10 @@ namespace DerbyArena.Core
         public static void Play(int level)
         {
             Save.Load();
+            Fleet.ClearPreview();
             int n = Mathf.Clamp(level, 1, Mathf.Min(Save.Data.Unlocked, Campaign.Total));
+            // star gates (4.0): a level that is not open yet falls back to the highest open one
+            while (n > 1 && !Campaign.IsOpen(n)) n--;
             Save.Data.LastPlayed = n;
             Save.Write();
             PendingLevel = n;

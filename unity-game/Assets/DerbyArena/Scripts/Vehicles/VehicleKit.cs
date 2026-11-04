@@ -14,6 +14,53 @@ namespace DerbyArena.Vehicles
     /// blower on the hood, the stripes follow hood-roof-trunk and skip the glass, and the plates hug the doors.
     /// Materials are shared (one per colour), parts cast no shadows, everything merges into one mesh per material.
     /// </summary>
+    /// <summary>Which optional parts a car gets. The player's comes from the garage shop, rivals' from their role.</summary>
+    public sealed class KitStyle
+    {
+        public int Roof = 1;        // 0 none, 1 light bar, 2 roof rack, 3 siren bar
+        public int Spoiler = 1;     // 0 none, 1 low wing, 2 high wing, 3 ducktail
+        public int Bumper = 1;      // 0 none, 1 bull bar, 2 steel plough, 3 spiked bar
+        public int Exhaust = 0;     // 0 stock, 1 side pipes, 2 stacks, 3 flame pipes
+        public int Stripe = 1;      // 0 none, 1 twin centre, 2 wide centre, 3 offset racing stripe
+        public Color StripeColor = new Color(0.95f, 0.93f, 0.88f);
+        public bool Neon;
+        public Color NeonColor = Color.cyan;
+        public bool NeonPulse;
+
+        public static KitStyle ForPlayer()
+        {
+            var k = new KitStyle();
+            try
+            {
+                k.Roof = Garage.Equipped(PartSlot.Roof).Style;
+                k.Spoiler = Garage.Equipped(PartSlot.Spoiler).Style;
+                k.Bumper = Garage.Equipped(PartSlot.Bumper).Style;
+                k.Exhaust = Garage.Equipped(PartSlot.Exhaust).Style;
+                var st = Garage.Equipped(PartSlot.Stripe);
+                k.Stripe = st.Style; k.StripeColor = st.Color;
+                var neon = Garage.Equipped(PartSlot.Neon);
+                k.Neon = neon.Color.a > 0.5f; k.NeonColor = neon.Color; k.NeonPulse = neon.Style == 1;
+            }
+            catch (System.Exception ex) { Debug.LogWarning("DERBY: garage style unreadable, stock kit. " + ex.Message); }
+            return k;
+        }
+
+        public static KitStyle ForRival(VehicleSpec spec)
+        {
+            var k = new KitStyle();
+            bool boss = spec.Role == DriverRole.Boss;
+            k.Roof = 1;
+            k.Spoiler = spec.Role == DriverRole.Flanker || spec.Elite ? 1 : 0;
+            k.Bumper = spec.Role == DriverRole.Rammer || boss ? 3 : 1;
+            k.Exhaust = boss ? 1 : 0;
+            k.Stripe = 1;
+            k.StripeColor = spec.Elite ? new Color(0.75f, 0.45f, 1f) : Color.Lerp(spec.Accent, Color.black, 0.45f);
+            k.Neon = spec.Elite;
+            k.NeonColor = new Color(0.7f, 0.3f, 1f);
+            return k;
+        }
+    }
+
     public static class VehicleKit
     {
         static readonly Dictionary<int, Material> cache = new Dictionary<int, Material>();
@@ -223,8 +270,16 @@ namespace DerbyArena.Vehicles
         {
             if (car == null || spec == null) return;
             int quality = Save.Data.Quality;
+            var style = spec.Role == DriverRole.Player ? KitStyle.ForPlayer() : KitStyle.ForRival(spec);
             var root = new GameObject("BattleKit").transform;
             root.SetParent(car, false);
+            if (spec.Tank)
+            {
+                // tracked vehicles carry no car kit; only the neon underglow (if any) applies
+                if (style.Neon) Neon(root, style, spec.BodySize * spec.Scale, 0.25f * spec.Scale, quality);
+                Merge(root);
+                return;
+            }
 
             Vector3 c = hull != null ? hull.center : new Vector3(0f, spec.BodyCenterY * spec.Scale, 0f);
             Vector3 s = hull != null ? hull.size : spec.BodySize * spec.Scale;
@@ -264,25 +319,48 @@ namespace DerbyArena.Vehicles
             Color rusty = new Color(0.32f, 0.2f, 0.12f);
             var steelMat = Lit(steel, 0.45f, 0.45f);
             var rustMat = Lit(rusty, 0.8f, 0.2f);
-            Color stripe = spec.Elite ? new Color(0.75f, 0.45f, 1f) : (player ? new Color(0.95f, 0.93f, 0.88f) : Color.Lerp(spec.Accent, Color.black, 0.45f));
+            Color stripe = style.StripeColor;
 
-            // roof light bar at the front edge of the roof: frame + 4 lamps; the player's lamps are brighter
+            // roof gear at the front edge of the roof: light bar (frame + 4 lamps), roof rack or siren bar
             float barY = roofY + 0.1f;
             float barZ = roofZ1 - 0.08f;
             float barW = halfW * 1.24f;
-            Part("RoofBar", cube, steelMat, root, new Vector3(0f, barY, barZ), new Vector3(barW, 0.07f, 0.12f), Quaternion.identity);
-            Part("RoofLegL", cube, steelMat, root, new Vector3(-barW * 0.45f, barY - 0.06f, barZ), new Vector3(0.06f, 0.12f, 0.06f), Quaternion.identity);
-            Part("RoofLegR", cube, steelMat, root, new Vector3(barW * 0.45f, barY - 0.06f, barZ), new Vector3(0.06f, 0.12f, 0.06f), Quaternion.identity);
-            var lampMat = Glow(new Color(1f, 0.93f, 0.75f), player ? 3.2f : 2.2f);
-            for (int i = 0; i < 4; i++)
+            if (style.Roof == 1 || style.Roof == 3)
             {
-                float x = Mathf.Lerp(-barW * 0.4f, barW * 0.4f, i / 3f);
-                Part("RoofLamp", cyl, lampMat, root, new Vector3(x, barY + 0.08f, barZ + 0.04f), new Vector3(0.16f, 0.06f, 0.16f), Quaternion.Euler(90f, 0f, 0f));
+                Part("RoofBar", cube, steelMat, root, new Vector3(0f, barY, barZ), new Vector3(barW, 0.07f, 0.12f), Quaternion.identity);
+                Part("RoofLegL", cube, steelMat, root, new Vector3(-barW * 0.45f, barY - 0.06f, barZ), new Vector3(0.06f, 0.12f, 0.06f), Quaternion.identity);
+                Part("RoofLegR", cube, steelMat, root, new Vector3(barW * 0.45f, barY - 0.06f, barZ), new Vector3(0.06f, 0.12f, 0.06f), Quaternion.identity);
+                var lampMat = Glow(new Color(1f, 0.93f, 0.75f), player ? 3.2f : 2.2f);
+                var redMat = Glow(new Color(1f, 0.15f, 0.1f), 3f);
+                var blueMat = Glow(new Color(0.2f, 0.4f, 1f), 3f);
+                for (int i = 0; i < 4; i++)
+                {
+                    float x = Mathf.Lerp(-barW * 0.4f, barW * 0.4f, i / 3f);
+                    Material lm = style.Roof == 3 ? (i < 2 ? redMat : blueMat) : lampMat;
+                    Part("RoofLamp", cyl, lm, root, new Vector3(x, barY + 0.08f, barZ + 0.04f), new Vector3(0.16f, 0.06f, 0.16f), Quaternion.Euler(90f, 0f, 0f));
+                }
+                if (style.Roof == 3)
+                    Part("SirenDome", cube, Glow(new Color(1f, 1f, 1f), 1.2f), root, new Vector3(0f, barY + 0.08f, barZ - 0.02f), new Vector3(barW * 0.9f, 0.05f, 0.08f), Quaternion.identity);
+            }
+            else if (style.Roof == 2)
+            {
+                // roof rack: two rails along the roof, three crossbars, a strapped box
+                float rackL = Mathf.Max(0.6f, roofZ1 - roofZ0 - 0.3f);
+                float rackZ = (roofZ0 + roofZ1) * 0.5f;
+                for (int side = -1; side <= 1; side += 2)
+                    Part("RackRail", cyl, steelMat, root, new Vector3(side * barW * 0.38f, roofY + 0.09f, rackZ), new Vector3(0.05f, rackL, 0.05f), Quaternion.Euler(90f, 0f, 0f));
+                for (int i = -1; i <= 1; i++)
+                    Part("RackBar", cyl, steelMat, root, new Vector3(0f, roofY + 0.09f, rackZ + i * rackL * 0.42f), new Vector3(0.045f, barW * 0.8f, 0.045f), Quaternion.Euler(0f, 0f, 90f));
+                for (int side = -1; side <= 1; side += 2)
+                    Part("RackLeg", cube, steelMat, root, new Vector3(side * barW * 0.38f, roofY + 0.045f, rackZ), new Vector3(0.05f, 0.09f, 0.05f), Quaternion.identity);
+                Part("RackBox", cube, Lit(new Color(0.35f, 0.3f, 0.2f), 0.8f, 0f), root, new Vector3(-barW * 0.12f, roofY + 0.24f, rackZ - rackL * 0.1f), new Vector3(barW * 0.4f, 0.26f, rackL * 0.45f), Quaternion.identity);
+                Part("RackCan", cyl, Lit(new Color(0.5f, 0.12f, 0.1f), 0.5f, 0.3f), root, new Vector3(barW * 0.26f, roofY + 0.22f, rackZ + rackL * 0.05f), new Vector3(0.22f, 0.3f, 0.22f), Quaternion.identity);
             }
 
             // racing stripes following hood, roof and trunk (steep buckets = glass are skipped)
             var stripeMat = Lit(stripe, 0.4f, 0.1f);
-            if (shape != null)
+            if (style.Stripe == 0) { }
+            else if (shape != null)
             {
                 // flat runs of the deck (hood, roof, trunk) in chunks of up to four buckets: each chunk is one slab
                 // laid along the chord of its run, so the stripe is continuous and hugs the curve within ~1 cm
@@ -310,8 +388,7 @@ namespace DerbyArena.Vehicles
                             for (int k = c0; k <= c1; k++) yMid += shape.Top[k];
                             yMid = yMid / (c1 - c0 + 1) + 0.012f;
                             Quaternion tilt = Quaternion.Euler(-Mathf.Atan2(y1 - y0, Mathf.Max(dz, (c1 - c0) * dz)) * Mathf.Rad2Deg, 0f, 0f);
-                            for (int side = -1; side <= 1; side += 2)
-                                Part("Stripe", cube, stripeMat, root, new Vector3(side * halfW * 0.09f, yMid, (z0 + z1) * 0.5f), new Vector3(halfW * 0.08f, 0.02f, z1 - z0 + 0.01f), tilt);
+                            StripeRun(root, cube, stripeMat, style.Stripe, halfW, yMid, (z0 + z1) * 0.5f, z1 - z0 + 0.01f, tilt);
                         }
                         runStart = -1;
                     }
@@ -319,25 +396,36 @@ namespace DerbyArena.Vehicles
             }
             else
             {
-                for (int side = -1; side <= 1; side += 2)
-                    Part("Stripe", cube, stripeMat, root, new Vector3(side * halfW * 0.09f, top + 0.012f, c.z), new Vector3(halfW * 0.08f, 0.02f, s.z * 0.92f), Quaternion.identity);
+                StripeRun(root, cube, stripeMat, style.Stripe, halfW, top + 0.012f, c.z, s.z * 0.92f, Quaternion.identity);
             }
 
-            // bull bar: two rails and uprights in front of the nose
+            // nose: bull bar (two rails and uprights), steel plough or spiked bar
             float barFrontZ = front + 0.1f;
             float railY = low + 0.3f;
             float railW = halfW * 1.7f;
-            Part("BullRailLow", cyl, steelMat, root, new Vector3(0f, railY, barFrontZ), new Vector3(0.11f, railW, 0.11f), Quaternion.Euler(0f, 0f, 90f));
-            Part("BullRailHigh", cyl, steelMat, root, new Vector3(0f, railY + 0.32f, barFrontZ - 0.04f), new Vector3(0.09f, railW * 0.72f, 0.09f), Quaternion.Euler(0f, 0f, 90f));
-            for (int i = -1; i <= 1; i += 2)
-                Part("BullPost", cyl, steelMat, root, new Vector3(i * railW * 0.28f, railY + 0.16f, barFrontZ - 0.02f), new Vector3(0.09f, 0.36f, 0.09f), Quaternion.identity);
+            if (style.Bumper == 1 || style.Bumper == 3)
+            {
+                Part("BullRailLow", cyl, steelMat, root, new Vector3(0f, railY, barFrontZ), new Vector3(0.11f, railW, 0.11f), Quaternion.Euler(0f, 0f, 90f));
+                Part("BullRailHigh", cyl, steelMat, root, new Vector3(0f, railY + 0.32f, barFrontZ - 0.04f), new Vector3(0.09f, railW * 0.72f, 0.09f), Quaternion.Euler(0f, 0f, 90f));
+                for (int i = -1; i <= 1; i += 2)
+                    Part("BullPost", cyl, steelMat, root, new Vector3(i * railW * 0.28f, railY + 0.16f, barFrontZ - 0.02f), new Vector3(0.09f, 0.36f, 0.09f), Quaternion.identity);
+            }
+            else if (style.Bumper == 2)
+            {
+                // plough: a raked steel plate across the nose with a hardened edge and two braces
+                var plateMat = Lit(new Color(0.3f, 0.3f, 0.32f), 0.55f, 0.6f);
+                Part("Plough", cube, plateMat, root, new Vector3(0f, railY + 0.22f, barFrontZ + 0.08f), new Vector3(railW, 0.62f, 0.06f), Quaternion.Euler(-28f, 0f, 0f));
+                Part("PloughEdge", cube, rustMat, root, new Vector3(0f, railY - 0.07f, barFrontZ + 0.23f), new Vector3(railW, 0.08f, 0.1f), Quaternion.identity);
+                for (int i = -1; i <= 1; i += 2)
+                    Part("PloughBrace", cyl, steelMat, root, new Vector3(i * railW * 0.3f, railY + 0.25f, barFrontZ - 0.16f), new Vector3(0.07f, 0.5f, 0.07f), Quaternion.Euler(60f, 0f, 0f));
+            }
 
             int armor = player ? Upgrades.Level(Upgrades.Armor) : (spec.Role == DriverRole.Rammer || boss ? 3 : (spec.Elite ? 2 : 0));
             int engine = player ? Upgrades.Level(Upgrades.Engine) : (boss ? 4 : 0);
             int nitro = player ? Upgrades.Level(Upgrades.Nitro) : 0;
 
-            // ram spikes (rammers, boss, player with armour 4+)
-            if (spec.Role == DriverRole.Rammer || boss || armor >= 4)
+            // ram spikes: spiked bar, or armour 4+ on a bull bar
+            if (style.Bumper == 3 || (style.Bumper == 1 && armor >= 4))
             {
                 for (int i = 0; i < 5; i++)
                 {
@@ -366,14 +454,23 @@ namespace DerbyArena.Vehicles
                     Part("RollBar", cyl, steelMat, root, new Vector3(0f, roofY + 0.05f, Mathf.Lerp(roofZ0 + 0.2f, roofZ1 - 0.35f, (i + 1) / 2f)), new Vector3(0.05f, rw, 0.05f), Quaternion.Euler(0f, 0f, 90f));
             }
 
-            // spoiler on the trunk (player, drifters, elites)
-            if (player || spec.Role == DriverRole.Flanker || spec.Elite)
+            // spoiler on the trunk: low wing, high wing with end plates, or a ducktail lip
+            var wingMat = Lit(Color.Lerp(spec.Paint, Color.black, 0.55f), 0.5f, 0.2f);
+            if (style.Spoiler == 1 || style.Spoiler == 2)
             {
-                float wingY = trunkY + (player ? 0.34f : 0.26f);
-                float wingW = Mathf.Min(2f * halfW * 0.86f, 2.4f);
-                Part("SpoilerWing", cube, Lit(Color.Lerp(spec.Paint, Color.black, 0.55f), 0.5f, 0.2f), root, new Vector3(0f, wingY, trunkZ), new Vector3(wingW, 0.05f, 0.42f), Quaternion.Euler(-6f, 0f, 0f));
+                bool high = style.Spoiler == 2;
+                float wingY = trunkY + (high ? 0.58f : (player ? 0.34f : 0.26f));
+                float wingW = Mathf.Min(2f * halfW * (high ? 0.96f : 0.86f), high ? 2.7f : 2.4f);
+                Part("SpoilerWing", cube, wingMat, root, new Vector3(0f, wingY, trunkZ), new Vector3(wingW, 0.05f, high ? 0.5f : 0.42f), Quaternion.Euler(high ? -12f : -6f, 0f, 0f));
                 for (int side = -1; side <= 1; side += 2)
+                {
                     Part("SpoilerPost", cube, steelMat, root, new Vector3(side * wingW * 0.35f, (wingY + trunkY) * 0.5f, trunkZ + 0.02f), new Vector3(0.05f, wingY - trunkY, 0.12f), Quaternion.identity);
+                    if (high) Part("EndPlate", cube, wingMat, root, new Vector3(side * wingW * 0.5f, wingY, trunkZ), new Vector3(0.03f, 0.28f, 0.5f), Quaternion.identity);
+                }
+            }
+            else if (style.Spoiler == 3)
+            {
+                Part("Ducktail", cube, wingMat, root, new Vector3(0f, trunkY + 0.07f, Mathf.Max(back + 0.12f, trunkZ - 0.25f)), new Vector3(2f * halfW * 0.8f, 0.14f, 0.16f), Quaternion.Euler(22f, 0f, 0f));
             }
 
             // supercharger through the hood (engine 3+, boss)
@@ -384,19 +481,85 @@ namespace DerbyArena.Vehicles
                 Part("ScoopMouth", cube, Lit(new Color(0.02f, 0.02f, 0.02f), 0.9f, 0f), root, new Vector3(0f, hoodY + 0.3f, hoodZ + 0.22f), new Vector3(0.36f, 0.07f, 0.02f), Quaternion.identity);
             }
 
-            // side exhausts under the doors (nitro 2+, boss)
-            if (nitro >= 2 || boss)
+            // exhaust: side pipes under the doors, stacks behind the cab, or flame pipes (hot glowing tips)
+            if (style.Exhaust == 1 || style.Exhaust == 3)
             {
+                bool flame = style.Exhaust == 3;
                 float pipeL = Mathf.Max(0.8f, (doorZ1 - doorZ0) * 0.8f);
                 float pipeZ = (doorZ0 + doorZ1) * 0.5f;
+                var pipeMat = Lit(flame ? new Color(0.45f, 0.42f, 0.4f) : new Color(0.55f, 0.52f, 0.48f), 0.3f, 0.6f);
+                var tipMat = Glow(flame ? new Color(1f, 0.6f, 0.2f) : new Color(1f, 0.45f, 0.15f), flame ? 3.5f : 1.4f);
                 for (int side = -1; side <= 1; side += 2)
                 {
-                    Part("SidePipe", cyl, Lit(new Color(0.55f, 0.52f, 0.48f), 0.3f, 0.6f), root, new Vector3(side * (doorX + 0.07f), low + 0.2f, pipeZ), new Vector3(0.12f, pipeL, 0.12f), Quaternion.Euler(90f, 0f, 0f));
-                    Part("PipeTip", cyl, Glow(new Color(1f, 0.45f, 0.15f), 1.4f), root, new Vector3(side * (doorX + 0.07f), low + 0.2f, pipeZ - pipeL * 0.5f - 0.02f), new Vector3(0.1f, 0.03f, 0.1f), Quaternion.Euler(90f, 0f, 0f));
+                    Part("SidePipe", cyl, pipeMat, root, new Vector3(side * (doorX + 0.07f), low + 0.2f, pipeZ), new Vector3(0.12f, pipeL, 0.12f), Quaternion.Euler(90f, 0f, 0f));
+                    Part("PipeTip", cyl, tipMat, root, new Vector3(side * (doorX + 0.07f), low + 0.2f, pipeZ - pipeL * 0.5f - 0.02f), new Vector3(0.1f, 0.03f, 0.1f), Quaternion.Euler(90f, 0f, 0f));
+                    if (flame) Part("PipeHeat", cyl, Glow(new Color(1f, 0.3f, 0.1f), 2f), root, new Vector3(side * (doorX + 0.07f), low + 0.2f, pipeZ - pipeL * 0.35f), new Vector3(0.125f, pipeL * 0.12f, 0.125f), Quaternion.Euler(90f, 0f, 0f));
+                }
+            }
+            else if (style.Exhaust == 2)
+            {
+                float stackZ = Mathf.Max(roofZ0 - 0.05f, back + 0.6f);
+                var chromeMat = Lit(new Color(0.8f, 0.8f, 0.82f), 0.25f, 0.9f);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    float sx = side * (halfW * 0.78f);
+                    float h = Mathf.Max(0.6f, roofY - low + 0.25f);
+                    Part("Stack", cyl, chromeMat, root, new Vector3(sx, low + h * 0.5f + 0.1f, stackZ), new Vector3(0.14f, h, 0.14f), Quaternion.identity);
+                    Part("StackCap", cyl, chromeMat, root, new Vector3(sx, low + h + 0.14f, stackZ - 0.03f), new Vector3(0.18f, 0.09f, 0.18f), Quaternion.Euler(20f, 0f, 0f));
+                    Part("StackTip", cyl, Glow(new Color(1f, 0.5f, 0.2f), 1.2f), root, new Vector3(sx, low + h + 0.19f, stackZ - 0.05f), new Vector3(0.1f, 0.02f, 0.1f), Quaternion.Euler(20f, 0f, 0f));
                 }
             }
 
+            // neon underglow: strips along both sills, front and rear, plus a soft light under the floor
+            if (style.Neon) Neon(root, style, new Vector3(halfW * 2f, top - low, front - back), low + 0.08f, quality, doorX, (front + back) * 0.5f);
+
             Merge(root);
+        }
+
+        static void StripeRun(Transform root, Mesh cube, Material mat, int kind, float halfW, float y, float z, float len, Quaternion tilt)
+        {
+            switch (kind)
+            {
+                case 1:
+                    for (int side = -1; side <= 1; side += 2)
+                        Part("Stripe", cube, mat, root, new Vector3(side * halfW * 0.09f, y, z), new Vector3(halfW * 0.08f, 0.02f, len), tilt);
+                    break;
+                case 2:
+                    Part("Stripe", cube, mat, root, new Vector3(0f, y, z), new Vector3(halfW * 0.3f, 0.02f, len), tilt);
+                    break;
+                case 3:
+                    Part("Stripe", cube, mat, root, new Vector3(halfW * 0.36f, y, z), new Vector3(halfW * 0.14f, 0.02f, len), tilt);
+                    Part("Stripe", cube, mat, root, new Vector3(halfW * 0.52f, y, z), new Vector3(halfW * 0.04f, 0.02f, len), tilt);
+                    break;
+            }
+        }
+
+        /// <summary>Neon underglow (garage): emissive strips under the sills and a point light; pulse is animated.</summary>
+        static void Neon(Transform root, KitStyle style, Vector3 size, float y, int quality, float sideX = -1f, float centerZ = 0f)
+        {
+            var cube = MeshFactory.UnitCube();
+            float x = sideX > 0f ? sideX - 0.06f : size.x * 0.46f;
+            float len = size.z * 0.78f;
+            var mat = Glow(style.NeonColor, 2.6f);
+            for (int side = -1; side <= 1; side += 2)
+                Part("NeonSill", cube, mat, root, new Vector3(side * x, y, centerZ), new Vector3(0.05f, 0.03f, len), Quaternion.identity);
+            Part("NeonFront", cube, mat, root, new Vector3(0f, y, centerZ + len * 0.5f), new Vector3(x * 1.6f, 0.03f, 0.05f), Quaternion.identity);
+            Part("NeonRear", cube, mat, root, new Vector3(0f, y, centerZ - len * 0.5f), new Vector3(x * 1.6f, 0.03f, 0.05f), Quaternion.identity);
+            if (quality > 0)
+            {
+                var lgo = new GameObject("NeonLight");
+                lgo.transform.SetParent(root, false);
+                lgo.transform.localPosition = new Vector3(0f, y - 0.05f, centerZ);
+                var l = lgo.AddComponent<Light>();
+                l.type = LightType.Point;
+                l.range = Mathf.Max(3.5f, size.z * 0.9f);
+                l.intensity = 1.5f;
+                l.color = style.NeonColor;
+                l.shadows = LightShadows.None;
+                l.renderMode = LightRenderMode.Auto;
+                l.cullingMask = ~(1 << VehicleVisual.VehicleLayer);
+                if (style.NeonPulse) lgo.AddComponent<NeonPulse>().Light = l;
+            }
         }
 
         /// <summary>
@@ -447,6 +610,19 @@ namespace DerbyArena.Vehicles
             }
             for (int i = 0; i < filters.Length; i++)
                 if (filters[i] != null) Object.DestroyImmediate(filters[i].gameObject);
+        }
+    }
+
+    /// <summary>Pulsing neon light (garage "pulse neon").</summary>
+    public sealed class NeonPulse : MonoBehaviour
+    {
+        public Light Light;
+        float baseIntensity = -1f;
+        void Update()
+        {
+            if (Light == null) return;
+            if (baseIntensity < 0f) baseIntensity = Light.intensity;
+            Light.intensity = baseIntensity * (0.6f + 0.4f * Mathf.Sin(Time.time * 4.2f));
         }
     }
 

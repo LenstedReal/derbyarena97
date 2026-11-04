@@ -105,14 +105,17 @@ namespace DerbyArena.Combat
                 int n = Physics.SphereCastNonAlloc(pos, 0.25f, dir, hits, step, ~0, QueryTriggerInteraction.Ignore);
                 float best = float.MaxValue;
                 Vector3 hitPoint = Vector3.zero;
+                Collider bestCol = null;
                 for (int h = 0; h < n; h++)
                 {
                     if (hits[h].collider == null) continue;
                     if (r.OwnerBody != null && hits[h].rigidbody == r.OwnerBody) continue;
-                    if (hits[h].distance < best) { best = hits[h].distance; hitPoint = hits[h].distance > 0f ? hits[h].point : pos; }
+                    if (hits[h].distance < best) { best = hits[h].distance; hitPoint = hits[h].distance > 0f ? hits[h].point : pos; bestCol = hits[h].collider; }
                 }
                 if (best < float.MaxValue)
                 {
+                    if (r.Owner != null && r.Owner.Team == 0 && bestCol != null && bestCol.GetComponentInParent<VehicleHealth>() != null)
+                        DerbyArena.Core.DailyMissions.Tick(DerbyArena.Core.MissionGoal.Rockets, 1);
                     Explode(r, hitPoint);
                     continue;
                 }

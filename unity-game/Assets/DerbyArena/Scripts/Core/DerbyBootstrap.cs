@@ -91,16 +91,8 @@ namespace DerbyArena.Core
                 var show = new GameObject("Showcase");
                 Vector3 pos = arena != null ? arena.Info.PlayerSpawn + new Vector3(0f, -0.55f, 8f) : Vector3.zero;
                 show.transform.position = pos;
-                show.AddComponent<Showcase>();
-                var holder = new GameObject("Visual");
-                holder.transform.SetParent(show.transform, false);
-                holder.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                var showSpec = DerbyArena.Vehicles.VehicleSpec.Interceptor();
-                GlbLibrary.Spawn(showSpec.GlbFile, showSpec.ModelOptions(), holder.transform, (model, err) =>
-                {
-                    if (model == null) return;
-                    foreach (var r in model.GetComponentsInChildren<Renderer>(true)) r.gameObject.layer = DerbyArena.Vehicles.VehicleVisual.VehicleLayer;
-                });
+                var sc = show.AddComponent<Showcase>();
+                sc.Rebuild();
                 var chase = cam.GetComponent<ChaseCamera>();
                 chase.Orbit = true;
                 chase.OrbitCenter = pos;
@@ -199,12 +191,22 @@ namespace DerbyArena.Core
         }
     }
 
-    /// <summary>Menu showcase: the player car slowly turning on a glowing pad.</summary>
+    /// <summary>
+    /// Menu showcase: the player's vehicle slowly turning on a glowing pad. 4.0: rebuilt on demand so the garage
+    /// shows the selected car, a previewed car, and every equipped or previewed cosmetic (rims, kit parts, neon).
+    /// </summary>
     public sealed class Showcase : MonoBehaviour
     {
+        public static Showcase Instance;
+        Transform visual, pad;
+        int build;
+
+        void Awake() { Instance = this; }
+        void OnDestroy() { if (Instance == this) Instance = null; }
+
         void Start()
         {
-            MeshFactory.Make("Pad", MeshFactory.UnitRing(), Mats.Glow(new Color(1f, 0.55f, 0.12f), 2.4f), transform, new Vector3(0f, 0.04f, 0f), new Vector3(3.8f, 1f, 3.8f));
+            pad = MeshFactory.Make("Pad", MeshFactory.UnitRing(), Mats.Glow(new Color(1f, 0.55f, 0.12f), 2.4f), transform, new Vector3(0f, 0.04f, 0f), new Vector3(3.8f, 1f, 3.8f)).transform;
             var l = new GameObject("KeyLight").AddComponent<Light>();
             l.transform.SetParent(transform, false);
             l.transform.localPosition = new Vector3(3f, 4f, -3f);
@@ -212,6 +214,32 @@ namespace DerbyArena.Core
             l.range = 14f;
             l.intensity = 2.2f;
             l.color = new Color(1f, 0.85f, 0.7f);
+        }
+
+        /// <summary>Spawns the current player vehicle (selection, preview and garage look included).</summary>
+        public void Rebuild()
+        {
+            int id = ++build;
+            if (visual != null) Destroy(visual.gameObject);
+            foreach (Transform t in transform) if (t.name == "BattleKit") Destroy(t.gameObject);
+            var holder = new GameObject("Visual");
+            holder.transform.SetParent(transform, false);
+            holder.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            visual = holder.transform;
+            DerbyArena.Vehicles.VehicleSpec spec;
+            try { spec = DerbyArena.Vehicles.VehicleSpec.ForPlayer(); }
+            catch (Exception ex) { Debug.LogWarning("DERBY: showcase spec: " + ex.Message); spec = DerbyArena.Vehicles.VehicleSpec.Interceptor(); }
+            holder.transform.localScale = Vector3.one * spec.Scale;
+            if (pad != null) pad.localScale = new Vector3(3.8f, 1f, 3.8f) * (spec.Tank ? 1.6f : Mathf.Max(1f, spec.Scale));
+            var snapshot = spec;
+            GlbLibrary.Spawn(spec.GlbFile, spec.ModelOptions(), holder.transform, (model, err) =>
+            {
+                if (model == null || this == null || id != build) { if (model != null) Destroy(model); return; }
+                foreach (var r in model.GetComponentsInChildren<Renderer>(true)) r.gameObject.layer = DerbyArena.Vehicles.VehicleVisual.VehicleLayer;
+                try { DerbyArena.Vehicles.VehicleVisual.DressRims(transform, snapshot); } catch (Exception ex) { Debug.LogWarning("DERBY: showcase rims: " + ex.Message); }
+                try { DerbyArena.Vehicles.VehicleKit.Build(transform, snapshot, null); } catch (Exception ex) { Debug.LogWarning("DERBY: showcase kit: " + ex.Message); }
+                try { DerbyArena.Vehicles.VehicleVisual.AnimateIdle(model.transform, snapshot); } catch (Exception) { }
+            });
         }
 
         void Update() { transform.Rotate(0f, 14f * Time.unscaledDeltaTime, 0f, Space.World); }

@@ -70,6 +70,7 @@ namespace DerbyArena.World
             Atmosphere.Apply(loader.theme, go.transform, cam, quality);
             if (kind == ArenaKind.Colosseum) loader.BuildColosseum();
             else if (kind == ArenaKind.Docks) loader.BuildDocks();
+            else if (kind == ArenaKind.Ruins) loader.BuildRuins();
             else loader.BuildSpillway();
             return loader;
         }
@@ -89,6 +90,25 @@ namespace DerbyArena.World
                 MeshFactory.ColliderBox("BoundE", root, new Vector3(37f, 6f, 0f), new Vector3(1f, 12f, 90f), Quaternion.identity);
                 MeshFactory.ColliderBox("BoundW", root, new Vector3(-37f, 6f, 0f), new Vector3(1f, 12f, 90f), Quaternion.identity);
                 Status = Loc.T("Liman basit modda", "Port in simple mode");
+            }
+            DerbyStartupDiagnostics.Report("Arena", Status);
+            Ready = true;
+        }
+
+        // ================================================================== DESERT RUINS (4.0, built in code)
+        void BuildRuins()
+        {
+            Info = RuinsArena.Info();
+            try { Status = RuinsArena.Build(root, theme, quality); }
+            catch (Exception ex)
+            {
+                Debug.LogError("DERBY: ruins arena failed. " + ex);
+                MeshFactory.SolidBox("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(96f, 1f, 96f), Quaternion.identity, Mats.Lit(new Color(0.6f, 0.5f, 0.35f), 0.95f, 0f, Color.black, 0f));
+                MeshFactory.ColliderBox("BoundN", root, new Vector3(0f, 6f, 39f), new Vector3(96f, 12f, 1f), Quaternion.identity);
+                MeshFactory.ColliderBox("BoundS", root, new Vector3(0f, 6f, -39f), new Vector3(96f, 12f, 1f), Quaternion.identity);
+                MeshFactory.ColliderBox("BoundE", root, new Vector3(39f, 6f, 0f), new Vector3(1f, 12f, 96f), Quaternion.identity);
+                MeshFactory.ColliderBox("BoundW", root, new Vector3(-39f, 6f, 0f), new Vector3(1f, 12f, 96f), Quaternion.identity);
+                Status = Loc.T("Harabeler basit modda", "Ruins in simple mode");
             }
             DerbyStartupDiagnostics.Report("Arena", Status);
             Ready = true;
