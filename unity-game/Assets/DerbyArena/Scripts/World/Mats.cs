@@ -155,6 +155,31 @@ namespace DerbyArena.World
             return mat;
         }
 
+        /// <summary>2.1 sky (DerbyArena/Sky): gradient, sun or moon, cloud panorama, stars. Null when the shader/material is missing.</summary>
+        public static Material ThemedSky(Atmosphere.Theme t, Vector3 sunDir)
+        {
+            var template = Resources.Load<Material>("Derby/Materials/RuntimeSky2");
+            if (template == null || template.shader == null || !template.shader.isSupported) return null;
+            var mat = new Material(template);
+            SetColor(mat, "_ZenithColor", t.Zenith);
+            SetColor(mat, "_HorizonColor", t.Horizon);
+            SetColor(mat, "_GroundColor", t.SkyGroundColor);
+            SetColor(mat, "_SunColor", t.SunColor);
+            if (mat.HasProperty("_SunDir")) mat.SetVector("_SunDir", new Vector4(sunDir.x, sunDir.y, sunDir.z, 0f));
+            SetFloat(mat, "_SunSize", t.SunSize);
+            SetFloat(mat, "_SunGlow", t.SunGlow);
+            SetFloat(mat, "_Haze", t.Haze);
+            SetColor(mat, "_CloudColor", t.CloudLit);
+            SetColor(mat, "_CloudShadow", t.CloudShadow);
+            SetFloat(mat, "_CloudDensity", t.CloudDensity);
+            SetFloat(mat, "_CloudSpeed", 0.004f);
+            SetFloat(mat, "_Stars", t.Stars);
+            SetFloat(mat, "_Exposure", t.SkyExposure);
+            var clouds = Resources.Load<Texture2D>("Derby/Textures/clouds");
+            if (clouds != null) { clouds.wrapMode = TextureWrapMode.Repeat; SetTex(mat, "_CloudTex", clouds); }
+            return mat;
+        }
+
         /// <summary>Procedural sky; null when the template is missing (camera falls back to a flat colour).</summary>
         public static Material Sky(Color tint, Color ground, float exposure, float thickness)
         {

@@ -232,7 +232,7 @@ namespace DerbyArena.World
             for (int s = 0; s < sets.Length; s++)
             {
                 byte[] a = null, n = null;
-                yield return Fetch("spillway/" + sets[s] + "_albedo.png", b => a = b);
+                yield return Fetch("spillway/" + sets[s] + "_albedo.jpg", b => a = b);   // 2.1 textures (texforge): JPEG albedo, PNG normal
                 yield return Fetch("spillway/" + sets[s] + "_normal.png", b => n = b);
                 var albedo = MakeTexture(a, false);
                 var normal = MakeTexture(n, true);
@@ -333,7 +333,14 @@ namespace DerbyArena.World
             var cube = MeshFactory.UnitCube();
             MeshFactory.Make("Pole", cube, steel, t, new Vector3(0f, 3.5f, 0f), new Vector3(0.25f, 7f, 0.25f));
             MeshFactory.Make("Head", cube, lamp, t, new Vector3(0f, 7.05f, 0f), new Vector3(0.9f, 0.18f, 0.5f));
+            if (quality > 0)
+            {
+                // 2.1: a faint cone of light down onto the channel floor, tilted toward the middle
+                if (shaftMat == null) shaftMat = ArenaDressing.ShaftMaterial(new Color(1f, 0.85f, 0.65f));
+                ArenaDressing.Shaft(t, at + new Vector3(0f, 6.9f, 0f), new Vector3(at.x * 0.55f, 0f, at.z), 0.5f, 4.5f, shaftMat);
+            }
         }
+        Material shaftMat;
 
         // ================================================================== COLOSSEUM
         void BuildColosseum()
@@ -413,6 +420,40 @@ namespace DerbyArena.World
             StartCoroutine(LoadColosseum(floor));
         }
 
+        /// <summary>Burnt wreck of a 2.1 enemy model as cover: same paint template as the live enemy (no extra texture).</summary>
+        void SpawnWreck(int index)
+        {
+            var spec = index % 3 == 0 ? DerbyArena.Vehicles.VehicleSpec.Drifter() : (index % 3 == 1 ? DerbyArena.Vehicles.VehicleSpec.Rammer() : DerbyArena.Vehicles.VehicleSpec.Hunter());
+            float ang = 45f + index * 90f;
+            float rad = ang * Mathf.Deg2Rad;
+            var holder = new GameObject("Wreck" + index).transform;
+            holder.SetParent(root, false);
+            holder.position = new Vector3(Mathf.Sin(rad) * 25.5f, -0.12f, Mathf.Cos(rad) * 25.5f);
+            holder.rotation = Quaternion.Euler(index % 2 == 0 ? 4f : -3f, ang * 1.7f, index == 1 ? 9f : (index == 3 ? -7f : 2f));
+            holder.localScale = Vector3.one * spec.Scale;
+            var charBlock = new MaterialPropertyBlock();
+            charBlock.SetColor("_Color", new Color(0.22f, 0.2f, 0.19f, 1f));
+            GlbLibrary.Spawn(spec.GlbFile, spec.ModelOptions(), holder, (model, err) =>
+            {
+                if (model == null || holder == null) return;
+                model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+                {
+                    r.SetPropertyBlock(charBlock);
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                }
+                var rs = model.GetComponentsInChildren<Renderer>(true);
+                if (rs.Length == 0) return;
+                Bounds b = rs[0].bounds;
+                for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+                var col = new GameObject("Wreck" + index + "_Collider");
+                col.transform.SetParent(root, false);
+                col.transform.position = b.center;
+                col.AddComponent<BoxCollider>().size = b.size * 0.85f;
+                col.isStatic = true;
+            });
+        }
+
         static Material FindMaterial(GameObject model, string key)
         {
             if (model == null) return null;
@@ -485,29 +526,11 @@ namespace DerbyArena.World
                     // surface bumpy and snagged cars. The arena floor is now clean and flat.
                     if (n == "Props") mr.gameObject.SetActive(false);
                 }
-                int wreckIndex = 0;
-                var wrecks = new List<Transform>();
+                // 2.1: the baked 1.x box wrecks are hidden; four burnt-out wrecks of the real 2.1 vehicle models take
+                // their place as cover on the diagonals near the wall (same positions and colliders as before)
                 foreach (var t in arena.GetComponentsInChildren<Transform>(true))
-                    if (t.name.StartsWith("wreck", StringComparison.Ordinal) && t.name.EndsWith("_Root", StringComparison.Ordinal)) wrecks.Add(t);
-                foreach (var t in wrecks)
-                {
-                    // keep four wrecks as cover on the diagonals near the wall, hide the rest
-                    if (wreckIndex >= 4) { t.gameObject.SetActive(false); wreckIndex++; continue; }
-                    float ang = 45f + wreckIndex * 90f;
-                    float rad = ang * Mathf.Deg2Rad;
-                    Vector3 p = t.position;
-                    t.position = new Vector3(Mathf.Sin(rad) * 25.5f, p.y, Mathf.Cos(rad) * 25.5f);
-                    t.RotateAround(t.position, Vector3.up, ang * 1.7f);
-                    wreckIndex++;
-                    var rs = t.GetComponentsInChildren<Renderer>(true);
-                    if (rs.Length == 0) continue;
-                    Bounds b = rs[0].bounds;
-                    for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-                    var col = new GameObject(t.name + "_Collider");
-                    col.transform.SetParent(root, false);
-                    col.transform.position = b.center;
-                    col.AddComponent<BoxCollider>().size = b.size * 0.9f;
-                }
+                    if (t.name.StartsWith("wreck", StringComparison.Ordinal) && t.name.EndsWith("_Root", StringComparison.Ordinal)) t.gameObject.SetActive(false);
+                for (int w = 0; w < 4; w++) SpawnWreck(w);
                 var fr = floor.GetComponent<MeshRenderer>();
                 if (fr != null) fr.enabled = false;
                 Crowd.Spawn(root, quality);

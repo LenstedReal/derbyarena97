@@ -161,8 +161,7 @@ for rel in ['vehicles/player_muscle.glb', 'vehicles/enemy_raider_a.glb', 'vehicl
 for part in ['channel_floor', 'asphalt', 'wall_west', 'wall_east', 'wall_north', 'wall_south', 'barriers', 'bridge', 'pipes', 'catwalk']:
     check((MODELS / 'spillway' / (part + '.obj')).exists(), 'Spillway OBJ: ' + part)
 for s in ['asphalt', 'concrete', 'steel']:
-    for k in ['albedo', 'normal']:
-        check((MODELS / 'spillway' / f'{s}_{k}.png').exists(), f'Spillway texture: {s}_{k}')
+    check((MODELS / 'spillway' / f'{s}_albedo.jpg').exists() and (MODELS / 'spillway' / f'{s}_normal.png').exists(), f'Spillway texture: {s}')
 
 # 2.0: ads (AdMob test units), legal pages, battle kit, arena dressing, adaptive performance
 ADS = ROOT / 'Assets/DerbyArena/Ads'
@@ -293,6 +292,23 @@ check(len({v[:3] for v in bodies.values()}) == 5, 'Five distinct vehicle bodies 
 check('FixWinding(pos, nor, tri)' in text(SCRIPTS / 'Vehicles/MiniGlb.cs') and 'RecalculateTangents' in text(SCRIPTS / 'Vehicles/MiniGlb.cs') and 'enableInstancing = true' in text(SCRIPTS / 'Vehicles/MiniGlb.cs'), 'MiniGlb: winding fixed after the X mirror, tangents, instancing')
 kit2 = text(SCRIPTS / 'Vehicles/VehicleKit.cs')
 check('static Shape Measure(' in kit2 and 'Cut(a, b2, c, 0, 0.02f, seg)' in kit2 and 'roofZ1 - 0.08f' in kit2, 'Battle kit placed from the measured body shape')
+
+# 2.1 environment: textures, sky, crowd, light shafts, wrecks
+col = glb(MODELS / 'arena/colosseum.glb')
+imgs = {i['name']: i for i in col['images']}
+check(all(imgs[n].get('mimeType') == 'image/jpeg' for n in ['sand_base', 'stone_base', 'basalt_base', 'metal_base', 'concrete_base']), 'Colosseum albedo textures replaced (texforge JPEG)')
+check('texforge' in col.get('asset', {}).get('generator', ''), 'Colosseum GLB carries the texforge generator tag')
+check((ROOT / 'Assets/Resources/Derby/Textures/clouds.png').exists(), 'Cloud panorama in Resources')
+sky = text(ROOT / 'Assets/DerbyArena/Shaders/DerbySky.shader')
+check('Shader "DerbyArena/Sky"' in sky and '_CloudTex' in sky and '_SunDir' in sky and '_Stars' in sky and 'FallBack "Skybox/Procedural"' in sky, 'Sky shader: clouds, sun, stars, fallback')
+check('RuntimeSky2' in text(ROOT / 'Assets/DerbyArena/Editor/UrpAndPlayerSetup.cs') and 'ThemedSky' in text(SCRIPTS / 'World/Mats.cs') and 'SkyOf(ref t' in text(SCRIPTS / 'World/Atmosphere.cs'), 'Themed sky wired with the procedural fallback')
+check(text(SCRIPTS / 'World/Atmosphere.cs').count('SkyOf(ref t,') == 6, 'Six sky moods (one per theme)')
+crowd = glb(MODELS / 'arena/crowd.glb')
+ctris = sum(crowd['accessors'][pr['indices']]['count'] // 3 for m in crowd['meshes'] for pr in m['primitives'])
+check(30000 <= ctris <= 100000 and len(crowd['meshes']) == 24, 'Crowd: 24 groups, %d tris' % ctris)
+check(any('COLOR_0' in pr['attributes'] for m in crowd['meshes'] for pr in m['primitives']) and any(mm.get('emissiveFactor') for mm in crowd['materials']), 'Crowd: vertex-coloured bodies + emissive visors')
+check('public static Mesh Shaft(' in text(SCRIPTS / 'World/MeshFactory.cs') and 'ShaftMaterial(' in text(SCRIPTS / 'World/ArenaDressing.cs') and 'ArenaDressing.Shaft(' in arena, 'Light shafts on floodlights and light posts')
+check('void SpawnWreck(int index)' in arena and 'SpawnWreck(w)' in arena, 'Colosseum cover wrecks are the 2.1 vehicle models')
 
 fails = [r for r in res if r[0] == 'FAIL']
 print('DERBY ARENA 2.1.0 STATIC VALIDATION (Unity-independent)')

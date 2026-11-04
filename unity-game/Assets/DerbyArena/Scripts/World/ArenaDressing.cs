@@ -55,8 +55,33 @@ namespace DerbyArena.World
             col.size = new Vector3(0.6f, 0.9f, 0.6f);
         }
 
+        /// <summary>Additive material for light shafts, tinted by the mood (stronger beams at night). One per arena.</summary>
+        public static Material ShaftMaterial(Color tint)
+        {
+            var mat = Mats.FxAdditive();
+            if (mat == null) return null;
+            float a = 0.03f + 0.12f * Atmosphere.CurrentBeamStrength;
+            if (mat.HasProperty("_TintColor")) mat.SetColor("_TintColor", new Color(tint.r, tint.g, tint.b, a));
+            mat.renderQueue = 3050;
+            return mat;
+        }
+
+        /// <summary>Faint cone of light from <paramref name="from"/> toward <paramref name="to"/> (2.1, quality > 0).</summary>
+        public static void Shaft(Transform parent, Vector3 from, Vector3 to, float r0, float r1, Material mat)
+        {
+            if (mat == null) return;
+            Vector3 d = to - from;
+            if (d.sqrMagnitude < 1f) return;
+            var go = MeshFactory.Make("LightShaft", MeshFactory.Shaft(r0, r1, d.magnitude, 14), mat, parent, Vector3.zero, Vector3.one);
+            go.transform.position = from;
+            go.transform.rotation = Quaternion.LookRotation(d.normalized, Vector3.up);
+            var r = go.GetComponent<MeshRenderer>();
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+        }
+
         /// <summary>Floodlight mast: lattice pole, cross head with glowing lamp panels (emissive only, no light component).</summary>
-        public static void Floodlight(Transform parent, Vector3 foot, float height, Vector3 faceTo, Material steel, Material lamp)
+        public static void Floodlight(Transform parent, Vector3 foot, float height, Vector3 faceTo, Material steel, Material lamp, Material shaft = null)
         {
             var t = new GameObject("Floodlight").transform;
             t.SetParent(parent, false);
@@ -76,6 +101,11 @@ namespace DerbyArena.World
             for (int r = 0; r < 2; r++)
                 for (int c = 0; c < 3; c++)
                     Visual("Lamp", cube, lamp, t, head + face * new Vector3(-1f + c, -0.35f + r * 0.7f, 0.18f), new Vector3(0.82f, 0.56f, 0.06f), face * Quaternion.Euler(-12f, 0f, 0f), false);
+            if (shaft != null)
+            {
+                Vector3 target = Vector3.Lerp(foot, faceTo, 0.6f); target.y = 0f;
+                Shaft(t, head + face * new Vector3(0f, -0.2f, 0.3f), target, 1.2f, 7f, shaft);
+            }
         }
 
         public static void Banner(Transform parent, Vector3 foot, Vector3 faceTo, Material pole, Material cloth, Material skull)
@@ -132,10 +162,11 @@ namespace DerbyArena.World
 
             var steel = Lit(new Color(0.2f, 0.2f, 0.22f), 0.5f, 0.5f);
             var lamp = Mats.Glow(new Color(1f, 0.97f, 0.88f), quality >= 2 ? 4f : 3f);
+            var shaft = quality > 0 ? ShaftMaterial(new Color(1f, 0.93f, 0.78f)) : null;
             for (int i = 0; i < 4; i++)
             {
                 float a = (i * 90f) * Mathf.Deg2Rad;
-                Floodlight(root, new Vector3(Mathf.Sin(a) * 30.1f, 3.2f, Mathf.Cos(a) * 30.1f), 13f, Vector3.zero, steel, lamp);
+                Floodlight(root, new Vector3(Mathf.Sin(a) * 30.1f, 3.2f, Mathf.Cos(a) * 30.1f), 13f, Vector3.zero, steel, lamp, shaft);
             }
 
             var rubber = Lit(new Color(0.05f, 0.05f, 0.055f), 0.9f, 0f);

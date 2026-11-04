@@ -57,6 +57,30 @@ namespace DerbyArena.World
             return Build("Cylinder", v, n, uv, t);
         }
 
+        /// <summary>
+        /// Open cone along +Z for light shafts (2.1): radius r0 at z = 0, r1 at z = length. UVs run down the centre of
+        /// the soft radial sprite (u = 0.5, v from 0.5 to 1), so an additive material fades the beam out along its length.
+        /// </summary>
+        public static Mesh Shaft(float r0, float r1, float length, int segments)
+        {
+            int seg = Mathf.Max(6, segments);
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+            for (int i = 0; i <= seg; i++)
+            {
+                float a = (float)i / seg * Mathf.PI * 2f;
+                var d = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f);
+                v.Add(d * r0); n.Add(d); uv.Add(new Vector2(0.5f, 0.5f));
+                v.Add(d * r1 + Vector3.forward * length); n.Add(d); uv.Add(new Vector2(0.5f, 0.995f));
+            }
+            for (int i = 0; i < seg; i++)
+            {
+                int b = i * 2;
+                t.Add(b); t.Add(b + 2); t.Add(b + 1);
+                t.Add(b + 2); t.Add(b + 3); t.Add(b + 1);
+            }
+            return Build("Shaft", v, n, uv, t);
+        }
+
         static void Cap(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t, float radius, float y, int seg, bool up)
         {
             Vector3 normal = up ? Vector3.up : Vector3.down;

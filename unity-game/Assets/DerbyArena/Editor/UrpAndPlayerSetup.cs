@@ -27,6 +27,7 @@ namespace DerbyArena.EditorTools
         const string FxMaterialPath = MaterialsFolder + "/RuntimeFx.mat";
         const string FxAddMaterialPath = MaterialsFolder + "/RuntimeFxAdd.mat";
         const string SkyMaterialPath = MaterialsFolder + "/RuntimeSky.mat";
+        const string Sky2MaterialPath = MaterialsFolder + "/RuntimeSky2.mat";
         const string VertexLitMaterialPath = MaterialsFolder + "/RuntimeVertexLit.mat";
         const string PostMaterialPath = MaterialsFolder + "/RuntimePost.mat";
         const string IconFolder = "Assets/DerbyArena/Icons";
@@ -139,6 +140,11 @@ namespace DerbyArena.EditorTools
             // Project shaders (Assets/DerbyArena/Shaders). Missing or broken -> runtime fallback, never a failed build.
             TryEnsureMaterial(VertexLitMaterialPath, "DerbyArena/VertexLit", null);
             TryEnsureMaterial(PostMaterialPath, "Hidden/DerbyArena/Post", null);
+            TryEnsureMaterial(Sky2MaterialPath, "DerbyArena/Sky", m =>
+            {
+                var clouds = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Derby/Textures/clouds.png");
+                if (clouds != null && m.HasProperty("_CloudTex")) m.SetTexture("_CloudTex", clouds);
+            });
         }
 
         // ------------------------------------------------------------------ app icons

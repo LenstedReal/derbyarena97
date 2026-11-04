@@ -14,6 +14,15 @@ namespace DerbyArena.World
             public Color GradeGain, GradeLift;
             public float Saturation, Contrast;
             public float BeamStrength;      // headlight beam visibility (day low, night high)
+            // 2.1 sky (DerbyArena/Sky shader): gradient, sun/moon, clouds, stars
+            public Color Zenith, Horizon, SkyGroundColor, SunColor, CloudLit, CloudShadow;
+            public float SunSize, SunGlow, Haze, CloudDensity, Stars;
+        }
+
+        static void SkyOf(ref Theme t, Color zenith, Color horizon, Color ground, Color sun, float sunSize, float glow, float haze, Color cloudLit, Color cloudShadow, float density, float stars)
+        {
+            t.Zenith = zenith; t.Horizon = horizon; t.SkyGroundColor = ground; t.SunColor = sun; t.SunSize = sunSize; t.SunGlow = glow;
+            t.Haze = haze; t.CloudLit = cloudLit; t.CloudShadow = cloudShadow; t.CloudDensity = density; t.Stars = stars;
         }
 
         // Last applied mood, kept so the brightness setting can be changed live from the menus.
@@ -40,6 +49,7 @@ namespace DerbyArena.World
                     t.SkyExposure = 1.25f; t.Thickness = 0.9f;
                     t.GradeGain = new Color(1.03f, 1f, 0.96f); t.GradeLift = new Color(0f, 0f, 0f); t.Saturation = 1.08f; t.Contrast = 1.05f;
                     t.BeamStrength = 0.1f;
+                    SkyOf(ref t, new Color(0.12f, 0.32f, 0.78f), new Color(0.8f, 0.8f, 0.74f), new Color(0.5f, 0.45f, 0.4f), new Color(1f, 0.95f, 0.85f), 0.035f, 1.2f, 1f, new Color(1f, 0.98f, 0.95f), new Color(0.58f, 0.6f, 0.7f), 1f, 0f);
                     break;
                 case 1: // dramatic orange haze
                     t.SkyTint = new Color(0.85f, 0.48f, 0.28f); t.SkyGround = new Color(0.5f, 0.32f, 0.2f);
@@ -50,6 +60,7 @@ namespace DerbyArena.World
                     t.SkyExposure = 1.3f; t.Thickness = 2f;
                     t.GradeGain = new Color(1.04f, 0.99f, 0.92f); t.GradeLift = new Color(0f, 0f, 0f); t.Saturation = 1.1f; t.Contrast = 1.06f;
                     t.BeamStrength = 0.3f;
+                    SkyOf(ref t, new Color(0.32f, 0.22f, 0.3f), new Color(0.92f, 0.55f, 0.3f), new Color(0.45f, 0.3f, 0.2f), new Color(1f, 0.75f, 0.45f), 0.05f, 2f, 1.8f, new Color(1f, 0.8f, 0.6f), new Color(0.5f, 0.3f, 0.3f), 1.2f, 0f);
                     break;
                 case 2: // toxic foundry
                     t.SkyTint = new Color(0.55f, 0.7f, 0.5f); t.SkyGround = new Color(0.35f, 0.4f, 0.3f);
@@ -60,6 +71,7 @@ namespace DerbyArena.World
                     t.SkyExposure = 1.15f; t.Thickness = 1.8f;
                     t.GradeGain = new Color(0.98f, 1.03f, 0.96f); t.GradeLift = new Color(0f, 0f, 0f); t.Saturation = 1.08f; t.Contrast = 1.05f;
                     t.BeamStrength = 0.2f;
+                    SkyOf(ref t, new Color(0.2f, 0.36f, 0.3f), new Color(0.62f, 0.74f, 0.52f), new Color(0.3f, 0.35f, 0.28f), new Color(0.9f, 1f, 0.8f), 0.04f, 1f, 1.4f, new Color(0.9f, 0.95f, 0.8f), new Color(0.35f, 0.45f, 0.35f), 1.4f, 0f);
                     break;
                 case 3: // neon night (purple haze, still readable)
                     t.SkyTint = new Color(0.32f, 0.36f, 0.65f); t.SkyGround = new Color(0.18f, 0.18f, 0.3f);
@@ -70,6 +82,7 @@ namespace DerbyArena.World
                     t.SkyExposure = 0.75f; t.Thickness = 0.9f;
                     t.GradeGain = new Color(0.98f, 0.99f, 1.06f); t.GradeLift = new Color(0f, 0f, 0.01f); t.Saturation = 1.12f; t.Contrast = 1.06f;
                     t.BeamStrength = 0.45f;
+                    SkyOf(ref t, new Color(0.02f, 0.02f, 0.07f), new Color(0.3f, 0.2f, 0.5f), new Color(0.1f, 0.08f, 0.14f), new Color(0.8f, 0.85f, 1f), 0.03f, 0.4f, 1.2f, new Color(0.35f, 0.3f, 0.5f), new Color(0.08f, 0.06f, 0.14f), 0.8f, 1f);
                     break;
                 case 5: // harbour dusk: blue-teal evening sky, low warm sun, sodium-orange accents
                     t.SkyTint = new Color(0.36f, 0.47f, 0.66f); t.SkyGround = new Color(0.28f, 0.27f, 0.28f);
@@ -80,6 +93,7 @@ namespace DerbyArena.World
                     t.SkyExposure = 1.1f; t.Thickness = 1.4f;
                     t.GradeGain = new Color(1.02f, 1f, 0.98f); t.GradeLift = new Color(0f, 0f, 0f); t.Saturation = 1.08f; t.Contrast = 1.05f;
                     t.BeamStrength = 0.3f;
+                    SkyOf(ref t, new Color(0.08f, 0.14f, 0.36f), new Color(0.85f, 0.58f, 0.4f), new Color(0.3f, 0.3f, 0.32f), new Color(1f, 0.75f, 0.5f), 0.045f, 1.6f, 1.5f, new Color(1f, 0.8f, 0.65f), new Color(0.3f, 0.3f, 0.45f), 1.1f, 0.3f);
                     break;
                 default: // crimson
                     t.SkyTint = new Color(0.85f, 0.35f, 0.28f); t.SkyGround = new Color(0.45f, 0.2f, 0.16f);
@@ -90,6 +104,7 @@ namespace DerbyArena.World
                     t.SkyExposure = 1.15f; t.Thickness = 2.4f;
                     t.GradeGain = new Color(1.04f, 0.97f, 0.95f); t.GradeLift = new Color(0f, 0f, 0f); t.Saturation = 1.06f; t.Contrast = 1.06f;
                     t.BeamStrength = 0.35f;
+                    SkyOf(ref t, new Color(0.26f, 0.08f, 0.12f), new Color(0.9f, 0.4f, 0.26f), new Color(0.4f, 0.2f, 0.15f), new Color(1f, 0.6f, 0.4f), 0.06f, 2.2f, 2f, new Color(1f, 0.6f, 0.5f), new Color(0.45f, 0.15f, 0.15f), 1.3f, 0f);
                     break;
             }
             return t;
@@ -124,7 +139,9 @@ namespace DerbyArena.World
             fill.color = t.Fill;
             fill.shadows = LightShadows.None;
 
-            var sky = Mats.Sky(t.SkyTint, t.SkyGround, t.SkyExposure, t.Thickness);
+            // 2.1: themed sky with sun, clouds and stars; the 1.x procedural sky stays as the fallback
+            var sky = Mats.ThemedSky(t, -keyGo.transform.forward);
+            if (sky == null) sky = Mats.Sky(t.SkyTint, t.SkyGround, t.SkyExposure, t.Thickness);
             RenderSettings.skybox = sky;
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
             if (cam != null)
