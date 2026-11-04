@@ -166,6 +166,71 @@ namespace DerbyArena.World
             return go;
         }
 
+        /// <summary>
+        /// Box of the given size (scale 1) whose UVs are in world metres divided by `tile`, so a tileable texture
+        /// repeats correctly on every face (4.0 arenas). Each call makes a new mesh; owners must free it.
+        /// </summary>
+        public static Mesh BoxTiled(Vector3 size, float tile)
+        {
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+            Vector3[] dirs = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+            Vector3 h = size * 0.5f;
+            for (int f = 0; f < 6; f++)
+            {
+                Vector3 nd = dirs[f];
+                Vector3 u = Mathf.Abs(nd.y) > 0.5f ? Vector3.right : Vector3.up;
+                Vector3 r = Vector3.Cross(u, nd);
+                int b = v.Count;
+                Vector3[] corners = { nd - r - u, nd - r + u, nd + r + u, nd + r - u };
+                for (int k = 0; k < 4; k++)
+                {
+                    Vector3 c = Vector3.Scale(corners[k], h);
+                    v.Add(c); n.Add(nd);
+                    uv.Add(new Vector2(Vector3.Dot(c, r) / tile, Vector3.Dot(c, u) / tile));
+                }
+                t.Add(b); t.Add(b + 2); t.Add(b + 1); t.Add(b); t.Add(b + 3); t.Add(b + 2);
+            }
+            return Build("BoxTiled", v, n, uv, t);
+        }
+
+        /// <summary>Flat ring on the XZ plane at world size with planar UVs in metres / tile (4.0 ring roads).</summary>
+        public static Mesh RingPlanar(float inner, float outer, int segments, float tile)
+        {
+            int seg = Mathf.Max(8, segments);
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+            for (int i = 0; i <= seg; i++)
+            {
+                float a = (float)i / seg * Mathf.PI * 2f;
+                var d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                Vector3 pi = d * inner, po = d * outer;
+                v.Add(pi); n.Add(Vector3.up); uv.Add(new Vector2(pi.x / tile, pi.z / tile));
+                v.Add(po); n.Add(Vector3.up); uv.Add(new Vector2(po.x / tile, po.z / tile));
+            }
+            for (int i = 0; i < seg; i++)
+            {
+                int b = i * 2;
+                t.Add(b); t.Add(b + 3); t.Add(b + 1);
+                t.Add(b); t.Add(b + 2); t.Add(b + 3);
+            }
+            return Build("RingPlanar", v, n, uv, t);
+        }
+
+        /// <summary>Solid box with world-metre UVs (tileable textures) plus a BoxCollider.</summary>
+        public static GameObject SolidBoxTiled(string name, Transform parent, Vector3 worldPos, Vector3 size, Quaternion rot, Material mat, float tile)
+        {
+            var go = new GameObject(name);
+            if (parent != null) go.transform.SetParent(parent, false);
+            go.transform.SetPositionAndRotation(worldPos, rot);
+            var mesh = BoxTiled(size, tile);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            go.AddComponent<DerbyArena.Vehicles.OwnedMesh>().Mesh = mesh;
+            var bc = go.AddComponent<BoxCollider>();
+            bc.size = size;
+            go.isStatic = true;
+            return go;
+        }
+
         /// <summary>Solid box: visible mesh (optional) plus BoxCollider, positioned in world space.</summary>
         public static GameObject SolidBox(string name, Transform parent, Vector3 worldPos, Vector3 size, Quaternion rot, Material mat)
         {

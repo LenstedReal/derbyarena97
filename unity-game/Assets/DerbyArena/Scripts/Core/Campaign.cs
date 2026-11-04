@@ -105,19 +105,19 @@ namespace DerbyArena.Core
         static readonly string[] ChapterFeaturesTr =
         {
             "Reaktör, yıkım ve kontrol noktası görevleri",
-            "Yeni: Hayatta Kal ve daralan bölgeli Son Kalan",
+            "Yeni arena: Çöl Harabeleri. Yeni: Hayatta Kal ve daralan bölgeli Son Kalan",
             "Yeni: asit havuzları, daha akıllı rakipler",
             "Yeni: gece yarışları, farlar ve neon",
-            "Yeni: elit rakipler, en zor patron",
+            "Yeni: elit rakipler, harabe derbileri, en zor patron",
             "Yeni arena: Konteyner Limanı. Konteyner siperleri, rampalar, dev vinç"
         };
         static readonly string[] ChapterFeaturesEn =
         {
             "Reactor, demolition and checkpoint missions",
-            "New: Survival and Last Stand with a shrinking zone",
+            "New arena: Desert Ruins. New: Survival and Last Stand with a shrinking zone",
             "New: acid pools, smarter rivals",
             "New: night races, headlights and neon",
-            "New: elite rivals, the toughest boss",
+            "New: elite rivals, ruins derbies, the toughest boss",
             "New arena: Container Port. Container cover, jump ramps, a giant crane"
         };
 
@@ -193,6 +193,9 @@ namespace DerbyArena.Core
                     break;
             }
             if (c.Chapter == 6) c.Arena = ArenaKind.Docks;   // the Container Port hosts every mode
+            // 4.0: the Desert Ruins host the Scrap Badlands derbies (season 2) and every other Iron Apocalypse
+            // derby (season 5, odd levels); reactor and checkpoint runs stay in the spillway, bosses in the colosseum
+            if (c.Arena == ArenaKind.Colosseum && !c.Boss && (c.Chapter == 2 || (c.Chapter == 5 && c.IndexInChapter % 2 == 1))) c.Arena = ArenaKind.Ruins;
 
             // Difficulty runs over the 100 released levels; season 6 continues past 1 (enemy health / speed / damage
             // keep rising, aim error is clamped by the Lerp).
@@ -337,6 +340,7 @@ namespace DerbyArena.Core
             {
                 switch (c.Chapter)
                 {
+                    case 2: return Loc.T("Çöl Harabeleri: yıkık evler siperdir, sokaklarda hız kazan, rakipleri duvara sıkıştır.", "Desert Ruins: ruined houses are cover, build speed in the streets, pin rivals against the walls.");
                     case 3: return Loc.T("Yeşil asit havuzları araçları eritir. Rakipleri içine it!", "Green acid pools melt cars. Push your rivals in!");
                     case 4: return Loc.T("Gece yarışı: farların yolu aydınlatır, neon şeritleri takip et.", "Night race: your headlights light the way, follow the neon strips.");
                     case 5: return Loc.T("Elit rakipler (mor) daha dayanıklı ve isabetlidir.", "Elite rivals (purple) are tougher and more accurate.");

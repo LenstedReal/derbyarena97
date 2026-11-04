@@ -99,7 +99,13 @@ namespace DerbyArena.World
         void BuildRuins()
         {
             Info = RuinsArena.Info();
-            try { Status = RuinsArena.Build(root, theme, quality); }
+            try
+            {
+                Status = RuinsArena.Build(root, theme, quality);
+                // two burnt-out raiders on the ring road as extra cover
+                SpawnWreck(0, new Vector3(-21f, -0.12f, 23f), 140f);
+                SpawnWreck(2, new Vector3(23f, -0.12f, -21f), -50f);
+            }
             catch (Exception ex)
             {
                 Debug.LogError("DERBY: ruins arena failed. " + ex);
@@ -443,13 +449,19 @@ namespace DerbyArena.World
         /// <summary>Burnt wreck of a 2.1 enemy model as cover: same paint template as the live enemy (no extra texture).</summary>
         void SpawnWreck(int index)
         {
-            var spec = index % 3 == 0 ? DerbyArena.Vehicles.VehicleSpec.Drifter() : (index % 3 == 1 ? DerbyArena.Vehicles.VehicleSpec.Rammer() : DerbyArena.Vehicles.VehicleSpec.Hunter());
             float ang = 45f + index * 90f;
             float rad = ang * Mathf.Deg2Rad;
+            SpawnWreck(index, new Vector3(Mathf.Sin(rad) * 25.5f, -0.12f, Mathf.Cos(rad) * 25.5f), ang * 1.7f);
+        }
+
+        /// <summary>Charred 2.1 vehicle model as cover at a world position (4.0: shared by the colosseum and the ruins).</summary>
+        void SpawnWreck(int index, Vector3 position, float yaw)
+        {
+            var spec = index % 3 == 0 ? DerbyArena.Vehicles.VehicleSpec.Drifter() : (index % 3 == 1 ? DerbyArena.Vehicles.VehicleSpec.Rammer() : DerbyArena.Vehicles.VehicleSpec.Hunter());
             var holder = new GameObject("Wreck" + index).transform;
             holder.SetParent(root, false);
-            holder.position = new Vector3(Mathf.Sin(rad) * 25.5f, -0.12f, Mathf.Cos(rad) * 25.5f);
-            holder.rotation = Quaternion.Euler(index % 2 == 0 ? 4f : -3f, ang * 1.7f, index == 1 ? 9f : (index == 3 ? -7f : 2f));
+            holder.position = position;
+            holder.rotation = Quaternion.Euler(index % 2 == 0 ? 4f : -3f, yaw, index == 1 ? 9f : (index == 3 ? -7f : 2f));
             holder.localScale = Vector3.one * spec.Scale;
             var charBlock = new MaterialPropertyBlock();
             charBlock.SetColor("_Color", new Color(0.22f, 0.2f, 0.19f, 1f));
