@@ -201,13 +201,19 @@ check('VehicleKit.Build' in text(SCRIPTS / 'Vehicles/VehicleVisual.cs'), 'Battle
 check('ArenaDressing.Colosseum' in text(SCRIPTS / 'World/Arena.cs') and 'ArenaDressing.Spillway' in text(SCRIPTS / 'World/Arena.cs'), 'Stadium dressing in both arenas')
 check('AddComponent<AdaptivePerformance>' in text(SCRIPTS / 'Core/DerbyBootstrap.cs'), 'Adaptive performance in matches')
 check('SetPropertyBlock(charBlock)' in text(SCRIPTS / 'Vehicles/VehicleHealth.cs'), 'Wreck look without material instances')
-from PIL import Image as _I
 try:
+    from PIL import Image as _I
+except ImportError:
+    _I = None
+if _I is None:
+    print('[SKIP] Adaptive icon safe-zone check (Pillow not installed)')
+else:
+  try:
     fg = _I.open(ROOT / 'AndroidIcons/res/mipmap-xxxhdpi/app_icon_foreground.png').convert('RGBA')
     a = fg.split()[3]; w, h = fg.size; c = w / 2
     corner_ok = all(a.getpixel((int(c + dx * w * 0.33), int(c + dy * h * 0.33))) == 0 for dx in (-1, 1) for dy in (-1, 1))
     check(corner_ok, 'Adaptive icon foreground stays inside the safe zone')
-except Exception as e:
+  except Exception as e:
     check(False, 'adaptive icon check', repr(e))
 
 fails = [r for r in res if r[0] == 'FAIL']
