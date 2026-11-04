@@ -305,6 +305,30 @@ namespace DerbyArena.Combat
             inst.tracerLife[i] = 0.05f;
         }
 
+        /// <summary>Ejected brass casing (4.0, cannon): a small tumbling cylinder on a parabola, pooled.</summary>
+        public static void Casing(Vector3 pos, Vector3 vel)
+        {
+            if (inst == null) return;
+            if (inst.casings == null)
+            {
+                inst.casings = new ShellCasing[6];
+                var mat = Mats.Lit(new Color(0.78f, 0.62f, 0.28f), 0.3f, 0.5f, Color.black, 0f);
+                for (int i = 0; i < inst.casings.Length; i++)
+                {
+                    var go = MeshFactory.Make("Casing", MeshFactory.UnitCylinder(), mat, inst.transform, Vector3.zero, new Vector3(0.09f, 0.42f, 0.09f));
+                    go.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    var c = go.AddComponent<ShellCasing>();
+                    go.SetActive(false);
+                    inst.casings[i] = c;
+                }
+            }
+            var cs = inst.casings[inst.casingNext];
+            inst.casingNext = (inst.casingNext + 1) % inst.casings.Length;
+            cs.Launch(pos, vel * 2.2f + Random.insideUnitSphere * 0.8f);
+        }
+        ShellCasing[] casings;
+        int casingNext;
+
         public static void Flash(Vector3 pos, Color color, float intensity, float range)
         {
             if (inst == null || inst.flashes.Length == 0) return;
@@ -368,6 +392,34 @@ namespace DerbyArena.Combat
         void OnDestroy()
         {
             if (inst == this) inst = null;
+        }
+    }
+
+    /// <summary>Tumbling brass: gravity, spin, fades out after bouncing once (approximated: stops at the launch height - 1.5 m).</summary>
+    public sealed class ShellCasing : MonoBehaviour
+    {
+        Vector3 vel, spin;
+        float life, floorY;
+        public void Launch(Vector3 pos, Vector3 v)
+        {
+            transform.position = pos;
+            transform.rotation = Random.rotation;
+            vel = v;
+            spin = Random.insideUnitSphere * 540f;
+            life = 1.6f;
+            floorY = pos.y - 2.2f;
+            gameObject.SetActive(true);
+        }
+        void Update()
+        {
+            float dt = Time.deltaTime;
+            vel += Physics.gravity * dt;
+            Vector3 p = transform.position + vel * dt;
+            if (p.y < floorY) { p.y = floorY; vel = new Vector3(vel.x * 0.4f, -vel.y * 0.3f, vel.z * 0.4f); spin *= 0.4f; }
+            transform.position = p;
+            transform.Rotate(spin * dt, Space.Self);
+            life -= dt;
+            if (life <= 0f) gameObject.SetActive(false);
         }
     }
 }

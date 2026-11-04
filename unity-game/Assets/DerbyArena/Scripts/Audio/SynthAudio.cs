@@ -8,6 +8,7 @@ namespace DerbyArena.Audio
         const int Rate = 22050;
         static AudioClip cheer, gate;
         static AudioClip engine, shot, hit, crash, explosion, rocket, pickup, cell, click, beep, go, overheat, win, lose, alarm, ambience;
+        static AudioClip cannon, reload, tracks, engineIdle, engineLoad, wind;
         static System.Random rng = new System.Random(1234);
 
         static float Noise() { return (float)rng.NextDouble() * 2f - 1f; }
@@ -185,6 +186,131 @@ namespace DerbyArena.Audio
         }
 
         public static AudioClip Alarm() { if (alarm == null) alarm = Tones("alarm", new[] { 880f, 660f, 880f, 660f }, 0.12f, 0.45f); return alarm; }
+
+        /// <summary>8.8 cm gun: sharp crack, long low boom with a sub thump (4.0).</summary>
+        public static AudioClip Cannon()
+        {
+            if (cannon != null) return cannon;
+            var d = Buffer(1.6f);
+            float lp = 0f, lp2 = 0f, hp = 0f, prev = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = (float)i / d.Length;
+                float n = Noise();
+                // crack: high-passed noise in the first 40 ms
+                hp = 0.9f * (hp + n - prev); prev = n;
+                float crack = hp * Mathf.Exp(-t * 60f) * 1.4f;
+                float cutoff = Mathf.Lerp(0.25f, 0.015f, Mathf.Sqrt(t));
+                lp += (n - lp) * cutoff; lp2 += (lp - lp2) * cutoff;
+                float boom = lp2 * 2.6f * Mathf.Exp(-t * 2.6f);
+                float sub = Mathf.Sin(2f * Mathf.PI * (42f - 22f * t) * i / Rate) * Mathf.Exp(-t * 4.5f) * 1.1f;
+                d[i] = crack + boom + sub;
+            }
+            Normalize(d, 0.98f);
+            cannon = Make("cannon", d);
+            return cannon;
+        }
+
+        /// <summary>Breech reload: metallic clank, slide, latch.</summary>
+        public static AudioClip Reload()
+        {
+            if (reload != null) return reload;
+            var d = Buffer(0.5f);
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = (float)i / Rate;
+                float a = Mathf.Sin(2f * Mathf.PI * 1800f * t) * Mathf.Exp(-t * 60f) + Mathf.Sin(2f * Mathf.PI * 2600f * t) * Mathf.Exp(-t * 90f) * 0.5f;
+                float slide = (t > 0.12f && t < 0.3f) ? Noise() * 0.12f * Mathf.Sin((t - 0.12f) / 0.18f * Mathf.PI) : 0f;
+                float latch = t > 0.36f ? Mathf.Sin(2f * Mathf.PI * 1200f * t) * Mathf.Exp(-(t - 0.36f) * 70f) * 0.8f : 0f;
+                d[i] = a + slide + latch;
+            }
+            Normalize(d, 0.55f);
+            reload = Make("reload", d);
+            return reload;
+        }
+
+        /// <summary>Track clatter loop: metallic link impacts at ~8 Hz with a rolling rumble (pitch follows speed).</summary>
+        public static AudioClip Tracks()
+        {
+            if (tracks != null) return tracks;
+            int period = Rate / 8;
+            var d = new float[period * 8];
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float ph = (float)(i % period) / period;
+                float click = Mathf.Sin(2f * Mathf.PI * 900f * i / Rate) * Mathf.Exp(-ph * 40f) * 0.5f + Noise() * Mathf.Exp(-ph * 25f) * 0.3f;
+                lp += (Noise() - lp) * 0.05f;
+                d[i] = click + lp * 0.35f;
+            }
+            Normalize(d, 0.45f);
+            tracks = Make("tracks", d);
+            return tracks;
+        }
+
+        /// <summary>Engine idle layer: lumpy low-rpm loop (crossfaded with Engine() by the engine audio).</summary>
+        public static AudioClip EngineIdle()
+        {
+            if (engineIdle != null) return engineIdle;
+            float baseHz = 22f;
+            int period = Mathf.RoundToInt(Rate / baseHz);
+            var d = new float[period * 16];
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = (float)i / Rate;
+                float ph = 2f * Mathf.PI * baseHz * t;
+                float s = Mathf.Sin(ph) * 0.6f + Mathf.Sin(ph * 2f + 0.3f) * 0.3f + Mathf.Sin(ph * 3f) * 0.12f;
+                float lump = Mathf.Pow(Mathf.Abs(Mathf.Sin(ph * 0.25f)), 8f) * 0.5f;
+                lp += (Noise() - lp) * 0.05f;
+                d[i] = s * (0.6f + lump) + lp * 0.2f;
+            }
+            Normalize(d, 0.45f);
+            engineIdle = Make("engine_idle", d);
+            return engineIdle;
+        }
+
+        /// <summary>Engine load layer: harsher, brighter harmonics for full throttle / nitro.</summary>
+        public static AudioClip EngineLoad()
+        {
+            if (engineLoad != null) return engineLoad;
+            float baseHz = 60f;
+            int period = Mathf.RoundToInt(Rate / baseHz);
+            var d = new float[period * 24];
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = (float)i / Rate;
+                float ph = 2f * Mathf.PI * baseHz * t;
+                float s = Mathf.Sin(ph) * 0.4f + Mathf.Sin(ph * 2f) * 0.35f + Mathf.Sin(ph * 3f + 0.2f) * 0.3f + Mathf.Sin(ph * 5f) * 0.18f + Mathf.Sin(ph * 7f) * 0.1f;
+                float saw = (ph / Mathf.PI) % 2f - 1f;
+                lp += (Noise() - lp) * 0.15f;
+                d[i] = s * 0.8f + saw * 0.15f + lp * 0.3f;
+            }
+            Normalize(d, 0.5f);
+            engineLoad = Make("engine_load", d);
+            return engineLoad;
+        }
+
+        /// <summary>Wind / dust ambience for open arenas, loopable.</summary>
+        public static AudioClip Wind()
+        {
+            if (wind != null) return wind;
+            int len = Rate * 6;
+            var d = new float[len];
+            float lp = 0f, lp2 = 0f;
+            for (int i = 0; i < len; i++)
+            {
+                float t = (float)i / Rate;
+                float gust = 0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * t / 6f) * Mathf.Sin(2f * Mathf.PI * t / 2.3f + 1f);
+                float cutoff = 0.01f + 0.03f * gust;
+                lp += (Noise() - lp) * cutoff; lp2 += (lp - lp2) * cutoff;
+                d[i] = lp2 * (0.6f + gust) * 3f;
+            }
+            Normalize(d, 0.3f);
+            wind = Make("wind", d);
+            return wind;
+        }
 
         /// <summary>Low industrial drone with slow beating, loopable.</summary>
         public static AudioClip Ambience()

@@ -76,6 +76,18 @@ namespace DerbyArena.World
             return mat;
         }
 
+        /// <summary>Textured decal (4.0): alpha-blended albedo with the texture's own transparency, no glassy sheen.</summary>
+        public static Material Decal(Texture2D albedo, Color tint)
+        {
+            var mat = Make("RuntimeLitDecal", "Standard", "Legacy Shaders/Transparent/Diffuse", "Sprites/Default");
+            if (mat == null) return null;
+            SetColor(mat, "_Color", tint);
+            SetTex(mat, "_MainTex", albedo);
+            SetFloat(mat, "_Glossiness", 0.3f);
+            SetFloat(mat, "_Metallic", 0f);
+            return mat;
+        }
+
         public static Material Glass(Color color)
         {
             var mat = Make("RuntimeLitGlass", "Standard", "Legacy Shaders/Diffuse", "Sprites/Default");

@@ -38,6 +38,36 @@ namespace DerbyArena.Vehicles
         static Material beamMat;
         VehicleHealth health;
         GameObject[] beams;
+        TankVisual tank;
+
+        /// <summary>Gun recoil (cannon vehicles): barrel kick handled by the tank dressing.</summary>
+        public void Recoil() { if (tank != null) tank.Recoil(); }
+
+        /// <summary>
+        /// LOD (4.0): a model may carry simplified nodes named *_LOD1. When present a LODGroup shows the full model
+        /// near the camera, the simplified one far away and culls it at a sliver of screen height.
+        /// </summary>
+        public static void SetupLod(Transform model)
+        {
+            if (model == null) return;
+            var far = new List<Renderer>();
+            var near = new List<Renderer>();
+            foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+            {
+                bool lod1 = false;
+                for (var t = r.transform; t != null && t != model.parent; t = t.parent) if (t.name.EndsWith("_LOD1")) { lod1 = true; break; }
+                (lod1 ? far : near).Add(r);
+            }
+            if (far.Count == 0) return;
+            var group = model.GetComponent<LODGroup>();
+            if (group == null) group = model.gameObject.AddComponent<LODGroup>();
+            var lods = new LOD[2];
+            lods[0] = new LOD(0.12f, near.ToArray());
+            lods[1] = new LOD(0.015f, far.ToArray());
+            group.SetLODs(lods);
+            group.fadeMode = LODFadeMode.None;
+            group.RecalculateBounds();
+        }
 
         public void Begin(VehicleSpec vehicleSpec, ArcadeCar arcadeCar)
         {
@@ -373,6 +403,8 @@ namespace DerbyArena.Vehicles
             try
             {
                 Bind(model.transform);
+                if (spec.Tank) { try { tank = TankVisual.Attach(model.transform, spec, car); } catch (Exception tEx) { Debug.LogWarning("DERBY: tank visual: " + tEx.Message); } }
+                try { SetupLod(model.transform); } catch (Exception lodEx) { Debug.LogWarning("DERBY: LOD skipped: " + lodEx.Message); }
                 if (spec.Role == DriverRole.Player) { try { DressRims(transform, spec); } catch (Exception rimEx) { Debug.LogWarning("DERBY: rims skipped: " + rimEx.Message); } }
                 try { AlignBeams(model.transform); }
                 catch (Exception beamEx) { Debug.LogWarning("DERBY: beam align skipped for " + spec.DisplayName + ": " + beamEx.Message); }
@@ -494,6 +526,7 @@ namespace DerbyArena.Vehicles
         public Vector3 Muzzle()
         {
             Vector3 dir = Quaternion.AngleAxis(turretYaw, transform.up) * transform.forward;
+            if (Barrel != null && spec.Tank) return Barrel.position + dir * spec.MuzzleForward * spec.Scale;   // 8.8 cm gun: 4.9 m
             if (Barrel != null) return Barrel.position + dir * 1.3f * spec.Scale;   // 2.1 barrels are 1.1-1.5 m long
             return transform.position + transform.up * spec.MuzzleHeight * spec.Scale + transform.forward * spec.MuzzleForward * spec.Scale;
         }

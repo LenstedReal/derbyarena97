@@ -41,16 +41,48 @@ namespace DerbyArena.Combat
             float dt = Time.deltaTime;
             gunCd -= dt;
             rocketCd -= dt;
-            if (UseHeat)
+            if (Spec != null && Spec.Cannon)
+            {
+                // the weapon bar shows the reload: 1 right after a shot, 0 when the breech is ready
+                float before = Heat;
+                Heat = Mathf.Clamp01(gunCd / Mathf.Max(0.1f, Spec.CannonReload));
+                Overheated = false;
+                if (before > 0.35f && Heat <= 0.35f && Owner != null && Owner.Team == 0) AudioHub.Play2D(SynthAudio.Reload(), 0.5f, 1f);
+            }
+            else if (UseHeat)
             {
                 Heat = Mathf.Max(0f, Heat - dt * (Overheated ? 0.45f : 0.6f));
                 if (Overheated && Heat < 0.3f) Overheated = false;
             }
         }
 
+        /// <summary>Main gun of the T-12: one 8.8 cm shell per reload, muzzle blast, recoil, casing (4.0).</summary>
+        bool FireCannon(Vector3 aimPoint)
+        {
+            if (gunCd > 0f) return false;
+            gunCd = Spec.CannonReload;
+            Vector3 origin = Visual != null ? Visual.Muzzle() : transform.position + Vector3.up * 2f + transform.forward * 4f;
+            Vector3 dir = aimPoint - origin;
+            if (dir.sqrMagnitude < 0.01f) dir = transform.forward;
+            dir.Normalize();
+            if (AimErrorDeg > 0f) dir = Quaternion.Euler(Random.Range(-AimErrorDeg, AimErrorDeg) * 0.3f, Random.Range(-AimErrorDeg, AimErrorDeg) * 0.5f, 0f) * dir;
+            Projectiles.FireShell(origin, dir, Owner, Spec.GunDamage * DamageMul);
+            Fx.Muzzle(origin, dir);
+            Fx.Fire(origin + dir * 0.6f, 1.6f);
+            Fx.Smoke(origin + dir * 1.2f, 1.4f);
+            Fx.Flash(origin, new Color(1f, 0.7f, 0.35f), 4f, 16f);
+            if (Visual != null) Visual.Recoil();
+            if (body != null) body.AddForce(-dir * body.mass * 2.2f, ForceMode.Impulse);
+            if (Owner != null && Owner.Team == 0) DerbyArena.World.PostFx.Hit(0.5f);
+            Fx.Casing(Visual != null ? Visual.transform.position + Vector3.up * 2.4f : origin, -dir + Vector3.up * 1.5f + transform.right * Random.Range(-0.5f, 0.5f));
+            AudioHub.PlayAt(SynthAudio.Cannon(), origin, 1f, Random.Range(0.95f, 1.05f));
+            return true;
+        }
+
         public bool TryFireGun(Vector3 aimPoint)
         {
             if (Spec == null || Owner == null || Owner.Dead) return false;
+            if (Spec.Cannon) return FireCannon(aimPoint);
             if (gunCd > 0f || Overheated) return false;
             gunCd = Spec.GunInterval;
             if (UseHeat)
@@ -108,6 +140,19 @@ namespace DerbyArena.Combat
             Vector3 origin = Visual != null ? Visual.Muzzle() + Vector3.up * 0.25f : transform.position + Vector3.up * 1.8f;
             Vector3 dir = aimPoint - origin;
             if (dir.sqrMagnitude < 0.01f) dir = transform.forward;
+            if (Spec.Cannon)
+            {
+                // tank: a high-explosive shell from the main gun, wide blast, no homing
+                Projectiles.FireShell(origin, dir.normalized, Owner, Spec.RocketDamage * DamageMul, 5f);
+                Fx.Muzzle(origin, dir.normalized);
+                Fx.Fire(origin + dir.normalized * 0.6f, 1.6f);
+                Fx.Flash(origin, new Color(1f, 0.7f, 0.35f), 4f, 16f);
+                if (Visual != null) Visual.Recoil();
+                if (body != null) body.AddForce(-dir.normalized * body.mass * 2.2f, ForceMode.Impulse);
+                if (Owner != null && Owner.Team == 0) DerbyArena.World.PostFx.Hit(0.5f);
+                AudioHub.PlayAt(SynthAudio.Cannon(), origin, 1f, 0.9f);
+                return true;
+            }
             Projectiles.Fire(origin, dir.normalized, Owner, target, (Spec != null ? Spec.RocketDamage : 42f) * DamageMul);
             return true;
         }

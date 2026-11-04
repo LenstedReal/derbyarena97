@@ -21,6 +21,7 @@ namespace DerbyArena.Combat
             public VehicleHealth Owner;
             public Rigidbody OwnerBody;
             public Transform Target;
+            public bool Shell;          // cannon round: straight, fast, smaller blast
         }
 
         static Projectiles inst;
@@ -79,10 +80,36 @@ namespace DerbyArena.Combat
             r.Owner = owner;
             r.OwnerBody = owner != null ? owner.GetComponent<Rigidbody>() : null;
             r.Target = target;
+            r.Shell = false;
             r.Go.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(dir));
+            r.Go.transform.localScale = Vector3.one;
             r.Go.SetActive(true);
             r.Trail.Clear();
             AudioHub.PlayAt(SynthAudio.RocketLaunch(), pos, 0.8f, Random.Range(0.9f, 1.1f));
+        }
+
+        /// <summary>8.8 cm shell (4.0): no homing, 120 m/s, 1.1 s of flight, a tight blast with the full damage at the centre.</summary>
+        public static void FireShell(Vector3 pos, Vector3 dir, VehicleHealth owner, float damage) { FireShell(pos, dir, owner, damage, 2.8f); }
+
+        public static void FireShell(Vector3 pos, Vector3 dir, VehicleHealth owner, float damage, float radius)
+        {
+            if (inst == null) return;
+            Rocket r = null;
+            for (int i = 0; i < inst.rockets.Count; i++) if (!inst.rockets[i].Active) { r = inst.rockets[i]; break; }
+            if (r == null) return;
+            r.Active = true;
+            r.Shell = true;
+            r.Velocity = dir.normalized * 120f;
+            r.Life = 1.1f;
+            r.Damage = damage;
+            r.Radius = radius;
+            r.Owner = owner;
+            r.OwnerBody = owner != null ? owner.GetComponent<Rigidbody>() : null;
+            r.Target = null;
+            r.Go.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(dir));
+            r.Go.transform.localScale = new Vector3(0.6f, 0.6f, 0.8f);
+            r.Go.SetActive(true);
+            r.Trail.Clear();
         }
 
         void Update()
@@ -130,8 +157,8 @@ namespace DerbyArena.Combat
         {
             r.Active = false;
             r.Go.SetActive(false);
-            Fx.Explosion(point, 1f);
-            AudioHub.PlayAt(SynthAudio.Explosion(), point, 0.9f, Random.Range(0.95f, 1.15f));
+            Fx.Explosion(point, r.Shell ? 0.8f : 1f);
+            AudioHub.PlayAt(SynthAudio.Explosion(), point, r.Shell ? 0.75f : 0.9f, Random.Range(r.Shell ? 1.1f : 0.95f, r.Shell ? 1.3f : 1.15f));
             Blast(point, r.Radius, r.Damage, r.Owner, true);
         }
 

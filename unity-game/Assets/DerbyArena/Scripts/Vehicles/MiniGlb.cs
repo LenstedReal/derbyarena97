@@ -529,7 +529,7 @@ namespace DerbyArena.Vehicles
 
             Material mat;
             if (alpha == "BLEND")
-                mat = Mats.Glass(color);
+                mat = tex != null ? Mats.Decal(tex, color) : Mats.Glass(color);
             else if (em != null && em.Length >= 3 && em[0] + em[1] + em[2] > 0.01f)
                 mat = Mats.Lit(color, 1f - smooth, metal, new Color(em[0], em[1], em[2]), Mathf.Clamp(strength * (ctx.Options != null ? ctx.Options.EmissionBoost : 1f), 1f, 4f));
             else if (tex != null)

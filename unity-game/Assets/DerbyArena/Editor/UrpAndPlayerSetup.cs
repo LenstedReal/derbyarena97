@@ -24,6 +24,7 @@ namespace DerbyArena.EditorTools
         const string NormalMaterialPath = MaterialsFolder + "/RuntimeLitNormal.mat";
         const string EmissiveMaterialPath = MaterialsFolder + "/RuntimeLitEmissive.mat";
         const string GlassMaterialPath = MaterialsFolder + "/RuntimeLitGlass.mat";
+        const string DecalMaterialPath = MaterialsFolder + "/RuntimeLitDecal.mat";
         const string FxMaterialPath = MaterialsFolder + "/RuntimeFx.mat";
         const string FxAddMaterialPath = MaterialsFolder + "/RuntimeFxAdd.mat";
         const string SkyMaterialPath = MaterialsFolder + "/RuntimeSky.mat";
@@ -126,6 +127,20 @@ namespace DerbyArena.EditorTools
                 m.DisableKeyword("_ALPHATEST_ON");
                 m.DisableKeyword("_ALPHABLEND_ON");
                 m.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+                m.renderQueue = 3000;
+            });
+
+            // 4.0: textured decals (turret markings) use Standard "Fade" blending so transparent texels vanish completely
+            EnsureMaterial(DecalMaterialPath, "Standard", m =>
+            {
+                m.SetOverrideTag("RenderType", "Transparent");
+                if (m.HasProperty("_Mode")) m.SetFloat("_Mode", 2f);
+                if (m.HasProperty("_SrcBlend")) m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+                if (m.HasProperty("_DstBlend")) m.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+                if (m.HasProperty("_ZWrite")) m.SetInt("_ZWrite", 0);
+                m.DisableKeyword("_ALPHATEST_ON");
+                m.EnableKeyword("_ALPHABLEND_ON");
+                m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
                 m.renderQueue = 3000;
             });
 

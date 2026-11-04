@@ -230,7 +230,7 @@ namespace DerbyArena.UI
             var he = UiKit.Bar(bars, UiKit.Amber, out heatFill);
             UiKit.Place(he.rectTransform, 0f, 1f, 330f, 34f, 0f, 1f);
             he.rectTransform.anchoredPosition = new Vector2(0f, -102f);
-            heatText = UiKit.Label("Text", he.transform, Loc.T("SİLAH", "WEAPON"), 22, Color.white, TextAnchor.MiddleLeft, true);
+            heatText = UiKit.Label("Text", he.transform, Fleet.Current().Tank ? Loc.T("TOP", "GUN") : Loc.T("SİLAH", "WEAPON"), 22, Color.white, TextAnchor.MiddleLeft, true);
             heatText.rectTransform.offsetMin = new Vector2(14f, 0f);
         }
 
@@ -611,10 +611,13 @@ namespace DerbyArena.UI
             var w = match.PlayerWeapons;
             if (w != null)
             {
-                heatFill.fillAmount = w.Heat;
-                heatFill.color = w.Overheated ? (Mathf.Repeat(Time.unscaledTime * 4f, 1f) > 0.5f ? UiKit.Red : UiKit.Amber) : Color.Lerp(UiKit.Amber, UiKit.Red, w.Heat);
-                SetText(heatText, w.Overheated ? Loc.T("AŞIRI ISINDI", "OVERHEATED") : Loc.T("SİLAH", "WEAPON"));
-                SetText(rocketText, Loc.T("ROKET\n", "ROCKET\n") + w.Rockets);
+                bool cannon = w.Spec != null && w.Spec.Cannon;
+                heatFill.fillAmount = cannon ? 1f - w.Heat : w.Heat;
+                heatFill.color = cannon ? (w.Heat <= 0.001f ? UiKit.Green : UiKit.Amber)
+                    : (w.Overheated ? (Mathf.Repeat(Time.unscaledTime * 4f, 1f) > 0.5f ? UiKit.Red : UiKit.Amber) : Color.Lerp(UiKit.Amber, UiKit.Red, w.Heat));
+                SetText(heatText, cannon ? (w.Heat <= 0.001f ? Loc.T("TOP HAZIR", "GUN READY") : Loc.T("DOLDURULUYOR", "RELOADING"))
+                    : (w.Overheated ? Loc.T("AŞIRI ISINDI", "OVERHEATED") : Loc.T("SİLAH", "WEAPON")));
+                SetText(rocketText, (cannon ? Loc.T("HE MERMİ\n", "HE SHELL\n") : Loc.T("ROKET\n", "ROCKET\n")) + w.Rockets);
             }
         }
 

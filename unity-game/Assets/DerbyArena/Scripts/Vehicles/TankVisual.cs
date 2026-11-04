@@ -27,6 +27,8 @@ namespace DerbyArena.Vehicles
         MeshFilter flag;
         Vector3[] flagBase;
         Mesh flagMesh;
+        bool flagAxisZ;
+        float flagLen = 0.9f;
         float scroll, recoil;
         MaterialPropertyBlock block;
 
@@ -48,6 +50,10 @@ namespace DerbyArena.Vehicles
                 flagMesh = Instantiate(flag.sharedMesh);
                 flag.sharedMesh = flagMesh;
                 flagBase = flagMesh.vertices;
+                // the free edge runs along whichever horizontal axis the cloth is longest on (mirroring may flip its sign)
+                var b = flagMesh.bounds;
+                flagAxisZ = b.size.z > b.size.x;
+                flagLen = Mathf.Max(0.05f, flagAxisZ ? b.size.z : b.size.x);
             }
             block = new MaterialPropertyBlock();
         }
@@ -59,7 +65,7 @@ namespace DerbyArena.Vehicles
         {
             float dt = Time.deltaTime;
             float speed = car != null ? car.ForwardSpeed : 0.8f;
-            scroll += speed * dt * 0.35f;
+            scroll += speed * dt;            // the belt UV v is in metres (tankforge), so one metre of travel scrolls one metre of track
             if (tracks != null)
             {
                 for (int i = 0; i < tracks.Length; i++)
@@ -89,9 +95,10 @@ namespace DerbyArena.Vehicles
                 for (int i = 0; i < v.Length; i++)
                 {
                     Vector3 b = flagBase[i];
-                    float u = Mathf.Clamp01(b.x / 0.9f);                 // distance from the pole along the flag
+                    float u = Mathf.Clamp01(Mathf.Abs(flagAxisZ ? b.z : b.x) / flagLen);   // distance from the pole along the flag
                     float w = Mathf.Sin(t * 6f - u * 5f) * wind * u + Mathf.Sin(t * 2.3f - u * 3f + b.y * 4f) * wind * 0.5f * u;
-                    v[i] = new Vector3(b.x, b.y + w * 0.3f, b.z + w);
+                    // the cloth flaps across its own plane (x when it runs along z, and the other way round)
+                    v[i] = flagAxisZ ? new Vector3(b.x + w, b.y + w * 0.3f, b.z) : new Vector3(b.x, b.y + w * 0.3f, b.z + w);
                 }
                 flagMesh.vertices = v;
                 flagMesh.RecalculateNormals();

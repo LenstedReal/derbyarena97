@@ -246,6 +246,27 @@ check('Derby/Fonts/Poppins-Medium' in uik and 'Derby/UI/' in uik, 'UI loads the 
 for f in ['Fonts/Poppins-Bold.ttf', 'Fonts/Poppins-Medium.ttf', 'Fonts/OFL-Poppins.txt', 'UI/panel.png', 'UI/button_primary.png', 'UI/ic_star.png', 'UI/ic_lock.png', 'UI/ic_tank.png']:
     check((ROOT / 'Assets/Resources/Derby' / f).exists(), 'Resource present: ' + f)
 check('OnPreprocessTexture' in text(ROOT / 'Assets/DerbyArena/Editor/DerbyAssetImport.cs'), 'UI texture import rules')
+# 4.0: Tiger I T-12
+tiger = ROOT / 'Assets/StreamingAssets/Models/vehicles/tiger_t12.glb'
+check(tiger.exists() and 200000 < tiger.stat().st_size < 3000000, 'Tiger I T-12 model present (0.2-3 MB)')
+try:
+    tj = glb(tiger) if tiger.exists() else None
+except Exception:
+    tj = None
+if tj:
+    names = [n.get('name', '') for n in tj.get('nodes', [])]
+    need = ['Body', 'Turret', 'Barrel', 'Track_L', 'Track_R', 'Road_L1', 'Road_R8', 'Sprocket_L', 'Idler_R', 'Flag', 'Wheel_FL', 'Wheel_RR', 'Body_LOD1']
+    check(all(n in names for n in need), 'T-12 node contract (tracks, road wheels, sprocket/idler, turret/barrel, flag, LOD1)', str([n for n in need if n not in names]))
+    mats = [m.get('name', '') for m in tj.get('materials', [])]
+    check('tiger_camo' in mats and 'tiger_track' in mats and 'tiger_flag' in mats and 'tiger_marking' in mats and not any('paint' in m for m in mats), 'T-12 materials: fixed camouflage (no recolourable paint), track, flag, marking')
+tv = text(SCRIPTS / 'Vehicles/TankVisual.cs')
+check('_MainTex_ST' in tv and 'Recoil()' in tv and 'flagMesh' in tv, 'TankVisual: track scroll, recoil, flag cloth')
+wr = text(SCRIPTS / 'Combat/WeaponRig.cs')
+check('FireCannon' in wr and 'FireShell' in wr and 'SynthAudio.Cannon()' in wr, 'Cannon: shells, recoil, casing, sound')
+vs = text(SCRIPTS / 'Vehicles/VehicleSpec.cs')
+check('TigerT12()' in vs and 'Tank = true, Cannon = true' in vs and 'FixedPaint = true' in vs, 'T-12 spec: tank, cannon, fixed camouflage')
+check('SetupLod' in text(SCRIPTS / 'Vehicles/VehicleVisual.cs') and 'LODGroup' in text(SCRIPTS / 'Vehicles/VehicleVisual.cs'), 'Model LOD groups from *_LOD1 nodes')
+check('RuntimeLitDecal' in text(ROOT / 'Assets/DerbyArena/Editor/UrpAndPlayerSetup.cs') and 'Mats.Decal' in text(SCRIPTS / 'Vehicles/MiniGlb.cs'), 'Textured decals use the fade material')
 mn2 = text(SCRIPTS / 'UI/MenuController.cs')
 check('Campaign.Seasons + 1' in mn2 and 'BuildUpcomingSeason' in mn2, 'Level list keeps the roadmap tab after the released seasons')
 arena = text(SCRIPTS / 'World/Arena.cs')
