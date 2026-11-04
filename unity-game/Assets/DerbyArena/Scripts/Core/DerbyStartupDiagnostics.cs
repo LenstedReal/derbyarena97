@@ -11,8 +11,8 @@ namespace DerbyArena.Core
     /// </summary>
     public sealed class DerbyStartupDiagnostics : MonoBehaviour
     {
-        public const string Version = "4.0.0";
-        public const int VersionCode = 400;
+        public const string Version = "4.0.1";
+        public const int VersionCode = 401;
 
         static readonly Dictionary<string, string> status = new Dictionary<string, string>();
         static readonly List<string> errors = new List<string>();

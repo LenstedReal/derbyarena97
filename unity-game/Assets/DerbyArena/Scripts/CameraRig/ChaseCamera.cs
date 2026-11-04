@@ -54,6 +54,17 @@ namespace DerbyArena.CameraRig
             introTimer = introMax;
         }
 
+        float dollyTimer, dollyMax;
+        /// <summary>Menu cinematic (4.0): the orbit starts high and far and eases down into its normal path.</summary>
+        public void Dolly(float seconds)
+        {
+            dollyMax = Mathf.Max(0.1f, seconds);
+            dollyTimer = dollyMax;
+            Vector3 c = Target != null ? Target.position : OrbitCenter;
+            transform.position = c + Quaternion.Euler(0f, orbitAngle - 40f, 0f) * new Vector3(0f, OrbitHeight * 4.5f, -OrbitRadius * 2.6f);
+            transform.rotation = Quaternion.LookRotation(c + Vector3.up * 1.1f - transform.position);
+        }
+
         void OnDestroy() { if (Main == this) Main = null; }
 
         public static void Kick(float amount)
@@ -152,12 +163,24 @@ namespace DerbyArena.CameraRig
 
         void DoOrbit(float dt)
         {
-            orbitAngle += dt * 9f;
+            float radius = OrbitRadius, height = OrbitHeight, fov = 50f;
+            if (dollyTimer > 0f)
+            {
+                dollyTimer -= dt;
+                float k = 1f - Mathf.Clamp01(dollyTimer / dollyMax);
+                float e = 1f - Mathf.Pow(1f - k, 3f);                    // ease-out: fast start, gentle landing
+                radius = Mathf.Lerp(OrbitRadius * 2.6f, OrbitRadius, e);
+                height = Mathf.Lerp(OrbitHeight * 4.5f, OrbitHeight, e);
+                fov = Mathf.Lerp(42f, 50f, e);
+                orbitAngle += dt * Mathf.Lerp(26f, 9f, e);
+            }
+            else orbitAngle += dt * 9f;
             Vector3 c = Target != null ? Target.position : OrbitCenter;
-            Vector3 p = c + Quaternion.Euler(0f, orbitAngle, 0f) * new Vector3(0f, OrbitHeight, -OrbitRadius);
-            transform.position = Vector3.Lerp(transform.position, p, 1f - Mathf.Exp(-3f * dt));
+            Vector3 p = c + Quaternion.Euler(0f, orbitAngle, 0f) * new Vector3(0f, height, -radius);
+            float follow = dollyTimer > 0f ? 8f : 3f;
+            transform.position = Vector3.Lerp(transform.position, p, 1f - Mathf.Exp(-follow * dt));
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(c + Vector3.up * 1.1f - transform.position), 1f - Mathf.Exp(-4f * dt));
-            if (cam != null) cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 50f, 1f - Mathf.Exp(-3f * dt));
+            if (cam != null) cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, 1f - Mathf.Exp(-3f * dt));
         }
 
         void ApplyShake(float dt)

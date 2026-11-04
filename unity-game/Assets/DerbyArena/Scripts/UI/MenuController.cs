@@ -52,7 +52,8 @@ namespace DerbyArena.UI
             // Android back button (reported as Escape by the Input System): one level up, never quits silently.
             var kb = UnityEngine.InputSystem.Keyboard.current;
             if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
-            if (current == "legal") Show("settings");
+            if (ControlLayoutEditor.IsOpen) return;
+            if (current == "legal" || current == "controls") Show("settings");
             else if (current != "home" && current != "language") Show("home");
         }
 
@@ -74,6 +75,7 @@ namespace DerbyArena.UI
                 case "levels": BuildLevels(); break;
                 case "garage": BuildGarage(); break;
                 case "settings": BuildSettings(); break;
+                case "controls": BuildControlsPage(); break;
                 case "legal": BuildLegal(); break;
                 case "missions": BuildMissions(); break;
                 default: BuildHome(); break;
@@ -912,14 +914,7 @@ namespace DerbyArena.UI
             float y = -100f;
             string on = Loc.T("AÇIK", "ON"), off = Loc.T("KAPALI", "OFF");
             Row("globe", Loc.T("DİL", "LANGUAGE"), Loc.LanguageName, ref y, () => { Loc.Set(Loc.IsEnglish ? Loc.Turkish : Loc.English); });
-            Row("steering", Loc.T("KONTROL", "CONTROLS"), Save.Data.ControlMode == 0 ? Loc.T("DİREKSİYON SİMİDİ", "STEERING WHEEL") : Loc.T("SAĞ / SOL OKLAR", "LEFT / RIGHT ARROWS"), ref y, () => { Save.Data.ControlMode = 1 - Save.Data.ControlMode; });
-            Row("gauge", Loc.T("DİREKSİYON HASSASİYETİ", "STEERING SENSITIVITY"), Mathf.RoundToInt(Save.Data.Sensitivity * 100f) + "%", ref y, () =>
-            {
-                float s = Save.Data.Sensitivity + 0.1f;
-                Save.Data.Sensitivity = s > 1.81f ? 0.5f : s;
-            });
-            Row("play", Loc.T("OTOMATİK GAZ", "AUTO GAS"), Save.Data.AutoGas ? on : off, ref y, () => { Save.Data.AutoGas = !Save.Data.AutoGas; });
-            Row("crosshair", Loc.T("OTOMATİK NİŞAN", "AUTO AIM"), Save.Data.AutoAim ? Loc.T("GENİŞ", "WIDE") : Loc.T("DAR", "NARROW"), ref y, () => { Save.Data.AutoAim = !Save.Data.AutoAim; });
+            Row("steering", Loc.T("KONTROLLER", "CONTROLS"), ControlLayout.ModeName(ControlLayout.Mode) + "  ›", ref y, () => { }, "controls");
             Row("sound", Loc.T("SES", "SOUND"), Save.Data.Sound ? on : off, ref y, () => { Save.Data.Sound = !Save.Data.Sound; DerbyArena.Audio.AudioHub.SetSound(Save.Data.Sound); });
             Row("vibrate", Loc.T("TİTREŞİM", "VIBRATION"), Save.Data.Haptics ? on : off, ref y, () => { Save.Data.Haptics = !Save.Data.Haptics; });
             Row("bulb", Loc.T("PARLAKLIK", "BRIGHTNESS"), Mathf.RoundToInt(Save.Data.Brightness * 100f) + "%", ref y, () =>
@@ -986,7 +981,9 @@ namespace DerbyArena.UI
             Txt(P, Loc.T("Son güncelleme: ", "Last updated: ") + Legal.Updated + "  ·  " + Legal.Contact, 20, UiKit.TextDim, TextAnchor.LowerRight, false, 1f, 0f, 700f, 40f, 1f, 0f);
         }
 
-        void Row(string icon, string label, string value, ref float y, Action change)
+        void Row(string icon, string label, string value, ref float y, Action change) { Row(icon, label, value, ref y, change, current); }
+
+        void Row(string icon, string label, string value, ref float y, Action change, string pageAfter)
         {
             var row = UiKit.Image("Row", P, UiKit.Card, UiKit.Panel);
             UiKit.Place(row.rectTransform, 0f, 1f, 1180f, 66f, 0f, 1f);
@@ -994,10 +991,75 @@ namespace DerbyArena.UI
             var ic = UiKit.IconImage(row.transform, icon, 30f, UiKit.TextDim, 0f, 0.5f, 0f, 0.5f);
             ic.rectTransform.anchoredPosition = new Vector2(20f, 0f);
             Move(Txt(row.transform, label, 26, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, 640f, 64f, 0f, 0.5f), 66f, 0f);
-            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 420f, 54f, 1f, 0.5f, 24, () => { change(); Save.Write(); Show("settings"); });
+            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 420f, 54f, 1f, 0.5f, 24, () => { change(); Save.Write(); Show(pageAfter); });
             b.Background.rectTransform.anchoredPosition = new Vector2(-10f, 0f);
             b.Caption.color = UiKit.Amber;
             y -= 72f;
+        }
+
+        // ================================================================== controls (4.0.1: PUBG Mobile style)
+        void BuildControlsPage()
+        {
+            Header(Loc.T("KONTROLLER", "CONTROLS"), "steering");
+            var back = P.GetComponentInChildren<UiButton>();
+            if (back != null) back.OnTap = () => Show("settings");
+            float y = -100f;
+            string on = Loc.T("AÇIK", "ON"), off = Loc.T("KAPALI", "OFF");
+            Row("steering", Loc.T("DİREKSİYON", "STEERING"), ControlLayout.ModeName(ControlLayout.Mode), ref y, () => { Save.Data.ControlMode = (Save.Data.ControlMode + 1) % 4; });
+            Row("gauge", Loc.T("HASSASİYET", "SENSITIVITY"), Mathf.RoundToInt(Save.Data.Sensitivity * 100f) + "%", ref y, () =>
+            {
+                float s = Save.Data.Sensitivity + 0.1f;
+                Save.Data.Sensitivity = s > 1.81f ? 0.5f : s;
+            });
+            Row("play", Loc.T("OTOMATİK GAZ", "AUTO GAS"), Save.Data.AutoGas ? on : off, ref y, () => { Save.Data.AutoGas = !Save.Data.AutoGas; });
+            Row("wheel", Loc.T("SÜRÜŞ YARDIMI", "DRIVING AID"), Save.Data.SteerAssist ? on : off, ref y, () => { Save.Data.SteerAssist = !Save.Data.SteerAssist; });
+            Row("crosshair", Loc.T("OTOMATİK NİŞAN", "AUTO AIM"), Save.Data.AutoAim ? Loc.T("GENİŞ", "WIDE") : Loc.T("DAR", "NARROW"), ref y, () => { Save.Data.AutoAim = !Save.Data.AutoAim; });
+            Row("gear", Loc.T("DÜĞME BOYUTU", "BUTTON SIZE"), Mathf.RoundToInt(Save.Data.ControlScale * 100f) + "%", ref y, () =>
+            {
+                float s = Save.Data.ControlScale + 0.1f;
+                Save.Data.ControlScale = s > 1.41f ? 0.7f : s;
+            });
+            Row("bulb", Loc.T("DÜĞME SAYDAMLIĞI", "BUTTON OPACITY"), Mathf.RoundToInt(Save.Data.ControlAlpha * 100f) + "%", ref y, () =>
+            {
+                float a = Save.Data.ControlAlpha + 0.1f;
+                Save.Data.ControlAlpha = a > 1.01f ? 0.4f : a;
+            });
+            Row("car", Loc.T("DÜZEN", "LAYOUT"), ControlLayout.PresetName(Save.Data.ControlPreset), ref y, () =>
+            {
+                int next = Save.Data.ControlPreset == ControlLayout.Custom ? ControlLayout.Classic : (Save.Data.ControlPreset + 1) % 3;
+                ControlLayout.ApplyPreset(next);
+            });
+            Row("vibrate", Loc.T("TİTREŞİM", "VIBRATION"), Save.Data.Haptics ? on : off, ref y, () => { Save.Data.Haptics = !Save.Data.Haptics; });
+
+            // right column: the editor, the mode hint and a full reset
+            var edit = Btn(P, Loc.T("DÜZENİ ÖZELLEŞTİR", "CUSTOMISE LAYOUT"), UiKit.Primary, 1f, 1f, 520f, 96f, 1f, 1f, 26, () =>
+            {
+                ControlLayoutEditor.Open(Fleet.Current().Tank, () => { if (this != null) Show("controls"); });
+            }, true, "steering");
+            edit.Background.rectTransform.anchoredPosition = new Vector2(0f, -100f);
+            var card = UiKit.Frame("Hint", P, UiKit.Panel);
+            UiKit.Place(card.rectTransform, 1f, 1f, 520f, 300f, 1f, 1f);
+            card.rectTransform.anchoredPosition = new Vector2(0f, -212f);
+            var body = UiKit.Rect("Body", card.transform);
+            UiKit.Stretch(body, 0f, 0f, 1f, 1f);
+            body.offsetMin = new Vector2(22f, 18f);
+            body.offsetMax = new Vector2(-22f, -18f);
+            string text = ControlLayout.ModeName(ControlLayout.Mode) + "\n" + ControlLayout.ModeHint(ControlLayout.Mode) + "\n\n" +
+                          Loc.T("Düğmeleri sürükleyip yerini ve boyutunu değiştirebilirsin (PUBG Mobile mantığı). Otomatik gaz açıkken sadece direksiyon, fren ve ateşle ilgilenirsin.",
+                                "Drag any button to move it and change its size (PUBG Mobile style). With auto gas on you only steer, brake and shoot.");
+            var lbl = UiKit.Label("Text", body, text, 21, Color.white, TextAnchor.UpperLeft, false);
+            lbl.resizeTextForBestFit = true;
+            lbl.resizeTextMinSize = 14;
+            lbl.resizeTextMaxSize = 22;
+            lbl.verticalOverflow = VerticalWrapMode.Truncate;
+            var reset = Btn(P, Loc.T("VARSAYILANA DÖN", "RESET TO DEFAULT"), UiKit.PanelLight, 1f, 1f, 520f, 72f, 1f, 1f, 24, () =>
+            {
+                ControlLayout.ResetAll();
+                Save.Write();
+                Show("controls");
+                Toast(Loc.T("Kontroller sıfırlandı.", "Controls reset."), UiKit.Green);
+            }, false, "wrench");
+            reset.Background.rectTransform.anchoredPosition = new Vector2(0f, -526f);
         }
     }
 }

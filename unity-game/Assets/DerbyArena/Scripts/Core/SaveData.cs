@@ -7,7 +7,7 @@ namespace DerbyArena.Core
     [Serializable]
     public sealed class SaveData
     {
-        public int Version = 5;             // 5 = 4.0 (20 levels per season; older saves are remapped in Sanitize)
+        public int Version = 6;             // 5 = 4.0 (20 levels per season), 6 = 4.0.1 (control layout, easy-control defaults)
         public int Scrap = 0;
         public int Unlocked = 1;
         public int LastPlayed = 1;
@@ -15,9 +15,9 @@ namespace DerbyArena.Core
         public int[] Stars = new int[Campaign.Total + 1];
         public int[] Upgrades = new int[5];   // engine, armor, weapon, nitro, rockets
 
-        public int ControlMode = 0;           // 0 steering wheel, 1 arrow buttons
+        public int ControlMode = 2;           // SteerMode: 0 wheel, 1 arrow buttons, 2 swipe joystick (default since 4.0.1), 3 tilt
         public float Sensitivity = 1f;
-        public bool AutoGas = false;
+        public bool AutoGas = true;           // 4.0.1: on by default (brake still stops / reverses)
         public bool AutoAim = true;
         public bool Sound = true;
         public bool Haptics = true;
@@ -50,6 +50,13 @@ namespace DerbyArena.Core
         public int[] MissionProgress = new int[3];
         public bool[] MissionClaimed = new bool[3];
         public int BestStreak = 0;
+
+        // 4.0.1: customisable controls (ControlLayout): x, y, scale per ControlId; global size / opacity; driving aid
+        public float[] ControlPos = null;
+        public int ControlPreset = ControlLayout.Classic;
+        public float ControlScale = 1f;
+        public float ControlAlpha = 1f;
+        public bool SteerAssist = true;       // counter-steer and spin-out help (off = raw handling)
     }
 
     public static class Save
@@ -96,6 +103,7 @@ namespace DerbyArena.Core
         {
             var d = Data;
             if (d.Version < 5) MigrateLegacyLevels(d);
+            if (d.Version < 6) MigrateControls(d);
             if (d.Stars == null || d.Stars.Length != Campaign.Total + 1)
             {
                 var s = new int[Campaign.Total + 1];
@@ -122,7 +130,7 @@ namespace DerbyArena.Core
             while (d.Unlocked < Campaign.Total && d.Stars[d.Unlocked] > 0) d.Unlocked++;
             d.LastPlayed = Mathf.Clamp(d.LastPlayed, 1, d.Unlocked);
             d.Scrap = Mathf.Max(0, d.Scrap);
-            d.ControlMode = Mathf.Clamp(d.ControlMode, 0, 1);
+            ControlLayout.Sanitize(d);
             d.Sensitivity = Mathf.Clamp(d.Sensitivity, 0.5f, 1.8f);
             d.Quality = Mathf.Clamp(d.Quality, 0, 3);
             d.Language = Mathf.Clamp(d.Language, 0, 1);
@@ -165,6 +173,23 @@ namespace DerbyArena.Core
             d.Unlocked = map(Mathf.Max(1, d.Unlocked));
             d.LastPlayed = map(Mathf.Max(1, d.LastPlayed));
             d.Version = 5;
+        }
+
+        /// <summary>
+        /// 4.0.1: the easy-control defaults are applied once to older saves (swipe steering, auto gas, driving aid,
+        /// classic layout). Everything else in the save is untouched; the player can change all of it under
+        /// Settings → Controls.
+        /// </summary>
+        static void MigrateControls(SaveData d)
+        {
+            d.ControlMode = (int)SteerMode.Swipe;
+            d.AutoGas = true;
+            d.SteerAssist = true;
+            d.ControlPos = null;
+            d.ControlPreset = ControlLayout.Classic;
+            d.ControlScale = 1f;
+            d.ControlAlpha = 1f;
+            d.Version = 6;
         }
 
         static int[] Remap(int[] old, System.Func<int, int> map)

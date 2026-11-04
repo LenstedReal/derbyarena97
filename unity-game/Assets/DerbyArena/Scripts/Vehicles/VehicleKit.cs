@@ -121,6 +121,7 @@ namespace DerbyArena.Vehicles
             {
                 string n = t.name;
                 if (n == "Wheel_FL" || n == "Wheel_FR" || n == "Wheel_RL" || n == "Wheel_RR" || n == "Wheel" || n == "Turret" || n == "Barrel" || n == "BattleKit" || n == "HeadlightBeam") return true;
+                if (n.EndsWith("_LOD1")) return true;     // distant stand-in (4.0.1): never measured, never dressed
                 t = t.parent;
             }
             return false;

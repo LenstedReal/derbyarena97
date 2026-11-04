@@ -144,17 +144,48 @@ namespace DerbyArena.World
             {
                 var root = new GameObject(System.IO.Path.GetFileNameWithoutExtension(relativePath));
                 root.transform.SetParent(holder, false);
-                try
+                // staged import (4.0): textures and meshes are built one per frame so big models never freeze a frame
+                MiniGlb.Import import = null;
+                try { import = MiniGlb.Prepare(bytes, options); }
+                catch (Exception ex) { failures[key] = ex.Message; Debug.LogError("DERBY: GLB parse failed: " + key + " | " + ex); }
+                if (import != null)
                 {
-                    MiniGlb.Build(bytes, root.transform, options);
-                    templates[key] = root;
+                    var texSteps = MiniGlb.PreloadTextures(import).GetEnumerator();
+                    while (true)
+                    {
+                        bool more;
+                        try { more = texSteps.MoveNext(); }
+                        catch (Exception ex) { failures[key] = ex.Message; Debug.LogError("DERBY: GLB texture failed: " + key + " | " + ex); break; }
+                        if (!more) break;
+                        yield return null;
+                    }
                 }
-                catch (Exception ex)
+                if (import != null && !failures.ContainsKey(key))
                 {
-                    Destroy(root);
-                    failures[key] = ex.Message;
-                    Debug.LogError("DERBY: GLB import failed: " + key + " | " + ex);
+                    var meshSteps = MiniGlb.PreloadMeshes(import).GetEnumerator();
+                    while (true)
+                    {
+                        bool more;
+                        try { more = meshSteps.MoveNext(); }
+                        catch (Exception ex) { failures[key] = ex.Message; Debug.LogError("DERBY: GLB mesh failed: " + key + " | " + ex); break; }
+                        if (!more) break;
+                        yield return null;
+                    }
                 }
+                if (import != null && !failures.ContainsKey(key))
+                {
+                    try
+                    {
+                        MiniGlb.Finish(import, root.transform);
+                        templates[key] = root;
+                    }
+                    catch (Exception ex)
+                    {
+                        failures[key] = ex.Message;
+                        Debug.LogError("DERBY: GLB import failed: " + key + " | " + ex);
+                    }
+                }
+                if (!templates.ContainsKey(key)) Destroy(root);
             }
             DerbyStartupDiagnostics.Report("GLB " + key, templates.ContainsKey(key) ? "tamam" : "HATA");
             loading.Remove(key);

@@ -11,7 +11,7 @@ namespace DerbyArena.Combat
     {
         static Fx inst;
 
-        ParticleSystem sparks, fire, smoke, dust, shards, glow, embers;
+        ParticleSystem sparks, fire, smoke, dust, shards, glow, embers, debris;
         Transform[] rings;
         Material[] ringMats;
         float[] ringLife, ringMax, ringRadius;
@@ -112,6 +112,9 @@ namespace DerbyArena.Combat
             glow = MakeSystem("Glow", add, 260, 0f, 1.5f);
             SizeCurve(glow, 1f, 0.15f);
             Fade(glow, Color.white, new Color(1f, 0.6f, 0.3f));
+            debris = MakeSystem("Debris", soft, 160, 2.4f, 0f);          // dark chunks knocked off a hit vehicle
+            SizeCurve(debris, 1f, 0.6f);
+            Fade(debris, new Color(0.3f, 0.28f, 0.26f), new Color(0.18f, 0.17f, 0.16f));
             if (quality > 0)
             {
                 embers = MakeSystem("Embers", add, 160, -0.03f, 0.4f);
@@ -198,8 +201,25 @@ namespace DerbyArena.Combat
         public static void Muzzle(Vector3 pos, Vector3 dir)
         {
             if (inst == null) return;
-            Emit(inst.sparks, pos, dir * 6f, 0.9f, 0.05f, new Color32(255, 200, 110, 255));
-            Emit(inst.sparks, pos + dir * 0.3f, dir * 14f, 0.12f, 0.12f, new Color32(255, 220, 140, 255));
+            // 4.0.1: every flash differs a little (size, a side spark, an occasional wisp) so bursts do not strobe
+            float k = Random.Range(0.8f, 1.3f);
+            Emit(inst.sparks, pos, dir * 6f, 0.9f * k, 0.05f, new Color32(255, (byte)Random.Range(185, 215), 110, 255));
+            Emit(inst.sparks, pos + dir * 0.3f, dir * 14f, 0.12f * k, 0.12f, new Color32(255, 220, 140, 255));
+            Vector3 side = Vector3.Cross(dir, Vector3.up).normalized * (Random.value < 0.5f ? 1f : -1f);
+            Emit(inst.sparks, pos + dir * 0.15f, (dir * 3f + side * 4f) * k, 0.1f, 0.08f, new Color32(255, 200, 120, 255));
+            if (Random.value < 0.3f) Emit(inst.smoke, pos + dir * 0.4f, dir * 1.5f + Vector3.up * 0.6f, 0.35f * k, 0.5f, new Color32(120, 115, 110, 90));
+        }
+
+        /// <summary>Dark chunks knocked off a vehicle by bullets and rams (gravity, short life).</summary>
+        public static void Debris(Vector3 pos, Vector3 normal, int count)
+        {
+            if (inst == null || inst.debris == null) return;
+            int n = Mathf.Max(1, Mathf.RoundToInt(count * inst.density));
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 v = (normal * 0.8f + Random.insideUnitSphere * 0.7f + Vector3.up * 0.6f).normalized * Random.Range(3f, 7f);
+                Emit(inst.debris, pos, v, Random.Range(0.08f, 0.2f), Random.Range(0.4f, 0.8f), new Color32(70, 64, 60, 230));
+            }
         }
 
         public static void Fire(Vector3 pos, float scale)

@@ -40,8 +40,30 @@ namespace DerbyArena.Vehicles
         GameObject[] beams;
         TankVisual tank;
 
-        /// <summary>Gun recoil (cannon vehicles): barrel kick handled by the tank dressing.</summary>
-        public void Recoil() { if (tank != null) tank.Recoil(); }
+        /// <summary>Gun recoil: the tank dressing kicks the 8.8 cm barrel; cars get a short spring-back of their gun.</summary>
+        public void Recoil() { if (tank != null) tank.Recoil(); else Kick(1f); }
+
+        float gunKick;
+        Vector3 barrelBase, kickAxis;
+        bool barrelBaseSet;
+
+        /// <summary>Machine-gun kick (4.0.1): the barrel slides back along its own axis and springs forward again.</summary>
+        public void Kick(float amount)
+        {
+            if (Barrel == null || Barrel.parent == null) return;
+            if (!barrelBaseSet) { barrelBase = Barrel.localPosition; barrelBaseSet = true; }
+            kickAxis = Barrel.parent.InverseTransformDirection(MuzzleDirection());
+            gunKick = Mathf.Max(gunKick, Mathf.Clamp01(amount));
+        }
+
+        void UpdateKick(float dt)
+        {
+            if (gunKick <= 0f || Barrel == null || !barrelBaseSet) return;
+            gunKick = Mathf.MoveTowards(gunKick, 0f, dt * 9f);
+            float back = Mathf.Sin(gunKick * Mathf.PI) * 0.09f * (spec != null ? spec.Scale : 1f);
+            Barrel.localPosition = barrelBase - kickAxis * back;
+            if (gunKick <= 0f) Barrel.localPosition = barrelBase;
+        }
 
         /// <summary>
         /// LOD (4.0): a model may carry simplified nodes named *_LOD1. When present a LODGroup shows the full model
@@ -327,6 +349,7 @@ namespace DerbyArena.Vehicles
                 flashTimer -= dt;
                 if (flashTimer <= 0f) ClearFlash();
             }
+            if (tank == null) UpdateKick(dt);
 
             Vector3 vel = car.Body != null ? car.Body.linearVelocity : Vector3.zero;
             Vector3 accel = (vel - lastVel) / dt;
@@ -461,7 +484,7 @@ namespace DerbyArena.Vehicles
                 if (mf.sharedMesh == null) continue;
                 bool isWheel = false;
                 foreach (var w in wheels) if (mf.transform == w || mf.transform.IsChildOf(w)) { isWheel = true; break; }
-                if (isWheel || mf.transform.name == "Turret" || mf.transform.name == "Barrel") continue;
+                if (isWheel || mf.transform.name == "Turret" || mf.transform.name == "Barrel" || mf.transform.name.EndsWith("_LOD1")) continue;
                 Bounds mb = mf.sharedMesh.bounds;
                 Matrix4x4 m = toLocal * mf.transform.localToWorldMatrix;
                 for (int i = 0; i < 8; i++)

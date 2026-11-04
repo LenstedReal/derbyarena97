@@ -32,8 +32,8 @@ namespace DerbyArena.EditorTools
         const string VertexLitMaterialPath = MaterialsFolder + "/RuntimeVertexLit.mat";
         const string PostMaterialPath = MaterialsFolder + "/RuntimePost.mat";
         const string IconFolder = "Assets/DerbyArena/Icons";
-        const string Version = "4.0.0";
-        const int VersionCode = 400;
+        const string Version = "4.0.1";
+        const int VersionCode = 401;
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
@@ -383,6 +383,12 @@ namespace DerbyArena.EditorTools
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.Android.renderOutsideSafeArea = true;
+
+            // 4.0.1: ASTC for every imported texture (UI sprites, clouds, ruins PBR set). ETC2 stays the fallback
+            // Unity picks on the rare GLES3 device without ASTC. The GLB textures are decoded at runtime from JPEG/PNG
+            // and are not affected by this setting (see TECHNICAL_REPORT_4.0_TR.md, memory budget).
+            try { EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC; }
+            catch (Exception ex) { Debug.LogWarning("DERBY: ASTC texture subtarget not applied: " + ex.Message); }
 
             try
             {

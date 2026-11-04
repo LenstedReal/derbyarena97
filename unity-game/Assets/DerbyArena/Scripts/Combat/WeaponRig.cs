@@ -117,6 +117,7 @@ namespace DerbyArena.Combat
                 {
                     hp.Apply(Spec.GunDamage * DamageMul, Owner, end);
                     Fx.Sparks(end, -dir, 6);
+                    Fx.Debris(end, -dir, 2);
                     if (Owner.Team == 0) DerbyArena.UI.HudController.HitMarker();
                 }
                 else
@@ -127,6 +128,7 @@ namespace DerbyArena.Combat
 
             Fx.Tracer(origin, end, TracerColor);
             Fx.Muzzle(origin, dir);
+            if (Visual != null) Visual.Kick(0.6f);
             AudioHub.PlayAt(SynthAudio.Shot(), origin, Owner.Team == 0 ? 0.45f : 0.3f, Random.Range(0.92f, 1.08f));
             return true;
         }
@@ -154,6 +156,8 @@ namespace DerbyArena.Combat
                 return true;
             }
             Projectiles.Fire(origin, dir.normalized, Owner, target, (Spec != null ? Spec.RocketDamage : 42f) * DamageMul);
+            Fx.Smoke(origin, 0.7f);
+            if (Owner.Team == 0) DerbyArena.CameraRig.ChaseCamera.Kick(0.12f);
             return true;
         }
     }

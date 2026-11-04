@@ -380,6 +380,11 @@ namespace DerbyArena.Audio
 
         public static void SetSound(bool on) { AudioListener.volume = on ? 1f : 0f; }
 
+        /// <summary>
+        /// 3D one-shot. Loud events (explosions, cannon) get a high priority and a wider radius, small ones (tracers,
+        /// sparks) a low priority so the phone's voice limit drops them first; distance attenuation is linear
+        /// between minDistance and maxDistance (4.0 audio pass).
+        /// </summary>
         public static void PlayAt(AudioClip clip, Vector3 pos, float volume, float pitch)
         {
             if (inst == null || clip == null) return;
@@ -387,6 +392,9 @@ namespace DerbyArena.Audio
             inst.next3d = (inst.next3d + 1) % inst.pool3d.Length;
             s.transform.position = pos;
             s.pitch = pitch;
+            bool loud = volume >= 0.75f;
+            s.priority = loud ? 32 : (volume >= 0.45f ? 128 : 200);
+            s.maxDistance = loud ? 110f : 70f;
             s.PlayOneShot(clip, volume);
         }
 
@@ -399,12 +407,34 @@ namespace DerbyArena.Audio
             s.PlayOneShot(clip, volume);
         }
 
-        public static void Ambience(float volume)
+        public static void Ambience(float volume) { Ambience(volume, SynthAudio.Ambience()); }
+
+        /// <summary>Looping bed (industrial drone or desert wind) chosen by the arena.</summary>
+        public static void Ambience(float volume, AudioClip clip)
         {
-            if (inst == null) return;
-            inst.music.clip = SynthAudio.Ambience();
+            if (inst == null || clip == null) return;
+            if (inst.music.clip != clip) { inst.music.clip = clip; inst.music.Stop(); }
             inst.music.volume = volume;
             if (!inst.music.isPlaying) inst.music.Play();
+        }
+
+        AudioReverbZone reverb;
+        /// <summary>One reverb zone per arena: the colosseum rings like a stadium, the ruins are open desert (4.0).</summary>
+        public static void Reverb(DerbyArena.Core.ArenaKind kind)
+        {
+            if (inst == null) return;
+            if (inst.reverb == null) inst.reverb = inst.gameObject.AddComponent<AudioReverbZone>();
+            var z = inst.reverb;
+            z.transform.position = Vector3.zero;
+            z.minDistance = 40f;
+            z.maxDistance = 90f;
+            switch (kind)
+            {
+                case DerbyArena.Core.ArenaKind.Colosseum: z.reverbPreset = AudioReverbPreset.Arena; break;
+                case DerbyArena.Core.ArenaKind.Ruins: z.reverbPreset = AudioReverbPreset.Plain; break;
+                case DerbyArena.Core.ArenaKind.Docks: z.reverbPreset = AudioReverbPreset.Hangar; break;
+                default: z.reverbPreset = AudioReverbPreset.ConcertHall; break;   // the spillway's concrete channel
+            }
         }
 
         void OnDestroy() { if (inst == this) inst = null; }

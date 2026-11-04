@@ -19,7 +19,7 @@ namespace DerbyArena.UI
 
         Image hpFill, shieldFill, nitroFill, heatFill, bossFill, damageVignette, reticle, hitMark, wheelImg, loadingBg;
         Text hpText, timeText, objText, progText, countText, rocketText, heatText, bossText, loadingText, distText;
-        GameObject bossBar, pausePage, resultPage, loadingPage, wheelGroup, arrowsGroup;
+        GameObject bossBar, pausePage, resultPage, loadingPage;
         RectTransform radar, radarSweep;
         readonly List<Image> radarDots = new List<Image>();
         Image gasImg, brakeImg, nitroImg, driftImg, fireImg, rocketImg, leftImg, rightImg;
@@ -287,99 +287,72 @@ namespace DerbyArena.UI
             }
         }
 
-        Image RoundButton(string caption, float ax, float ay, float size, Color c, int font, string icon)
-        {
-            var img = UiKit.Image(caption, safe, UiKit.Circle, new Color(c.r, c.g, c.b, 0.5f));
-            UiKit.Place(img.rectTransform, ax, ay, size, size, 0.5f, 0.5f);
-            var ring = UiKit.Image("Ring", img.transform, UiKit.RingSprite, new Color(1f, 1f, 1f, 0.35f));
-            UiKit.Stretch(ring.rectTransform, 0f, 0f, 1f, 1f);
-            bool hasIcon = !string.IsNullOrEmpty(icon) && UiKit.Icon(icon) != null;
-            if (hasIcon)
-            {
-                var ic = UiKit.IconImage(img.transform, icon, size * 0.36f, new Color(1f, 1f, 1f, 0.95f), 0.5f, 0.5f, 0.5f, 0.5f);
-                ic.rectTransform.anchoredPosition = new Vector2(0f, size * 0.13f);
-            }
-            var lbl = UiKit.Label("Label", img.transform, caption, font, Color.white, TextAnchor.MiddleCenter, true);
-            if (hasIcon) { lbl.rectTransform.offsetMax = new Vector2(0f, -size * 0.3f); lbl.fontSize = Mathf.RoundToInt(font * 0.8f); }
-            return img;
-        }
-
-        Image Pedal(string caption, float ax, float ay, float w, float h, Color c, string icon)
-        {
-            var img = UiKit.Image(caption, safe, UiKit.ButtonSprite, new Color(c.r, c.g, c.b, 0.6f));
-            UiKit.Place(img.rectTransform, ax, ay, w, h, 0.5f, 0f);
-            if (!string.IsNullOrEmpty(icon) && UiKit.Icon(icon) != null)
-            {
-                var ic = UiKit.IconImage(img.transform, icon, 48f, new Color(1f, 1f, 1f, 0.9f), 0.5f, 1f, 0.5f, 1f);
-                ic.rectTransform.anchoredPosition = new Vector2(0f, -h * 0.16f);
-            }
-            var lbl = UiKit.Label("Label", img.transform, caption, 30, Color.white, TextAnchor.MiddleCenter, true);
-            lbl.rectTransform.offsetMax = new Vector2(0f, -h * 0.2f);
-            return img;
-        }
-
+        /// <summary>
+        /// Touch controls from the saved layout (ControlLayout / ControlWidgets). Rebuilt whenever the steering
+        /// mode or the layout changes (pause menu, layout editor), so TouchControls always hit-tests the rects that
+        /// are really on screen.
+        /// </summary>
         void BuildControls()
         {
-            // steering wheel
-            wheelGroup = UiKit.Rect("WheelGroup", safe).gameObject;
-            var wg = wheelGroup.GetComponent<RectTransform>();
-            UiKit.Place(wg, 0f, 0f, 360f, 360f, 0f, 0f);
-            wg.anchoredPosition = new Vector2(30f, 20f);
-            var shadow = UiKit.Image("Back", wg, UiKit.Circle, new Color(0f, 0f, 0f, 0.35f));
-            UiKit.Stretch(shadow.rectTransform, 0f, 0f, 1f, 1f);
-            wheelImg = UiKit.Image("Wheel", wg, UiKit.Wheel, new Color(0.92f, 0.94f, 0.98f, 0.82f));
-            UiKit.Stretch(wheelImg.rectTransform, 0.04f, 0.04f, 0.96f, 0.96f);
-            controls.WheelRect = wg;
-
-            // arrow buttons (alternative)
-            arrowsGroup = UiKit.Rect("Arrows", safe).gameObject;
-            var ag = arrowsGroup.GetComponent<RectTransform>();
-            UiKit.Stretch(ag, 0f, 0f, 1f, 1f);
-            leftImg = UiKit.Image("Left", ag, UiKit.Rounded, new Color(1f, 1f, 1f, 0.22f));
-            UiKit.Place(leftImg.rectTransform, 0f, 0f, 200f, 200f, 0f, 0f);
-            leftImg.rectTransform.anchoredPosition = new Vector2(20f, 30f);
-            UiKit.Label("L", leftImg.transform, "<", 90, Color.white, TextAnchor.MiddleCenter, true);
-            rightImg = UiKit.Image("Right", ag, UiKit.Rounded, new Color(1f, 1f, 1f, 0.22f));
-            UiKit.Place(rightImg.rectTransform, 0f, 0f, 200f, 200f, 0f, 0f);
-            rightImg.rectTransform.anchoredPosition = new Vector2(240f, 30f);
-            UiKit.Label("R", rightImg.transform, ">", 90, Color.white, TextAnchor.MiddleCenter, true);
-            controls.LeftRect = leftImg.rectTransform;
-            controls.RightRect = rightImg.rectTransform;
-
+            if (controlsRoot != null) Destroy(controlsRoot);
+            controlsRoot = UiKit.Rect("Controls", safe).gameObject;
+            var root = controlsRoot.GetComponent<RectTransform>();
+            UiKit.Stretch(root, 0f, 0f, 1f, 1f);
+            controlsRoot.transform.SetAsFirstSibling();        // under the pause / result pages
             bool tank = match != null && match.Config != null && Fleet.Current().Tank;
-            gasImg = Pedal(Loc.T("GAZ", "GAS"), 0.885f, 0.02f, 190f, 270f, new Color(0.15f, 0.7f, 0.32f), "play");
-            brakeImg = Pedal(Loc.T("FREN", "BRAKE"), 0.745f, 0.02f, 170f, 190f, new Color(0.75f, 0.18f, 0.14f), "brake");
-            fireImg = RoundButton(Loc.T("ATEŞ", "FIRE"), 0.86f, 0.58f, 230f, new Color(0.95f, 0.3f, 0.12f), 36, "crosshair");
-            rocketImg = RoundButton(tank ? Loc.T("HE MERMİ", "HE SHELL") : Loc.T("ROKET", "ROCKET"), 0.71f, 0.5f, 150f, new Color(1f, 0.55f, 0.1f), 24, "rocket");
-            rocketText = rocketImg.GetComponentsInChildren<Text>()[0];
-            nitroImg = RoundButton(Loc.T("NİTRO", "NITRO"), 0.615f, 0.27f, 140f, new Color(0.2f, 0.45f, 1f), 24, "flame");
-            driftImg = RoundButton(Loc.T("DRİFT", "DRIFT"), 0.62f, 0.1f, 125f, new Color(0.45f, 0.47f, 0.55f), 24, "skid");
+            SteerMode mode = ControlLayout.Mode;
+            for (int i = 0; i < ControlLayout.Count; i++)
+            {
+                var w = ControlWidgets.Build((ControlId)i, root, mode, tank);
+                ControlWidgets.Layout(w, mode);
+                widgets[i] = w;
+            }
+            var steer = widgets[(int)ControlId.Steer];
+            wheelImg = steer.Wheel;
+            leftImg = steer.Left;
+            rightImg = steer.Right;
+            padImg = steer.Pad;
+            knobImg = steer.Knob;
+            gasImg = widgets[(int)ControlId.Gas].Main;
+            brakeImg = widgets[(int)ControlId.Brake].Main;
+            fireImg = widgets[(int)ControlId.Fire].Main;
+            rocketImg = widgets[(int)ControlId.Rocket].Main;
+            rocketText = widgets[(int)ControlId.Rocket].Label;
+            nitroImg = widgets[(int)ControlId.Nitro].Main;
+            driftImg = widgets[(int)ControlId.Drift].Main;
 
-            controls.GasRect = gasImg.rectTransform;
-            controls.BrakeRect = brakeImg.rectTransform;
-            controls.FireRect = fireImg.rectTransform;
-            controls.RocketRect = rocketImg.rectTransform;
-            controls.NitroRect = nitroImg.rectTransform;
-            controls.DriftRect = driftImg.rectTransform;
+            controls.WheelRect = mode == SteerMode.Wheel ? steer.Root : null;
+            controls.LeftRect = steer.Left != null ? steer.Left.rectTransform : null;
+            controls.RightRect = steer.Right != null ? steer.Right.rectTransform : null;
+            controls.PadRect = mode == SteerMode.Swipe ? steer.Root : null;
+            controls.GasRect = widgets[(int)ControlId.Gas].Root;
+            controls.BrakeRect = widgets[(int)ControlId.Brake].Root;
+            controls.FireRect = widgets[(int)ControlId.Fire].Root;
+            controls.RocketRect = widgets[(int)ControlId.Rocket].Root;
+            controls.NitroRect = widgets[(int)ControlId.Nitro].Root;
+            controls.DriftRect = widgets[(int)ControlId.Drift].Root;
+            padHome = steer.Root.anchoredPosition;
             ApplyControlMode();
         }
 
+        GameObject controlsRoot;
+        readonly ControlWidget[] widgets = new ControlWidget[ControlLayout.Count];
+        Image padImg, knobImg;
+        Vector2 padHome;
+
         public void ApplyControlMode()
         {
-            bool wheel = Save.Data.ControlMode == 0;
-            wheelGroup.SetActive(wheel);
-            arrowsGroup.SetActive(!wheel);
-            gasImg.gameObject.SetActive(!Save.Data.AutoGas);
+            if (gasImg != null) widgets[(int)ControlId.Gas].Root.gameObject.SetActive(!Save.Data.AutoGas);
         }
 
-        static void Press(Image img, bool on, float baseAlpha)
+        /// <summary>Rebuilds the controls after the layout or steering mode changed (pause menu, layout editor).</summary>
+        public void ApplyLayout()
         {
-            if (img == null) return;
-            var c = img.color;
-            c.a = on ? 0.9f : baseAlpha;
-            img.color = c;
-            img.rectTransform.localScale = Vector3.one * (on ? 0.94f : 1f);
+            if (controls == null || safe == null) return;
+            BuildControls();
         }
+
+        static void Press(Image img, bool on, float baseAlpha) { ControlWidgets.Press(img, on, baseAlpha); }
 
         // ================================================================== runtime
         void OnMessage(string text, Color color)
@@ -766,12 +739,50 @@ namespace DerbyArena.UI
             Press(driftImg, controls.Handbrake, 0.5f);
             Press(fireImg, controls.Fire, 0.5f);
             Press(rocketImg, controls.Rocket, 0.5f);
-            if (Save.Data.ControlMode == 0)
-                wheelImg.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -controls.WheelAngle);
+            switch (ControlLayout.Mode)
+            {
+                case SteerMode.Arrows:
+                    Press(leftImg, controls.Steer < -0.3f, 0.22f);
+                    Press(rightImg, controls.Steer > 0.3f, 0.22f);
+                    break;
+                case SteerMode.Swipe:
+                    UpdateSwipePad();
+                    break;
+                default:
+                    if (wheelImg != null) wheelImg.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -controls.WheelAngle);
+                    break;
+            }
+        }
+
+        /// <summary>The swipe pad floats to the finger while steering and slides home when released.</summary>
+        void UpdateSwipePad()
+        {
+            var steer = widgets[(int)ControlId.Steer];
+            if (steer == null || steer.Root == null) return;
+            var rt = steer.Root;
+            float dt = Time.unscaledDeltaTime;
+            if (controls.SwipeActive)
+            {
+                Vector2 local;
+                if (RectTransformUtility.ScreenPointToLocalPointInRectangle(safe, controls.SwipeOrigin, null, out local))
+                {
+                    // the pad is anchored at its normalised home; convert the finger to an offset from that anchor
+                    Vector2 anchorPx = new Vector2(safe.rect.xMin + safe.rect.width * rt.anchorMin.x, safe.rect.yMin + safe.rect.height * rt.anchorMin.y);
+                    Vector2 want = local - anchorPx;
+                    rt.anchoredPosition = Vector2.Lerp(rt.anchoredPosition, want, 1f - Mathf.Exp(-22f * dt));
+                }
+                if (padImg != null) padImg.color = new Color(0f, 0f, 0f, 0.5f);
+            }
             else
             {
-                Press(leftImg, controls.Steer < -0.3f, 0.22f);
-                Press(rightImg, controls.Steer > 0.3f, 0.22f);
+                rt.anchoredPosition = Vector2.Lerp(rt.anchoredPosition, padHome, 1f - Mathf.Exp(-10f * dt));
+                if (padImg != null) padImg.color = new Color(0f, 0f, 0f, 0.35f);
+            }
+            if (knobImg != null)
+            {
+                float travel = rt.sizeDelta.x * 0.3f;
+                knobImg.rectTransform.anchoredPosition = new Vector2(controls.Steer * travel, 0f);
+                knobImg.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -controls.Steer * 60f);
             }
         }
 
@@ -861,7 +872,7 @@ namespace DerbyArena.UI
             UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
             pausePage = bg.gameObject;
             var panel = UiKit.Frame("Panel", bg.transform, UiKit.Panel);
-            UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 760f, 900f, 0.5f, 0.5f);
+            UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 760f, 1000f, 0.5f, 0.5f);
             var title = UiKit.Rect("Title", panel.transform);
             UiKit.Place(title, 0.5f, 1f, 700f, 110f, 0.5f, 1f);
             HudIcon(title, "pause", UiKit.Amber, 120f, -55f, 48f);
@@ -870,13 +881,23 @@ namespace DerbyArena.UI
             float y = -130f;
             AddPauseButton(panel.transform, Loc.T("DEVAM ET", "RESUME"), UiKit.Green, ref y, () => TogglePause());
             AddPauseButton(panel.transform, Loc.T("YENİDEN BAŞLAT", "RESTART"), UiKit.Amber, ref y, () => GameFlow.Play(match.Config.Number));
-            AddPauseButton(panel.transform, Loc.T("KONTROL: ", "CONTROLS: ") + (Save.Data.ControlMode == 0 ? Loc.T("DİREKSİYON", "WHEEL") : Loc.T("OKLAR", "ARROWS")), UiKit.PanelLight, ref y, () =>
+            AddPauseButton(panel.transform, Loc.T("DİREKSİYON: ", "STEERING: ") + ControlLayout.ModeName(ControlLayout.Mode), UiKit.PanelLight, ref y, () =>
             {
-                Save.Data.ControlMode = 1 - Save.Data.ControlMode;
+                Save.Data.ControlMode = (Save.Data.ControlMode + 1) % 4;
                 Save.Write();
-                ApplyControlMode();
+                ApplyLayout();
                 Destroy(pausePage);
                 BuildPause();
+            });
+            AddPauseButton(panel.transform, Loc.T("KONTROL DÜZENİ (SÜRÜKLE)", "CONTROL LAYOUT (DRAG)"), UiKit.PanelLight, ref y, () =>
+            {
+                if (pausePage != null) pausePage.SetActive(false);
+                ControlLayoutEditor.Open(match != null && match.Config != null && Fleet.Current().Tank, () =>
+                {
+                    if (this == null) return;
+                    ApplyLayout();
+                    if (pausePage != null) { Destroy(pausePage); BuildPause(); }
+                });
             });
             AddPauseButton(panel.transform, Loc.T("SES: ", "SOUND: ") + (Save.Data.Sound ? Loc.T("AÇIK", "ON") : Loc.T("KAPALI", "OFF")), UiKit.PanelLight, ref y, () =>
             {

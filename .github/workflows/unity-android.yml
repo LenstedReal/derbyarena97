@@ -31,11 +31,14 @@ jobs:
           path: STATIC_VALIDATION_TR.txt
           if-no-files-found: ignore
 
+  # The APK job needs the Unity licence secrets (UNITY_LICENSE / UNITY_EMAIL / UNITY_PASSWORD). It runs only when
+  # started by hand from the Actions tab, so an ordinary push stays green on the static validation alone;
+  # the real builds come from Unity Build Automation (see unity-game/BUILD_TR.md).
   apk:
     name: Android APK (requires Unity license)
     runs-on: ubuntu-latest
     needs: static-validation
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
       - name: Check required Unity secrets

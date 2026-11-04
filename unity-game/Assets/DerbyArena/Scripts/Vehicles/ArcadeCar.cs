@@ -221,7 +221,11 @@ namespace DerbyArena.Vehicles
                     a -= Mathf.Sign(ForwardSpeed) * Mathf.Min(Mathf.Abs(ForwardSpeed) / dt, 3.5f);
                 Body.AddForce(drive * a, ForceMode.Acceleration);
 
+                // 4.0.1 driving aid (player only, Settings → Controls): extra grip while sliding, a gentle counter-steer
+                // toward the direction of travel and a slightly softer yaw response, so a swipe or tilt never spins the car.
+                bool assist = Spec.Role == DriverRole.Player && DerbyArena.Core.Save.Data.SteerAssist;
                 float grip = hand ? Spec.Grip * 0.2f : Spec.Grip;
+                if (assist && !hand) grip *= 1f + 0.35f * Mathf.Clamp01(Mathf.Abs(LateralSpeed) / 6f);
                 Body.AddForce(-side * LateralSpeed * grip, ForceMode.Acceleration);
                 Drifting = (hand && Mathf.Abs(ForwardSpeed) > 7f) || Mathf.Abs(LateralSpeed) > 4.5f;
 
@@ -229,9 +233,14 @@ namespace DerbyArena.Vehicles
                 float steerFactor = Mathf.Clamp01(speedAbs / 4.5f) * Mathf.Lerp(1f, 0.6f, Mathf.Clamp01(speedAbs / top));
                 float dir = ForwardSpeed >= -0.4f ? 1f : -1f;
                 float target = steer * Spec.TurnRate * steerFactor * dir * (hand ? 1.4f : 1f);
+                if (assist && !hand && speedAbs > 3f)
+                {
+                    float slide = Mathf.Clamp(LateralSpeed / 8f, -1f, 1f);
+                    target += slide * Spec.TurnRate * 0.45f * (1f - Mathf.Abs(steer) * 0.5f) * dir;
+                }
                 Vector3 av = Body.angularVelocity;
                 float yaw = Vector3.Dot(av, n);
-                float newYaw = Mathf.MoveTowards(yaw, target, Spec.TurnRate * 7f * dt);
+                float newYaw = Mathf.MoveTowards(yaw, target, Spec.TurnRate * (assist ? 5.5f : 7f) * dt);
                 av += n * (newYaw - yaw);
 
                 Vector3 local = transform.InverseTransformDirection(av);

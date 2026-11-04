@@ -16,7 +16,7 @@ Direksiyonu kavra, rakiplerine bindir, tavandaki makineliyle ateş et ve arenada
 ÖNE ÇIKANLAR
 - 5 sezon, 100 bölüm (yıldızla açılan): Reaktör, Yıkım Derbisi, Kontrol Noktası, Hayatta Kal, Son Kalan ve Patron savaşları
 - Daralan bölgede "Son Kalan" modu: hayatta kalmak için merkeze yakın kal
-- Direksiyon simidi veya ok tuşlarıyla rahat kontrol, otomatik nişan, nitro ve drift
+- Kolay kontrol: kaydırmalı direksiyon, simit, oklar veya telefonu yatırarak; düğmeleri istediğin gibi taşı ve boyutlandır (PUBG Mobile tarzı); otomatik gaz, otomatik nişan, nitro ve drift
 - Garajda motor, zırh, silah, nitro ve roket yükseltmeleri
 - Gece yarışları, asit havuzları, elit rakipler ve her sezonda yeni bir sürpriz
 - Türkçe ve İngilizce dil desteği, 30/60/90/120 FPS seçenekleri
@@ -34,7 +34,7 @@ Grab the wheel, ram your rivals, fire your roof-mounted gun and be the last car 
 HIGHLIGHTS
 - 5 seasons, 100 star-gated levels: Reactor runs, Demolition Derby, Checkpoints, Survival, Last Stand and Boss fights
 - "Last Stand" with a shrinking zone: stay close to the center to survive
-- Comfortable controls with a steering wheel or arrow buttons, auto-aim, nitro and drift
+- Easy controls: swipe steering, wheel, arrows or tilt; move and resize every button your way (PUBG Mobile style); auto gas, auto-aim, nitro and drift
 - Upgrade engine, armor, weapon, nitro and rockets in the garage
 - Night races, acid pools, elite rivals and a new twist every season
 - Turkish and English, 30/60/90/120 FPS options

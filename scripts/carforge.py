@@ -709,6 +709,60 @@ def build_vehicle(key):
     turret, barrel = build_turret(spec)
     return spec, body, wheel, turret, barrel
 
+# ======================================================================= LOD1 (4.0.1)
+def build_hull_coarse(m, spec):
+    """The lower body with a quarter of the stations: ends, three samples per wheel arch, four in between."""
+    zr, zf = spec['z_rear'], spec['z_front']
+    zw_r, zw_f = -spec['wheel_z'], spec['wheel_z']
+    ar = spec['tire_r'] + 0.16; ah = spec['arch_top'] - spec['y_floor']
+    st = {zr, zf}
+    for zw in (zw_r, zw_f):
+        for a in np.linspace(0, math.pi, 4):
+            st.add(zw + ar * math.cos(a))
+    for z in np.linspace(zr + 0.6, zf - 0.6, 4): st.add(float(z))
+    stations = sorted(z for z in st if zr <= z <= zf)
+    rings = []
+    for z in stations:
+        t = (z - zr) / (zf - zr)
+        p = dict(spec['station'](z, t))
+        p['x_side'] = p['x_side'] + flare(z, zw_r, ar, spec['flare']) + flare(z, zw_f, ar, spec['flare'])
+        p['x_belt'] = p['x_belt'] + 0.55 * (flare(z, zw_r, ar, spec['flare']) + flare(z, zw_f, ar, spec['flare']))
+        p['y_arch'] = max(arch_profile(z, zw_r, ar, ah, p['y_floor']), arch_profile(z, zw_f, ar, ah, p['y_floor']))
+        p['y_arch'] = min(p['y_arch'], p['y_belt'] - p['r_belt'] - 0.06)
+        p['x_in'] = spec['x_in']
+        rings.append(hull_ring(z, p))
+    m.add('paint', loft(rings))
+    m.add('paint', fan(rings[0], (0, 0, -1)))
+    m.add('paint', fan(rings[-1], (0, 0, 1)))
+
+def build_cabin_lite(m, spec):
+    """Glass panes, roof slab and the dark interior block: the cabin silhouette without pillars and rails."""
+    c = spec['cabin']
+    yb = c['y_belt']; yr = c['y_roof']; xb = c['x_belt']; xr = c['x_roof']
+    z_wsb, z_wst, z_rwt, z_rwb = c['z_ws_base'], c['z_ws_top'], c['z_rw_top'], c['z_rw_base']
+    m.add('glass', quad([(-xb, yb, z_wsb), (xb, yb, z_wsb), (xr, yr, z_wst), (-xr, yr, z_wst)], (0, 0.5, 1)))
+    m.add('glass', quad([(-xb, yb, z_rwb), (xb, yb, z_rwb), (xr, yr, z_rwt), (-xr, yr, z_rwt)], (0, 0.5, -1)))
+    for s in (-1, 1):
+        m.add('glass', quad([(s * xb, yb, z_wsb), (s * xb, yb, z_rwb), (s * xr, yr, z_rwt), (s * xr, yr, z_wst)], (s, 0.3, 0)))
+    m.add('paint', box((0, yr + 0.02, (z_wst + z_rwt) / 2), (2 * xr + 0.08, 0.08, z_wst - z_rwt + 0.1)))
+    m.add('interior', box((0, yb - 0.1, (z_wsb + z_rwb) / 2 - 0.1), (2 * xb - 0.2, 0.55, z_wsb - z_rwb - 0.3)))
+
+def build_lod1(spec):
+    """Distant stand-in for the whole car (body, cabin, four tyres, turret block, barrel) in one node, Body_LOD1.
+    About a fifth of the full body's triangles; the LODGroup in VehicleVisual switches to it below 12 % screen height."""
+    m = Mesh('Body_LOD1')
+    build_hull_coarse(m, spec)
+    build_cabin_lite(m, spec)
+    r = spec['tire_r']; w = spec['tire_w']
+    wz, tx, wy = spec['wheel_z'], spec['track'], spec['wheel_y']
+    for (x, z) in ((-tx, wz), (tx, wz), (-tx, -wz), (tx, -wz)):
+        m.add('VehicleRubber', cyl((x - w / 2, wy, z), (x + w / 2, wy, z), r * 0.98, seg=10))
+    tp = spec['turret_pos']; k = spec.get('turret_scale', 1.0); bp = spec['barrel_pos']
+    m.add('dark_steel', box((tp[0], tp[1] + 0.3 * k, tp[2] - 0.05 * k), (0.62 * k, 0.4 * k, 0.74 * k)))
+    bz = tp[2] + bp[2]
+    m.add('dark_steel', box((tp[0] + bp[0], tp[1] + bp[1], bz + 0.6), (0.2, 0.16, 1.2)))
+    return m
+
 # ======================================================================= glTF export
 def materials(prefix):
     p = prefix
@@ -783,7 +837,7 @@ class Glb:
         self.nodes.append(n); return len(self.nodes) - 1
     def write(self, path, root):
         while len(self.bin) % 4: self.bin.append(0)
-        j = dict(asset=dict(version='2.0', generator='DerbyArena-CarForge-2.1'), scene=0, scenes=[dict(nodes=[root])],
+        j = dict(asset=dict(version='2.0', generator='DerbyArena-CarForge-4.0.1'), scene=0, scenes=[dict(nodes=[root])],
                  nodes=self.nodes, meshes=self.meshes, materials=self.materials, textures=self.textures, images=self.images,
                  accessors=self.accessors, bufferViews=self.views, buffers=[dict(byteLength=len(self.bin))],
                  extensionsUsed=['KHR_materials_emissive_strength'])
@@ -795,9 +849,10 @@ class Glb:
 
 def export(key, out_dir):
     spec, body, wheel, turret, barrel = build_vehicle(key)
+    lod1 = build_lod1(spec)
     tex = textures(); g = Glb()
     mdefs = materials(spec['prefix']); matindex = {}
-    used = set(body.parts) | set(wheel.parts) | set(turret.parts) | set(barrel.parts)
+    used = set(body.parts) | set(wheel.parts) | set(turret.parts) | set(barrel.parts) | set(lod1.parts)
     for k in ('paint', 'dark_steel', 'chrome', 'VehicleRubber', 'glass', 'headlight', 'taillight', 'black', 'seam', 'interior', 'armor'):
         if k in used: matindex[k] = g.material(mdefs[k], tex)
     p = spec['prefix']
@@ -806,16 +861,18 @@ def export(key, out_dir):
     m_turret = g.mesh(p + '_Turret', turret.flat(), matindex)
     m_barrel = g.mesh(p + '_Barrel', barrel.flat(), matindex)
     n_body = g.node(p + '_Body', m_body)
+    m_lod1 = g.mesh(p + '_Body_LOD1', lod1.flat(), matindex)
+    n_lod1 = g.node('Body_LOD1', m_lod1)
     wz, tx, wy = spec['wheel_z'], spec['track'], spec['wheel_y']
     n_w = [g.node('Wheel_FL', m_wheel, (-tx, wy, wz)), g.node('Wheel_FR', m_wheel, (tx, wy, wz)),
            g.node('Wheel_RL', m_wheel, (-tx, wy, -wz)), g.node('Wheel_RR', m_wheel, (tx, wy, -wz))]
     n_barrel = g.node('Barrel', m_barrel, spec['barrel_pos'])
     n_turret = g.node('Turret', m_turret, spec['turret_pos'], [n_barrel])
-    root = g.node(p + '_Root', None, None, [n_body] + n_w + [n_turret])
+    root = g.node(p + '_Root', None, None, [n_body] + n_w + [n_turret, n_lod1])
     path = os.path.join(out_dir, key + '.glb')
     g.write(path, root)
     tris = body.tris() + 4 * wheel.tris() + turret.tris() + barrel.tris()
-    print('%-20s %6d tris (body %d, wheel %d x4)  %.2f MB' % (key, tris, body.tris(), wheel.tris(), os.path.getsize(path) / 1e6))
+    print('%-20s %6d tris (body %d, wheel %d x4, LOD1 %d)  %.2f MB' % (key, tris, body.tris(), wheel.tris(), lod1.tris(), os.path.getsize(path) / 1e6))
 
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), '..', 'unity-game', 'Assets', 'StreamingAssets', 'Models', 'vehicles')

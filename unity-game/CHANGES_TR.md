@@ -1,5 +1,27 @@
 # DERBY ARENA — Değişiklikler
 
+## 4.0.1 (401) — Kontroller (PUBG Mobile mantığı), sinematik açılış, açılış takılması, ses katmanları, tek `main` dalı
+
+Paket kimliği, logo ve kayıtlar aynı. 4.0.0'ın üzerine; eksik bırakılan tüm 4.0 maddeleri + kontrol isteği.
+
+| # | Yeni | Ayrıntı |
+|---|---|---|
+| 1 | **Kontroller baştan: kolay ve kişiselleştirilebilir** | Yeni varsayılan **kaydırmalı direksiyon** (ekranın sol yarısına dokun, sağa-sola kaydır; mesafe = açı, kayan joystick görseli), **otomatik gaz açık** (fren durur / geri gider), **sürüş yardımı** (kaymada ek tutuş, hafif karşı direksiyon, yumuşatılmış dönüş; kapatılabilir). Dört direksiyon tipi: kaydırma / simit / oklar / **eğim** (ivmeölçer, kalibrasyon gerekmez). Ayarlar → **Kontroller** sayfası: direksiyon tipi, hassasiyet, otomatik gaz, sürüş yardımı, otomatik nişan, düğme boyutu (%70-140), düğme saydamlığı (%40-100), düzen (Klasik / Sürücü / Sol El), titreşim, **Varsayılana Dön** |
+| 2 | **Düzen editörü (PUBG Mobile mantığı)** | Ayarlar → Kontroller → **Düzeni Özelleştir** ve duraklatma menüsünde **Kontrol Düzeni**: her düğme (direksiyon, gaz, fren, ateş, roket, nitro, drift) parmakla sürüklenir, seçili düğme − / + ile boyutlandırılır, tüm set için boyut ve saydamlık, üç hazır düzen, Sıfırla / İptal / Kaydet. Düzen kayıt dosyasında tutulur (`SaveData` v6; eski kayıtlar kayıpsız taşınır, kolay kontrol varsayılanları bir kez uygulanır) |
+| 3 | **Sinematik açılış** | Karanlıktan yükselen görsel, yavaş yaklaşma, ışık süpürmesi, kor taneleri, "DERBY ARENA / BLACKOUT RUN" vuruşu; **ilerleme çubuğu gerçek yüklemeye bağlı** (arena → shader ısıtma → araç → arayüz), durum satırı; en az ~3 sn, yükleme bitmeden geçmez (12 sn emniyet), bitince dokunarak atlanır; bitişte menü kamerası orbit'e süzülür |
+| 4 | **Açılış takılması** | GLB içe aktarma artık kademeli (`Prepare → PreloadTextures → PreloadMeshes → Finish`, kare başına bir doku/mesh); menü kurulumu coroutine; `Shader.WarmupAllShaders()` açılışta bir kez; ortam/reverb sonradan. Takılma nedenleri ve ölçüm yöntemi teknik raporda |
+| 5 | **Ses katmanları** | Motor: rölanti / motor / yük döngüleri devir tahminiyle çapraz geçişli; tank: daha ağır perde + hıza bağlı palet takırtısı; oyuncu tüm katmanlar (öncelik 16), rakipler iki katman (öncelik 160, 3B); tek seferlik seslerde ses yüksekliğine göre öncelik ve menzil; arena başına reverb bölgesi; Harabeler'de rüzgâr, diğerlerinde arena uğultusu |
+| 6 | **Silah / animasyon cilası** | Makineli namlusu her atışta geri tepip yaylanır (tankta mevcut top geri tepmesi), namlu alevi her seferinde farklı (boyut, yan kıvılcım, ara sıra duman), araç vuruşlarında koyu moloz parçaları (mermi ve çarpma), roket fırlatmada duman + hafif kamera tepkisi |
+| 7 | **Araç LOD** | Beş arabada `Body_LOD1` (≈930 üçgen; gövde silueti, kabin, lastikler, taret): 12 % ekran yüksekliğinin altında devreye girer; kit ölçümü ve gövde sığdırma LOD1'i yok sayar |
+| 8 | **Android doku sıkıştırma** | ASTC (`UrpAndPlayerSetup.ApplyBuildSettings`), bellek bütçesi teknik raporda |
+| 9 | **PerfLog** | Her maçın ilk 60 sn'si: 10 sn'lik pencerelerde ortalama / p95 / en kötü kare süresi, 33 ms üstü takılma sayısı, GC farkı, toplam bellek → logcat `DerbyPerf` |
+| 10 | **Tek dal, yeşil CI** | Tüm kod `main`'de; GitHub Actions'ta APK işi yalnızca elle (lisans secret'ı yok diye push'lar kırmızı olmuyor); Build Automation dal geçişi `BUILD_TR.md`'de |
+| 11 | Belgeler | `ASSET_INVENTORY_TR.md`, `KNOWN_ISSUES_TR.md`, `TECHNICAL_REPORT_4.0_TR.md` (değişiklik raporu, takılma analizi, bellek/çizim bütçeleri, FMOD değerlendirmesi, doğrulanan / doğrulanmayan) |
+
+Test: C# Roslyn ile 5 yapılandırmada 0 hata; `validate_derby.py` 344 kontrol 0 FAIL; LOD1 ve araçlar yazılım render'ıyla
+kontrol edildi. **Unity'de oynatma ve cihaz testi burada yapılamadı** — ilk cihaz testi kullanıcıda; `KNOWN_ISSUES_TR.md`
+hangi davranışların cihazda doğrulanması gerektiğini listeler.
+
 ## 4.0.0 (400) — Büyük güncelleme: 100 bölüm, garaj dükkânı, Tiger I T-12, Çöl Harabeleri, yeni arayüz
 
 | # | Yeni | Ayrıntı |

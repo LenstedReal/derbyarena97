@@ -18,7 +18,7 @@ namespace DerbyArena.Vehicles
     /// </summary>
     public static class MiniGlb
     {
-        sealed class Ctx
+        internal sealed class Ctx
         {
             public byte[] Glb;
             public int BinStart;
@@ -33,7 +33,7 @@ namespace DerbyArena.Vehicles
             public List<object> MaterialDefs;
         }
 
-        sealed class MeshData
+        internal sealed class MeshData
         {
             public Mesh Mesh;
             public Material[] Materials;
@@ -45,6 +45,107 @@ namespace DerbyArena.Vehicles
         }
 
         public static void Build(byte[] glb, Transform parent, GlbOptions options)
+        {
+            var ctx = Prepare(glb, options);
+            Finish(ctx, parent);
+        }
+
+        /// <summary>Opaque import state for the staged import (Prepare, PreloadTextures, PreloadMeshes, Finish).</summary>
+        public sealed class Import
+        {
+            internal Ctx Ctx;
+            internal List<Material> Materials;
+            internal MeshData[] MeshCache;
+            internal List<object> Nodes, MeshList;
+        }
+
+        /// <summary>
+        /// Staged import (4.0): the loader coroutine decodes one texture per frame and builds one mesh per frame
+        /// instead of doing everything in one Build call. The 8 MB colosseum used to freeze the main thread for
+        /// several hundred milliseconds at menu start; now the intro keeps animating while it streams in.
+        /// </summary>
+        public static Import Prepare(byte[] glb, GlbOptions options)
+        {
+            var import = new Import();
+            import.Ctx = ParseContext(glb, options);
+            var root = import.Ctx.Root;
+            import.Nodes = Arr(root, "nodes");
+            import.MeshList = Arr(root, "meshes");
+            if (import.Nodes == null || import.MeshList == null)
+                throw new FormatException("GLB has no nodes or meshes.");
+            import.MeshCache = new MeshData[import.MeshList.Count];
+            return import;
+        }
+
+        /// <summary>Decodes the textures the materials reference; one step per texture.</summary>
+        public static IEnumerable<int> PreloadTextures(Import import)
+        {
+            var ctx = import.Ctx;
+            var matList = ctx.MaterialDefs;
+            if (matList == null) yield break;
+            int n = 0;
+            for (int i = 0; i < matList.Count; i++)
+            {
+                var m = Obj(matList[i]);
+                var pbr = Obj(m, "pbrMetallicRoughness");
+                var bt = pbr != null ? Obj(pbr, "baseColorTexture") : null;
+                if (bt != null)
+                {
+                    int texIndex = (int)Num(bt, "index", -1);
+                    string matName = Str(m, "name") ?? "";
+                    bool paint = ctx.Options != null && ctx.Options.Recolor && matName.IndexOf("paint", StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (paint) GetRecoloredTexture(ctx, texIndex, ctx.Options.Paint); else GetTexture(ctx, texIndex, false);
+                    yield return ++n;
+                }
+                var nt = Obj(m, "normalTexture");
+                if (nt != null)
+                {
+                    GetTexture(ctx, (int)Num(nt, "index", -1), true);
+                    yield return ++n;
+                }
+            }
+        }
+
+        /// <summary>Builds the meshes (winding fix, tangents); one step per mesh. Materials are made first.</summary>
+        public static IEnumerable<int> PreloadMeshes(Import import)
+        {
+            EnsureMaterials(import);
+            for (int i = 0; i < import.MeshCache.Length; i++)
+            {
+                GetMesh(i, import.Ctx, import.MeshCache, import.Materials);
+                yield return i + 1;
+            }
+        }
+
+        static void EnsureMaterials(Import import)
+        {
+            if (import.Materials != null) return;
+            import.Materials = new List<Material>();
+            var matList = import.Ctx.MaterialDefs;
+            if (matList != null)
+                for (int i = 0; i < matList.Count; i++) import.Materials.Add(MakeMaterial(Obj(matList[i]), import.Ctx));
+        }
+
+        /// <summary>Creates the node hierarchy under the parent (cached meshes/materials make this cheap).</summary>
+        public static void Finish(Import import, Transform parent)
+        {
+            EnsureMaterials(import);
+            var ctx = import.Ctx;
+            List<object> roots = null;
+            var scenes = Arr(ctx.Root, "scenes");
+            int sceneIndex = (int)Num(ctx.Root, "scene", 0);
+            if (scenes != null && sceneIndex >= 0 && sceneIndex < scenes.Count)
+                roots = Arr(Obj(scenes[sceneIndex]), "nodes");
+            if (roots == null || roots.Count == 0)
+            {
+                MakeNode(0, parent, ctx, import.Nodes, import.MeshCache, import.Materials);
+                return;
+            }
+            for (int i = 0; i < roots.Count; i++)
+                MakeNode((int)(double)roots[i], parent, ctx, import.Nodes, import.MeshCache, import.Materials);
+        }
+
+        static Ctx ParseContext(byte[] glb, GlbOptions options)
         {
             if (glb == null || glb.Length < 20)
                 throw new FormatException("GLB is empty or truncated.");
@@ -81,34 +182,8 @@ namespace DerbyArena.Vehicles
             if (ctx.Accessors == null || ctx.Views == null)
                 throw new FormatException("GLB has no accessors or buffer views.");
 
-            var materials = new List<Material>();
-            var matList = Arr(root, "materials");
-            ctx.MaterialDefs = matList;
-            if (matList != null)
-            {
-                for (int i = 0; i < matList.Count; i++)
-                    materials.Add(MakeMaterial(Obj(matList[i]), ctx));
-            }
-
-            var nodes = Arr(root, "nodes");
-            var meshList = Arr(root, "meshes");
-            if (nodes == null || meshList == null)
-                throw new FormatException("GLB has no nodes or meshes.");
-            var meshCache = new MeshData[meshList.Count];
-
-            List<object> roots = null;
-            var scenes = Arr(root, "scenes");
-            int sceneIndex = (int)Num(root, "scene", 0);
-            if (scenes != null && sceneIndex >= 0 && sceneIndex < scenes.Count)
-                roots = Arr(Obj(scenes[sceneIndex]), "nodes");
-
-            if (roots == null || roots.Count == 0)
-            {
-                MakeNode(0, parent, ctx, nodes, meshCache, materials);
-                return;
-            }
-            for (int i = 0; i < roots.Count; i++)
-                MakeNode((int)(double)roots[i], parent, ctx, nodes, meshCache, materials);
+            ctx.MaterialDefs = Arr(root, "materials");
+            return ctx;
         }
 
         static void MakeNode(int idx, Transform parent, Ctx ctx, List<object> nodes, MeshData[] meshCache, List<Material> materials)

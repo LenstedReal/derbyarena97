@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unity-independent static checks for Derby Arena 4.0.0. Not a substitute for a Unity compile or device test."""
+"""Unity-independent static checks for Derby Arena 4.0.1. Not a substitute for a Unity compile or device test."""
 from pathlib import Path
 import json, re, struct, sys
 
@@ -88,7 +88,7 @@ check('public const int ReleasedSeasons = 5;' in camp and 'Total = ReleasedSeaso
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
-check('Version = "4.0.0"' in diag and 'VersionCode = 400' in diag, 'Runtime version 4.0.0 (400)')
+check('Version = "4.0.1"' in diag and 'VersionCode = 401' in diag, 'Runtime version 4.0.1 (401)')
 loc = text(SCRIPTS / 'Core/Loc.cs')
 check('public static string T(string turkish, string english)' in loc and 'SystemLanguage.Turkish' in loc, 'Turkish / English localisation (device language preselects)')
 menu = text(SCRIPTS / 'UI/MenuController.cs')
@@ -104,7 +104,7 @@ check('stripEngineCode = false' in editor, 'Engine code stripping disabled (Caps
 check('KeepFogVariants();' in editor, 'Fog shader variants kept')
 check('"com.lenstedreal.derbyarena"' in editor, 'Package id preserved')
 check((ROOT / 'Assets/link.xml').exists(), 'link.xml present')
-check('Version = "4.0.0"' in editor and 'VersionCode = 400' in editor, 'Player version 4.0.0 / code 400')
+check('Version = "4.0.1"' in editor and 'VersionCode = 401' in editor, 'Player version 4.0.1 / code 401')
 icons_hook = text(ROOT / 'Assets/DerbyArena/Editor/DerbyAndroidIcons.cs')
 check('IPostGenerateGradleAndroidProject' in icons_hook and '#if UNITY_EDITOR && UNITY_ANDROID' in icons_hook, 'Android launcher icons written into the Gradle project (guarded for iOS builds)')
 check('SaveAndReimport' not in editor, 'No asset re-import during the build (silently skipped the icons in 1.3.0)')
@@ -234,7 +234,7 @@ check('public const int PerChapter = 20;' in camp and 'LegacyPerChapter = 10' in
 check('ArenaKind { Spillway, Colosseum, Docks, Ruins }' in camp and 'c.Chapter == 6) c.Arena = ArenaKind.Docks' in camp, 'Season 6 plays in the Container Port; Ruins arena kind exists')
 check('(n - 1) / (float)(Total - 1)' in camp and 'StarsRequired(int n)' in camp and 'IsOpen(int n)' in camp, 'Difficulty over 100 levels, star gates')
 sdm = text(SCRIPTS / 'Core/SaveData.cs')
-check('MigrateLegacyLevels' in sdm and 'public int Version = 5;' in sdm and 'd.Version < 5' in sdm, 'Save v5 migration from 10-level seasons')
+check('MigrateLegacyLevels' in sdm and 'public int Version = 6;' in sdm and 'd.Version < 5' in sdm and 'd.Version = 5;' in sdm, 'Save v5 migration from 10-level seasons (kept under v6)')
 gar = text(SCRIPTS / 'Core/Garage.cs')
 check('public enum PartSlot' in gar and gar.count('P("paint_') >= 10 and 'TryBuy(string id)' in gar and 'class Fleet' in gar and 'Id = "t12"' in gar, 'Garage shop catalogue and vehicle collection with the T-12')
 check('ForPlayer()' in text(SCRIPTS / 'Vehicles/VehicleSpec.cs') and 'VehicleSpec.ForPlayer()' in text(SCRIPTS / 'Mission/MatchDirector.cs'), 'The match spawns the selected garage vehicle')
@@ -307,6 +307,45 @@ intro = text(SCRIPTS / 'UI/IntroSplash.cs')
 check('Resources.Load<Texture2D>("Derby/keyart")' in intro and 'Shown = true' in intro and 'unscaledDeltaTime' in intro, 'Opening screen: key art, cold start only, unscaled time')
 check('IntroSplash.Play()' in text(SCRIPTS / 'Core/DerbyBootstrap.cs') and (ROOT / 'Assets/Resources/Derby/keyart.jpg').exists(), 'Opening screen wired and its art present')
 
+# 4.0.1: cinematic intro synced to the real boot, staged GLB import, layered audio, controls
+boot = text(SCRIPTS / 'Core/DerbyBootstrap.cs')
+check('public static bool Active' in intro and 'Boot.Progress' in intro and 'Boot.Status' in intro and 'MaxTotal' in intro and 'UiButton.Blocked = true' in intro, '4.0.1 intro: progress-synced cinematic, input locked, safety cap')
+check('public static class Boot' in boot and 'IEnumerator BootMenu(' in boot and 'Shader.WarmupAllShaders()' in boot and 'chase.Dolly(60f)' in boot and 'cam.Dolly(3.2f)' in intro and 'AddComponent<PerfLog>()' in boot and 'AudioHub.Reverb(' in boot, '4.0.1 boot: coroutine menu build, shader warm-up, camera dolly, perf log, reverb')
+mg = text(SCRIPTS / 'Vehicles/MiniGlb.cs')
+check('public static Import Prepare(' in mg and 'PreloadTextures(Import' in mg and 'PreloadMeshes(Import' in mg and 'public static void Finish(' in mg and 'MiniGlb.Prepare(' in text(SCRIPTS / 'World/GlbLibrary.cs'), '4.0.1 GLB import staged over frames (no startup stall)')
+check('public sealed class PerfLog' in text(SCRIPTS / 'Core/PerfLog.cs') and 'DerbyPerf' in text(SCRIPTS / 'Core/PerfLog.cs'), '4.0.1 PerfLog writes frame-time windows to logcat')
+ea = text(SCRIPTS / 'Vehicles/EngineAudio.cs')
+check('SynthAudio.EngineIdle()' in ea and 'SynthAudio.EngineLoad()' in ea and 'SynthAudio.Tracks()' in ea and 'priority = player ? 16 : 160' in ea, '4.0.1 layered engine audio (idle / engine / load, tank tracks, voice priorities)')
+sa = text(SCRIPTS / 'Audio/SynthAudio.cs')
+check('public static void Reverb(DerbyArena.Core.ArenaKind kind)' in sa and 'AudioReverbZone' in sa and 's.priority = loud' in sa, '4.0.1 reverb zones per arena, one-shot priorities')
+fx2 = text(SCRIPTS / 'Combat/Fx.cs')
+check('public static void Debris(' in fx2 and 'Random.Range(0.8f, 1.3f)' in fx2 and 'public void Kick(float amount)' in text(SCRIPTS / 'Vehicles/VehicleVisual.cs') and 'Visual.Kick(0.6f)' in text(SCRIPTS / 'Combat/WeaponRig.cs'), '4.0.1 weapon polish: muzzle variety, debris, gun kick')
+for rel in ['vehicles/player_muscle.glb', 'vehicles/enemy_raider_a.glb', 'vehicles/enemy_raider_b.glb', 'vehicles/enemy_raider_c.glb', 'vehicles/enemy_boss_warrig.glb']:
+    jj = glb(MODELS / rel)
+    lod = [n for n in jj['nodes'] if n.get('name') == 'Body_LOD1']
+    ltris = sum(jj['accessors'][pr['indices']]['count'] // 3 for m in jj['meshes'] if m['name'].endswith('_Body_LOD1') for pr in m['primitives'])
+    check(len(lod) == 1 and 500 <= ltris <= 1500, '4.0.1 car LOD1 node present and light: ' + rel, str(ltris))
+check('n.EndsWith("_LOD1")' in text(SCRIPTS / 'Vehicles/VehicleKit.cs') and 'EndsWith("_LOD1")) continue' in text(SCRIPTS / 'Vehicles/VehicleVisual.cs'), '4.0.1 LOD1 excluded from kit measurement and hull fit')
+check('MobileTextureSubtarget.ASTC' in text(ROOT / 'Assets/DerbyArena/Editor/UrpAndPlayerSetup.cs'), '4.0.1 Android textures ASTC')
+cl = text(SCRIPTS / 'Core/ControlLayout.cs')
+check('public enum ControlId' in cl and 'public enum SteerMode { Wheel = 0, Arrows = 1, Swipe = 2, Tilt = 3 }' in cl and 'public const int Count = 7;' in cl and 'Classic = 0, Driver = 1, LeftHand = 2, Custom = 3' in cl, '4.0.1 control layout model: 7 controls, 4 steer modes, 3 presets + custom')
+sd = text(SCRIPTS / 'Core/SaveData.cs')
+check('public int Version = 6;' in sd and 'static void MigrateControls(' in sd and 'public float[] ControlPos' in sd and 'public bool SteerAssist = true;' in sd and 'ControlLayout.Sanitize(d);' in sd, '4.0.1 save v6: control layout fields, migration, sanitize')
+tc = text(SCRIPTS / 'UI/TouchControls.cs')
+check('case SteerMode.Swipe:' in tc and 'case SteerMode.Tilt:' in tc and 'Accelerometer.current' in tc and 'compensateForScreenOrientation' in tc and 'public static bool Suspended;' in tc and 'ScreenOrientation.LandscapeRight' in tc, '4.0.1 touch: swipe joystick, tilt steering, editor suspend')
+cw = text(SCRIPTS / 'UI/ControlWidgets.cs'); ce = text(SCRIPTS / 'UI/ControlLayoutEditor.cs')
+check('public static ControlWidget Build(' in cw and 'public static void Layout(' in cw and 'public static void Open(bool tank, Action onClose)' in ce and 'ControlLayout.SetPos(' in ce and 'ControlLayout.SetScale(' in ce and 'CancelAndClose' in ce, '4.0.1 shared control widgets + drag/resize layout editor')
+hud2 = text(SCRIPTS / 'UI/HudController.cs'); menu2 = text(SCRIPTS / 'UI/MenuController.cs')
+check('ControlWidgets.Build(' in hud2 and 'ControlLayoutEditor.Open(' in hud2 and 'public void ApplyLayout()' in hud2 and 'UpdateSwipePad()' in hud2, '4.0.1 HUD builds controls from the layout, editor reachable from pause')
+check('case "controls": BuildControlsPage(); break;' in menu2 and 'ControlLayoutEditor.Open(' in menu2 and 'ControlLayout.ResetAll();' in menu2 and 'SteerAssist' in menu2, '4.0.1 Settings → Controls page (mode, sensitivity, auto gas, aid, size, opacity, presets, editor)')
+check('Save.Data.SteerAssist' in text(SCRIPTS / 'Vehicles/ArcadeCar.cs') and 'slide * Spec.TurnRate * 0.45f' in text(SCRIPTS / 'Vehicles/ArcadeCar.cs'), '4.0.1 driving aid in the car physics (player only)')
+wf = text(ROOT.parent / '.github/workflows/unity-android.yml')
+check("if: ${{ github.event_name == 'workflow_dispatch' }}" in wf and "- main" in wf, '4.0.1 CI: APK job manual only, static validation on main')
+check('unity/blackout-run' not in text(ROOT / 'BUILD_TR.md').split('## Tek dal')[1].split('## Unity Build Automation')[0].replace('`unity/blackout-run` dalı artık kullanılmıyor', '').replace('git push origin --delete unity/blackout-run', '') and 'Branch `main`' in text(ROOT / 'BUILD_TR.md'), '4.0.1 BUILD_TR: single main branch, Build Automation branch switch documented')
+for doc in ['ASSET_INVENTORY_TR.md', 'KNOWN_ISSUES_TR.md', 'TECHNICAL_REPORT_4.0_TR.md', 'CHANGES_TR.md']:
+    check((ROOT / doc).exists() and len(text(ROOT / doc)) > 1500, '4.0.1 delivery document present: ' + doc)
+check('## 4.0.1 (401)' in text(ROOT / 'CHANGES_TR.md'), '4.0.1 change log entry')
+
 # 2.1 vehicle models (scripts/carforge.py): five distinct bodies, same node contract and wheel geometry as 1.x
 WHEELS = {'vehicles/player_muscle.glb': (1.1956, 0.5246, 1.769), 'vehicles/enemy_boss_warrig.glb': (1.1956, 0.5246, 1.769),
           'vehicles/enemy_raider_a.glb': (0.98, 0.43, 1.45), 'vehicles/enemy_raider_b.glb': (0.98, 0.43, 1.45), 'vehicles/enemy_raider_c.glb': (0.98, 0.43, 1.45)}
@@ -349,7 +388,7 @@ check('public static Mesh Shaft(' in text(SCRIPTS / 'World/MeshFactory.cs') and 
 check('void SpawnWreck(int index)' in arena and 'SpawnWreck(w)' in arena, 'Colosseum cover wrecks are the 2.1 vehicle models')
 
 fails = [r for r in res if r[0] == 'FAIL']
-print('DERBY ARENA 4.0.0 STATIC VALIDATION (Unity-independent)')
+print('DERBY ARENA 4.0.1 STATIC VALIDATION (Unity-independent)')
 for st, label, detail in res:
     if st == 'FAIL' or '-v' in sys.argv: print(f'[{st}] {label}' + (f' — {detail}' if detail else ''))
 print(f'\nSummary: {len(res) - len(fails)} PASS, {len(fails)} FAIL')

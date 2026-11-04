@@ -244,6 +244,7 @@ namespace DerbyArena.Vehicles
             rammer.Apply(baseDmg * selfMul, victim, contact);
             if (baseDmg * mul > 18f) DerbyArena.World.Crowd.Cheer(0.6f);
             Fx.Sparks(contact, -dir, 18);
+            Fx.Debris(contact, -dir, 6);
             AudioHub.PlayAt(SynthAudio.Crash(), contact, Mathf.Clamp01(impact / 25f) + 0.3f, UnityEngine.Random.Range(0.85f, 1.1f));
             if (rammer.Team == 0 || victim.Team == 0)
                 DerbyArena.CameraRig.ChaseCamera.Kick(Mathf.Clamp(impact * 0.02f, 0.15f, 0.6f));

@@ -26,7 +26,8 @@ namespace DerbyArena.Core
         public static string PrivacySummary()
         {
             return Loc.T(
-                "DERBY ARENA hesap açtırmaz, ad, e-posta veya telefon istemez. İlerlemen ve ayarların yalnızca telefonunda saklanır.\n\n" +
+                "DERBY ARENA hesap açtırmaz, ad, e-posta veya telefon istemez. İlerlemen ve ayarların yalnızca telefonunda saklanır. " +
+                "Eğim direksiyonu seçersen ivmeölçer yalnızca o anda okunur; bu veri cihazdan çıkmaz ve kaydedilmez.\n\n" +
                 "REKLAMLAR: Oyun Google AdMob reklamları gösterir (bölüm sonlarında geçiş reklamı; ikinci şans, hurda ikramiyesi ve garajda isteğe bağlı ödüllü reklamlar). " +
                 "Google reklam kimliğini, IP adresini ve cihaz bilgilerini reklam sunmak, ölçmek ve dolandırıcılığı önlemek için işleyebilir. " +
                 "Avrupa Ekonomik Alanı, Birleşik Krallık ve İsviçre'de ilk açılışta rıza formu gösterilir; kararını Ayarlar → Reklam Gizlilik Seçenekleri'nden değiştirebilirsin. " +
@@ -35,7 +36,8 @@ namespace DerbyArena.Core
                 "ÇOCUKLAR: Oyun 13 yaşından küçüklere yönelik değildir.\n\n" +
                 "HAKLARIN: KVKK ve GDPR kapsamındaki bilgi alma, düzeltme, silme ve itiraz hakların için: " + Contact + "\n\n" +
                 "Tam metin: " + PrivacyUrl,
-                "DERBY ARENA has no accounts and never asks for a name, e-mail or phone number. Your progress and settings are stored only on your phone.\n\n" +
+                "DERBY ARENA has no accounts and never asks for a name, e-mail or phone number. Your progress and settings are stored only on your phone. " +
+                "If you choose tilt steering, the accelerometer is read only while you play; that data never leaves the device and is not stored.\n\n" +
                 "ADS: The game shows Google AdMob ads (an interstitial between some matches; optional rewarded ads for the second chance, the scrap bonus and in the garage). " +
                 "Google may process your advertising ID, IP address and device information to serve and measure ads and to prevent fraud. " +
                 "In the EEA, the UK and Switzerland a consent form is shown on first launch; you can change your choice in Settings → Ad Privacy Options. " +

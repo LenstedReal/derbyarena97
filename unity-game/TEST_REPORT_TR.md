@@ -1,3 +1,17 @@
+# Test raporu — v4.0.1 (401)
+
+| Test | Sonuç |
+|---|---|
+| `python3 -I validate_derby.py`: 344 kontrol (4.0 + 4.0.1: kontrol sistemi, kayıt v6, LOD1 düğümleri, sinematik açılış, kademeli GLB, ses katmanları, CI/BUILD belgeleri) | 344 PASS / 0 FAIL |
+| Roslyn anlamsal derleme, 5 yapılandırma: `UNITY_ANDROID,DERBY_ADS,UNITY_EDITOR` · `UNITY_IOS,DERBY_ADS,UNITY_EDITOR` (Editor betikleri dahil) · `UNITY_ANDROID,DERBY_ADS` · `UNITY_IOS,DERBY_ADS` · `UNITY_ANDROID` | 0 hata (yalnız 3 "kullanılmayan alan" uyarısı) |
+| Araç GLB'leri + `Body_LOD1` yazılım render'ı (`tools/glbview.py`, LOD0 / LOD1 karşılaştırması) | silüet, lastik ve taret konumları doğru; LOD1 ≈ 930 üçgen |
+| Çalışma zamanı mantığı masa başı incelemesi (RectTransform matematiği: kayan pad ve editör sürükleme; giriş akışı: parmak kimlikleri, düğme üstünden geçiş, editör açılış dokunuşu; eğim ekseni: Input System ekran yönü telafisi; editör kapanış yolları; ses perde/ses aralıkları; kayıt v6 taşıma ve boş `ControlPos`) | incelendi, iki düzeltme yapıldı (eğim ekseni `compensateForScreenOrientation`; yuvarlak düğme iki satırlı yazı alanı). Bağımsız ikinci ajan incelemesi API kotası nedeniyle tamamlanamadı — cihaz testi bu açığı kapatır |
+| Unity derlemesi, Play Mode, APK/AAB, cihaz testi (kontroller, eğim, ses, kare hızı, bellek) | **bekliyor** — kullanıcı cihaz testi; `PerfLog` çıktısı (`adb logcat -s Unity \| grep DerbyPerf`) ile ölçülür |
+
+Telefonda kabul listesi (4.0.1): `KNOWN_ISSUES_TR.md` §A (A1-A10).
+
+---
+
 # Test raporu — v1.5.0
 
 | Test | Sonuç |
