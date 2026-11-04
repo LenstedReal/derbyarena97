@@ -79,6 +79,35 @@ namespace DerbyArena.Vehicles
                 r.receiveShadows = false;
                 beams[i] = go;
             }
+            if (Loaded) { try { AlignBeams(visualRoot); } catch (Exception) { } }   // model already in (cached template)
+        }
+
+        /// <summary>
+        /// Moves the two beam cones to the model's own headlight lamps (materials named *_headlight) once the GLB is
+        /// in: the spec-based guess sat 0.3 m below the boss lamps and inside the hunter's bumper (2.1.1).
+        /// </summary>
+        void AlignBeams(Transform model)
+        {
+            if (beams == null || model == null) return;
+            var rs = model.GetComponentsInChildren<MeshRenderer>(true);
+            float left = 0f, right = 0f, y = 0f, z = float.MinValue; int nl = 0, nr = 0;
+            for (int i = 0; i < rs.Length; i++)
+            {
+                var m = rs[i].sharedMaterial;
+                if (m == null || m.name == null || m.name.IndexOf("headlight", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                Vector3 c = transform.InverseTransformPoint(rs[i].bounds.center);
+                if (c.z < 0f) continue;                      // rear-facing lamps are not headlights
+                if (c.x < 0f) { left += c.x; nl++; } else { right += c.x; nr++; }
+                y += c.y; if (c.z > z) z = c.z;
+            }
+            if (nl == 0 || nr == 0) return;
+            y /= (nl + nr);
+            for (int i = 0; i < beams.Length; i++)
+            {
+                if (beams[i] == null) continue;
+                float x = i == 0 ? left / nl : right / nr;
+                beams[i].transform.localPosition = new Vector3(x, y, z + 0.05f);
+            }
         }
 
         static Mesh BeamMesh()
@@ -307,6 +336,8 @@ namespace DerbyArena.Vehicles
             try
             {
                 Bind(model.transform);
+                try { AlignBeams(model.transform); }
+                catch (Exception beamEx) { Debug.LogWarning("DERBY: beam align skipped for " + spec.DisplayName + ": " + beamEx.Message); }
                 try { VehicleKit.Build(transform, spec, car != null ? car.Hull : null); }
                 catch (Exception kitEx) { Debug.LogWarning("DERBY: battle kit skipped for " + spec.DisplayName + ": " + kitEx.Message); }
                 CollectRenderers();

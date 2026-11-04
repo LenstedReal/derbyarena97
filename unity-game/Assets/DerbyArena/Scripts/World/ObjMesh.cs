@@ -6,8 +6,9 @@ namespace DerbyArena.World
 {
     /// <summary>
     /// Minimal Wavefront OBJ parser (v / vt / vn / f, triangles and polygons).
-    /// OBJ data is right-handed. The X axis is mirrored so the geometry stays correct in Unity's
-    /// left-handed space; mirroring also keeps the triangle winding valid.
+    /// OBJ data is right-handed with counter-clockwise front faces. The X axis is mirrored for Unity's left-handed
+    /// space, and a mirror turns the winding around, so each triangle is emitted reversed (a, c, b): without that
+    /// (1.x-2.0) the single-sided spillway floor was front-facing from below only.
     /// </summary>
     public static class ObjMesh
     {
@@ -87,8 +88,8 @@ namespace DerbyArena.World
                     for (int k = 1; k + 1 < face.Count; k++)
                     {
                         tris.Add(face[0]);
-                        tris.Add(face[k]);
                         tris.Add(face[k + 1]);
+                        tris.Add(face[k]);
                     }
                 }
             }

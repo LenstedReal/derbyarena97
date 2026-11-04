@@ -134,7 +134,9 @@ namespace DerbyArena.World
                 v.Add((nd - r - u) * 0.5f); v.Add((nd - r + u) * 0.5f); v.Add((nd + r + u) * 0.5f); v.Add((nd + r - u) * 0.5f);
                 for (int k = 0; k < 4; k++) n.Add(nd);
                 uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(0, 1)); uv.Add(new Vector2(1, 1)); uv.Add(new Vector2(1, 0));
-                t.Add(b); t.Add(b + 1); t.Add(b + 2); t.Add(b); t.Add(b + 2); t.Add(b + 3);
+                // clockwise seen from outside (Unity front face: Cross(b - a, c - a) points at the viewer).
+                // 1.x-2.0 had these reversed, so every box part was culled from outside and showed its inner faces.
+                t.Add(b); t.Add(b + 2); t.Add(b + 1); t.Add(b); t.Add(b + 3); t.Add(b + 2);
             }
             return Build("Box", v, n, uv, t);
         }

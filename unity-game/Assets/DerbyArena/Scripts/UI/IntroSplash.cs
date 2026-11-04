@@ -19,6 +19,7 @@ namespace DerbyArena.UI
         RawImage art;
         RectTransform bar;
         float t;
+        bool blocking;
 
         public static void Play()
         {
@@ -43,6 +44,10 @@ namespace DerbyArena.UI
             group = gameObject.AddComponent<CanvasGroup>();
             group.alpha = 1f;
             group.blocksRaycasts = true;
+            // the menu polls the pointer itself (no EventSystem), so a canvas group cannot stop the skip tap from
+            // also pressing the button under it (first launch: the language picker); hold every UiButton instead
+            UiButton.Blocked = true;
+            blocking = true;
 
             var bg = Child("Black").gameObject.AddComponent<Image>();
             bg.color = Color.black;
@@ -105,8 +110,18 @@ namespace DerbyArena.UI
                 float o = Mathf.Clamp01((t - FadeIn - Hold) / FadeOut);
                 group.alpha = 1f - o;
                 group.blocksRaycasts = o < 0.5f;
+                if (o >= 0.5f) Release();
                 if (o >= 1f) Destroy(gameObject);
             }
         }
+
+        void Release()
+        {
+            if (!blocking) return;
+            blocking = false;
+            UiButton.Blocked = false;
+        }
+
+        void OnDestroy() { Release(); }
     }
 }

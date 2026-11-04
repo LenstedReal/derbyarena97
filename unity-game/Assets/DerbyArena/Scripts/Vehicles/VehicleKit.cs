@@ -84,9 +84,30 @@ namespace DerbyArena.Vehicles
         /// for the side width. Cutting triangles instead of looking at vertices matters: a rounded roof panel has no
         /// vertex on the centre line at all, so a vertex scan would miss the roof and pick the hood scoop instead.
         /// </summary>
+        static readonly Dictionary<string, Shape> shapeCache = new Dictionary<string, Shape>();
+
         static Shape Measure(Transform car, VehicleSpec spec)
         {
             var filters = car.GetComponentsInChildren<MeshFilter>(true);
+            // every clone of a model template measures the same, so the result is cached per file, scale and
+            // vertex count (the count tells a loaded model from the fallback box); saves ~0.6 MB of garbage per spawn
+            int vertTotal = 0;
+            for (int i = 0; i < filters.Length; i++)
+            {
+                var mf = filters[i];
+                if (mf.sharedMesh == null || UnderNamed(mf.transform, car)) continue;
+                vertTotal += mf.sharedMesh.vertexCount;
+            }
+            string key = (spec.GlbFile ?? "") + "|" + spec.Scale.ToString("F3") + "|" + vertTotal;
+            Shape cached;
+            if (shapeCache.TryGetValue(key, out cached)) return cached;
+            Shape result = MeasureNow(car, spec, filters);
+            if (result != null) shapeCache[key] = result;
+            return result;
+        }
+
+        static Shape MeasureNow(Transform car, VehicleSpec spec, MeshFilter[] filters)
+        {
             var verts = new List<Vector3>(16384);
             var tris = new List<int>(65536);
             Matrix4x4 toCar = car.worldToLocalMatrix;
@@ -115,7 +136,6 @@ namespace DerbyArena.Vehicles
                 if (Mathf.Abs(p.x) > s.XMax) s.XMax = Mathf.Abs(p.x);
             }
             if (s.ZMax - s.ZMin < 1f || s.YMax - s.YMin < 0.3f) return null;
-            float beltY = s.YMin + (s.YMax - s.YMin) * 0.45f;
             for (int b = 0; b < Shape.Buckets; b++) { s.Top[b] = s.YMin; s.Side[b] = 0f; }
             float dz = s.Dz;
             var seg = new Vector3[2];
@@ -125,6 +145,17 @@ namespace DerbyArena.Vehicles
             {
                 Vector3 a = verts[tris[i]], b2 = verts[tris[i + 1]], c = verts[tris[i + 2]];
                 if (Cut(a, b2, c, 0, 0.02f, seg)) Sample(seg, dz, top);
+            }
+            // belt plane at 45% of the deck height (median of the centre strip): YMax would include an antenna,
+            // exhaust stacks or a rocket pod and push the belt above the doors (2.1.1)
+            var deck = new List<float>(Shape.Buckets);
+            for (int b = 0; b < Shape.Buckets; b++) if (s.Top[b] > s.YMin + 0.05f) deck.Add(s.Top[b]);
+            deck.Sort();
+            float deckY = deck.Count > 0 ? deck[deck.Count / 2] : s.YMax;
+            float beltY = s.YMin + (deckY - s.YMin) * 0.45f;
+            for (int i = 0; i + 2 < tris.Count; i += 3)
+            {
+                Vector3 a = verts[tris[i]], b2 = verts[tris[i + 1]], c = verts[tris[i + 2]];
                 if (Cut(a, b2, c, 1, beltY, seg)) Sample(seg, dz, side);
             }
             // fill empty side buckets from neighbours (bumpers leave gaps at the ends)
@@ -174,6 +205,7 @@ namespace DerbyArena.Vehicles
         {
             if (n >= 2) return true;
             if (dp == 0f) { seg[n++] = p; return n == 2; }
+            if (dq == 0f) return false;                       // q itself is added when the next edge starts there
             if ((dp < 0f) == (dq < 0f)) return false;
             float t = dp / (dp - dq);
             seg[n++] = p + (q - p) * t;
@@ -211,7 +243,7 @@ namespace DerbyArena.Vehicles
             if (shape != null)
             {
                 halfW = Mathf.Max(0.5f, shape.XMax);
-                top = shape.YMax; low = shape.YMin; front = shape.ZMax; back = shape.ZMin;
+                top = shape.RoofY; low = shape.YMin; front = shape.ZMax; back = shape.ZMin;   // RoofY: antenna/stacks/pod excluded
                 roofY = shape.RoofY; roofZ0 = shape.RoofZ0; roofZ1 = shape.RoofZ1;
                 trunkZ = Mathf.Max(back + 0.45f, shape.WheelZRear - 0.3f);
                 trunkY = shape.TopAt(trunkZ);

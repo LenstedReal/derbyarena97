@@ -67,7 +67,11 @@ def cracks(size, seed, count=6, length=0.6, width=2, wiggle=0.35):
     return tiled_draw(size, fn)
 
 def blur(img, r):
-    return np.asarray(Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(float) / 255.0
+    """Gaussian blur that wraps (2.1.1): padded with the opposite edges so the result stays periodic."""
+    pad = int(math.ceil(r * 4)) + 1
+    src = np.pad(np.clip(img, 0, 1), pad, mode='wrap')
+    out = np.asarray(Image.fromarray((src * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(float) / 255.0
+    return out[pad:-pad, pad:-pad]
 
 def normal_map(height, strength=3.0, size=None):
     h = height

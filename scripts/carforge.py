@@ -193,8 +193,22 @@ def loft(sections, outward_centre=None, close=True):
     T = np.concatenate(T)
     a, b, c = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
     T = T[np.linalg.norm(np.cross(b - a, c - a), axis=1) > 1e-10]
-    centres = S.mean(1)                        # per-ring centroid
-    hint = V[T[:, 0]] - np.repeat(centres, K, 0)[T[:, 0]]
+    # outward hint from the ring polygon itself (2.1.1): the in-plane normal of the ring edge each triangle sits
+    # on, sided by the ring's Newell normal. The old centroid hint failed where a ring is non-convex (the wheel-well
+    # notch of the hull ring): there the centroid lies outside the notch and the arch ceilings came out inward.
+    Pn = np.roll(S, -1, axis=1)
+    newell = np.cross(S, Pn).sum(1)                                   # (ns, 3), ring orientation x 2*area
+    newell = newell / np.maximum(np.linalg.norm(newell, axis=1, keepdims=True), 1e-12)
+    edge = Pn - S                                                     # edge k: point k -> k+1
+    en = np.cross(edge, newell[:, None, :])                           # outward in-plane edge normal (CCW ring)
+    ring_of = T[:, 0] // K
+    k_of = T[:, 0] % K                                                # every quad triangle starts at ring s, point i
+    r0 = np.minimum(ring_of, ns - 1); r1 = np.minimum(ring_of + 1, ns - 1)
+    hint = en[r0, k_of] + en[r1, k_of]
+    centres = S.mean(1)
+    fallback = V[T[:, 0]] - np.repeat(centres, K, 0)[T[:, 0]]
+    weak = np.linalg.norm(hint, axis=1) < 1e-9
+    hint[weak] = fallback[weak]
     T = _orient(V, T, hint)
     N = _smooth_normals(V, T)
     # UV: u = perimeter position, v = ring index scaled by z
