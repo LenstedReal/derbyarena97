@@ -32,8 +32,8 @@ namespace DerbyArena.EditorTools
         const string VertexLitMaterialPath = MaterialsFolder + "/RuntimeVertexLit.mat";
         const string PostMaterialPath = MaterialsFolder + "/RuntimePost.mat";
         const string IconFolder = "Assets/DerbyArena/Icons";
-        const string Version = "2.1.0";
-        const int VersionCode = 210;
+        const string Version = "4.0.0";
+        const int VersionCode = 400;
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()

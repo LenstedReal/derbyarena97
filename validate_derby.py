@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unity-independent static checks for Derby Arena 2.1.0. Not a substitute for a Unity compile or device test."""
+"""Unity-independent static checks for Derby Arena 4.0.0. Not a substitute for a Unity compile or device test."""
 from pathlib import Path
 import json, re, struct, sys
 
@@ -88,7 +88,7 @@ check('public const int ReleasedSeasons = 5;' in camp and 'Total = ReleasedSeaso
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
-check('Version = "2.1.0"' in diag and 'VersionCode = 210' in diag, 'Runtime version 2.1.0 (210)')
+check('Version = "4.0.0"' in diag and 'VersionCode = 400' in diag, 'Runtime version 4.0.0 (400)')
 loc = text(SCRIPTS / 'Core/Loc.cs')
 check('public static string T(string turkish, string english)' in loc and 'SystemLanguage.Turkish' in loc, 'Turkish / English localisation (device language preselects)')
 menu = text(SCRIPTS / 'UI/MenuController.cs')
@@ -104,7 +104,7 @@ check('stripEngineCode = false' in editor, 'Engine code stripping disabled (Caps
 check('KeepFogVariants();' in editor, 'Fog shader variants kept')
 check('"com.lenstedreal.derbyarena"' in editor, 'Package id preserved')
 check((ROOT / 'Assets/link.xml').exists(), 'link.xml present')
-check('Version = "2.1.0"' in editor and 'VersionCode = 210' in editor, 'Player version 2.1.0 / code 210')
+check('Version = "4.0.0"' in editor and 'VersionCode = 400' in editor, 'Player version 4.0.0 / code 400')
 icons_hook = text(ROOT / 'Assets/DerbyArena/Editor/DerbyAndroidIcons.cs')
 check('IPostGenerateGradleAndroidProject' in icons_hook and '#if UNITY_EDITOR && UNITY_ANDROID' in icons_hook, 'Android launcher icons written into the Gradle project (guarded for iOS builds)')
 check('SaveAndReimport' not in editor, 'No asset re-import during the build (silently skipped the icons in 1.3.0)')
@@ -349,7 +349,7 @@ check('public static Mesh Shaft(' in text(SCRIPTS / 'World/MeshFactory.cs') and 
 check('void SpawnWreck(int index)' in arena and 'SpawnWreck(w)' in arena, 'Colosseum cover wrecks are the 2.1 vehicle models')
 
 fails = [r for r in res if r[0] == 'FAIL']
-print('DERBY ARENA 2.1.0 STATIC VALIDATION (Unity-independent)')
+print('DERBY ARENA 4.0.0 STATIC VALIDATION (Unity-independent)')
 for st, label, detail in res:
     if st == 'FAIL' or '-v' in sys.argv: print(f'[{st}] {label}' + (f' — {detail}' if detail else ''))
 print(f'\nSummary: {len(res) - len(fails)} PASS, {len(fails)} FAIL')

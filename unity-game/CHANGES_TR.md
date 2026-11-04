@@ -1,4 +1,24 @@
-# DERBY ARENA — v2.1.0 (versionCode 210)
+# DERBY ARENA — Değişiklikler
+
+## 4.0.0 (400) — Büyük güncelleme: 100 bölüm, garaj dükkânı, Tiger I T-12, Çöl Harabeleri, yeni arayüz
+
+| # | Yeni | Ayrıntı |
+|---|---|---|
+| 1 | **100 bölüm, yıldızla açılan ilerleme** | 5 sezon × 20 bölüm (10. bölüm Büyük Derbi, 20. patron). Her sezonun ilk bölümü o ana kadarki yıldızların %50'sini, 6/11/16. bölümler %45'ini ister; kart ve detay panelinde "★ N gerek" yazar, sonuç ekranı da söyler. Eski kayıtlar (10 bölümlük sezonlar) kayıpsız yeni düzene taşınır (`SaveData` v5) |
+| 2 | **Garaj dükkânı** | Boya (12), jant (6), neon (8, biri nabızlı), şerit (7), tavan (far çubuğu / raf / siren), kanat (alçak / yüksek / ördek kuyruğu), tampon (bull bar / çelik pulluk / dikenli), egzoz (yan / baca / alevli). Hurdayla alınır, bazıları yıldız ister; araçta canlı önizleme, ikinci dokunuşta satın alma. Yükseltmeler aynı sayfada |
+| 3 | **Araç koleksiyonu** | Interceptor (ücretsiz), Razor Drifter, Bastion Rammer, Siege Hunter, War Rig ve son araç **Tiger I "T-12"**: fiyat + yıldız + patron şartları; stat çubukları; seçilen araç maçta ve ana menüde |
+| 4 | **Tiger I T-12 (`scripts/tankforge.py`)** | Tarihî oranlarda Panzerkampfwagen VI Tiger I: üç tonlu püskürtme kamuflaj, "T-12" ay-yıldız işareti, yedek palet baklaları, aletler ve kütük demeti, çift egzoz, 8,8 cm KwK 36 (çift kademeli namlu freni), iç içe tekerlekler, dönen paletler, antende dalgalanan Türk bayrağı, LOD1. Top: her dolumda bir mermi, geri tepme, kovan, "TOP HAZIR / DOLDURULUYOR" çubuğu; ROKET tuşu HE mermi atar |
+| 5 | **Çöl Harabeleri arenası** | Yıkık çöl kasabası: kum zemin, toprak çevre yolu ve sokaklar, siper olarak dört yıkık ev, kırık çevre duvarı, 14 harabe blok, minare kalıntısı, ölü palmiyeler, kum tepeleri, moloz, kirişler, toz pusu, enkaz. Sezon 2'nin derbileri ve Sezon 5'in tek numaralı derbileri burada |
+| 6 | **Günlük görevler** | Her gün 3 görev (imha / kazan / nitro / roket / çarpma / yıldız), hurda ödülü; ana menüde özet, ayrı sayfada ödül alma; gece yarısı yenilenir, çevrim dışı çalışır |
+| 7 | **Arayüz baştan** | Poppins yazı tipi (OFL), 9 dilimli panel/düğme/kart grafikleri, 45 ikon (`scripts/uiforge.py`), yeni ana menü (OYNA kartı, görev paneli, çipler), 10×2 bölüm kartları (ikon + yıldız + kilit), sezon yıldız çubuğu, garaj sekmeleri, ayarlar ikonları, HUD ikonları, sonuç ekranında yıldız animasyonu, geri sayım artık mesajların üstüne binmiyor |
+| 8 | **Reklam yerleşimi** | Geçiş reklamı yalnızca sonuç ekranından çıkarken (3. bölümden sonra, 3 maçta 1, ≥120 sn ara); aynı maçta ödüllü "ikinci şans" izlendiyse geçiş reklamı yok. Ödüllüler: ikinci şans, hurda ×2, garajda +150 (günde 3). Hâlâ TEST kimlikleri |
+| 9 | Ses | Top atışı, dolum, palet takırtısı, motor rölanti/yük katmanları, rüzgâr döngüleri (sentez) |
+| 10 | Politika metinleri | Reklam gizlilik yolu düzeltildi, Poppins lisansı ve Tiger I notu eklendi (oyun içi + web) |
+
+Test: C# Roslyn ile 5 yapılandırmada 0 hata (Android/iOS, reklamlı/reklamsız, Editor betikleri dahil); statik doğrulama 312 kontrol; T-12 ve arena geometrisi yazılım render'ıyla kontrol edildi. **Unity'de oynatma ve cihaz testi burada yapılamadı.** Yapılmayanlar: sinematik açılış (mevcut açılış ekranı duruyor), FMOD (Unity sesi korundu), silah/animasyon cilasının geri kalanı.
+
+
+## 2.1.0 (210) — araç modelleri, grafik motoru, hata düzeltmeleri
 
 Paket kimliği, logo ve kayıtlar aynı. 2.0.0'ın üzerine model, grafik motoru ve hata düzeltme güncellemesi.
 

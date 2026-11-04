@@ -993,7 +993,8 @@ namespace DerbyArena.UI
             bool hasNext = won && m.Config.Number < Campaign.Total;
             int n = m.Config.Number;
             var ads = DerbyArena.Ads.AdsManager.Instance;
-            interstitialDue = ads != null && ads.MatchFinished(n);
+            // 4.0 ad placement: a full-screen ad only when leaving the result screen, never after a rewarded ad in the same match
+            interstitialDue = ads != null && !m.RewardedShown && ads.MatchFinished(n);
             bool nextOpen = hasNext && Campaign.IsOpen(n + 1);
             if (hasNext && !nextOpen)
             {

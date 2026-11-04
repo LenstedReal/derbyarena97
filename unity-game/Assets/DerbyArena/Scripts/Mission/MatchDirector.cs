@@ -473,9 +473,13 @@ namespace DerbyArena.Mission
         }
 
         /// <summary>Player accepted: play the rewarded ad, revive on reward, otherwise the car dies.</summary>
+        /// <summary>A rewarded ad already ran in this match (second chance): no interstitial on its result screen.</summary>
+        public bool RewardedShown { get; private set; }
+
         public void AcceptSecondChance()
         {
             if (Phase != MatchPhase.Downed) return;
+            RewardedShown = true;
             ReviveTimeLeft = 90f;    // real seconds for the ad itself; if the SDK never answers the car dies, no soft-lock
             var ads = DerbyArena.Ads.AdsManager.Instance;
             if (ads == null) { DeclineSecondChance(); return; }

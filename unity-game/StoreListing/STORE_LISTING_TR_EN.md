@@ -14,7 +14,7 @@ DERBY ARENA, robot seyircilerin coştuğu dev bir kolezyumda geçen hızlı ve a
 Direksiyonu kavra, rakiplerine bindir, tavandaki makineliyle ateş et ve arenada ayakta kalan son araç sen ol.
 
 ÖNE ÇIKANLAR
-- 5 sezon, 50 bölüm: Reaktör, Yıkım Derbisi, Kontrol Noktası, Hayatta Kal, Son Kalan ve Patron savaşları
+- 5 sezon, 100 bölüm (yıldızla açılan): Reaktör, Yıkım Derbisi, Kontrol Noktası, Hayatta Kal, Son Kalan ve Patron savaşları
 - Daralan bölgede "Son Kalan" modu: hayatta kalmak için merkeze yakın kal
 - Direksiyon simidi veya ok tuşlarıyla rahat kontrol, otomatik nişan, nitro ve drift
 - Garajda motor, zırh, silah, nitro ve roket yükseltmeleri
@@ -32,7 +32,7 @@ DERBY ARENA is a fast, action-packed car combat game set in a giant colosseum pa
 Grab the wheel, ram your rivals, fire your roof-mounted gun and be the last car standing in the arena.
 
 HIGHLIGHTS
-- 5 seasons, 50 levels: Reactor runs, Demolition Derby, Checkpoints, Survival, Last Stand and Boss fights
+- 5 seasons, 100 star-gated levels: Reactor runs, Demolition Derby, Checkpoints, Survival, Last Stand and Boss fights
 - "Last Stand" with a shrinking zone: stay close to the center to survive
 - Comfortable controls with a steering wheel or arrow buttons, auto-aim, nitro and drift
 - Upgrade engine, armor, weapon, nitro and rockets in the garage
