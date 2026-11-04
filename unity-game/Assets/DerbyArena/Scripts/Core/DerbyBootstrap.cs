@@ -40,6 +40,11 @@ namespace DerbyArena.Core
             AudioHub.Init(sceneRoot, Save.Data.Sound);
 
             int level = GameFlow.PendingLevel;
+            if (level <= 0)
+            {
+                try { IntroSplash.Play(); }   // cold start only; the menu builds behind it
+                catch (Exception ex) { Debug.LogWarning("DERBY: intro skipped. " + ex.Message); }
+            }
             if (level <= 0) BuildMenu(cam);
             else BuildMatch(level, cam, sceneRoot);
         }

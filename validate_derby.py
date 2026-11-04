@@ -264,6 +264,10 @@ check('AdaptivePerformance.Step >= 1' in text(SCRIPTS / 'Core/DerbyBootstrap.cs'
 check(sh.count('#pragma target 3.0') == 2 and 'floor(pix)' in sh and 'min((float3)c, 64.0)' in sh, 'Post shader: SM3 for SV_POSITION, full-precision grain, NaN-safe ACES')
 check('if (showing) AudioListener.pause = audioWasPaused;' in text(ADS / 'AdsManager.cs'), 'Ads: audio restored only after a real show')
 
+intro = text(SCRIPTS / 'UI/IntroSplash.cs')
+check('Resources.Load<Texture2D>("Derby/keyart")' in intro and 'Shown = true' in intro and 'unscaledDeltaTime' in intro, 'Opening screen: key art, cold start only, unscaled time')
+check('IntroSplash.Play()' in text(SCRIPTS / 'Core/DerbyBootstrap.cs') and (ROOT / 'Assets/Resources/Derby/keyart.jpg').exists(), 'Opening screen wired and its art present')
+
 fails = [r for r in res if r[0] == 'FAIL']
 print('DERBY ARENA 2.1.0 STATIC VALIDATION (Unity-independent)')
 for st, label, detail in res:

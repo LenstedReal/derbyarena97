@@ -11,7 +11,8 @@ Paket kimliği, logo ve kayıtlar aynı. 2.0.0'ın üzerine grafik motoru ve iç
 | 5 | Ayar: **EKRAN EFEKTLERİ** | Flaş, sarsıntı, nitro efekti ve greni tek tuşla kapatır |
 | 6 | **Draw call azaltma** | Araç savaş kiti malzeme başına tek mesh (araç başına ~30 → ~5 çizim). Arena dekoru ve liman arenası static batching ile birleştiriliyor |
 | 7 | **Hata düzeltmeleri (bağımsız kod incelemesiyle bulundu)** | • Oyuncu "ikinci şans" ekranındayken son rakip/patron kendi çarpışma hasarıyla ölürse maç kazanılamıyordu (süre bitince haksız yenilgi). Artık canlanınca zafer geliyor, ayrıca her karede güvenlik kontrolü var. • Uyarlanabilir performans yavaş telefonda ikinci maçtan sonra gölgeleri geri açıyordu (2.0 hatası). • 8 rakipli Son Kalan bölümlerinde iki araç aynı noktada doğup patlayabiliyordu (Sezon 5'te de vardı): dolu noktada yakında boş yer aranıyor. • Reklam açılamazsa ses yanlış geri yükleniyordu; geç gelen ödül sinyali kayboluyordu; reklam SDK'sı hiç cevap vermezse ikinci şans ekranı 999 sn bekliyordu (artık 90 sn). • Liman rampaları tümsek yapıldı (arkada 0,8 m basamak kalmıyordu). • Post shader: 1440p'de gren kümelenmesi ve çok parlak ışıkta siyah piksel riski giderildi |
-| 8 | CI düzeltmesi | GitHub'daki statik doğrulama Pillow olmadan da çalışıyor (2.0.0'da kırmızıydı, Unity derlemesiyle ilgisi yoktu) |
+| 8 | **Açılış ekranı** | Oyun açılırken siyahtan DERBY ARENA ana görseline geçiş (uygulama logosuyla aynı görsel), turuncu yükleme çizgisi; menü arkada hazırlanır. Yalnızca ilk açılışta, dokununca geçilir |
+| 9 | CI düzeltmesi | GitHub'daki statik doğrulama Pillow olmadan da çalışıyor (2.0.0'da kırmızıydı, Unity derlemesiyle ilgisi yoktu) |
 
 Test: tüm C# kodu Roslyn derleyicisiyle Unity/AdMob API taslaklarına karşı tip denetiminden geçti (reklamlı ve reklamsız, Android ve iOS); reklam kodu Google'ın 11.6.0 kaynağıyla derlendi; statik doğrulama 241/241. Unity'de oynatma ve cihaz testi burada yapılamadı.
 
