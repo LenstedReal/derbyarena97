@@ -433,7 +433,7 @@ namespace DerbyArena.Audio
                 case DerbyArena.Core.ArenaKind.Colosseum: z.reverbPreset = AudioReverbPreset.Arena; break;
                 case DerbyArena.Core.ArenaKind.Ruins: z.reverbPreset = AudioReverbPreset.Plain; break;
                 case DerbyArena.Core.ArenaKind.Docks: z.reverbPreset = AudioReverbPreset.Hangar; break;
-                default: z.reverbPreset = AudioReverbPreset.ConcertHall; break;   // the spillway's concrete channel
+                default: z.reverbPreset = AudioReverbPreset.Concerthall; break;   // the spillway's concrete channel
             }
         }
 

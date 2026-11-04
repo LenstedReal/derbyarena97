@@ -47,7 +47,7 @@ Android'de Resources dokuları **ASTC** ile sıkıştırılır (`EditorUserBuild
 Tüm sesler `Audio/SynthAudio.cs` ile açılışta sentezlenir (dosya yok): motor (idle / engine / load katmanları), palet
 (`Tracks`), top (`Cannon`), dolum (`Reload`), atış, vuruş, çarpma, patlama, roket, pickup, UI tonları, kalabalık,
 alarm, rüzgâr (`Wind`) ve arena ortam sesi (`Ambience`). Arena başına `AudioReverbZone` (Kolezyum: Arena,
-Harabeler: Plain, Rıhtım: Hangar, diğerleri: ConcertHall).
+Harabeler: Plain, Rıhtım: Hangar, diğerleri: Concerthall).
 
 ## 5. Kod (`Assets/DerbyArena`, 53 C# dosyası, ~15.6k satır)
 | Klasör | Dosyalar |
