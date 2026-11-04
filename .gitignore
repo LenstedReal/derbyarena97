@@ -1,6 +1,21 @@
-node_modules/
-.project_id
-.github_repo
+# Unity
+unity-game/[Ll]ibrary/
+unity-game/[Tt]emp/
+unity-game/[Oo]bj/
+unity-game/[Bb]uild/
+unity-game/[Bb]uilds/
+unity-game/[Ll]ogs/
+unity-game/[Uu]ser[Ss]ettings/
+unity-game/MemoryCaptures/
+*.csproj
+*.sln
+*.apk
+*.aab
+# secrets — never commit
 .env
 .env.*
+*.keystore
+*.jks
+# tools
 __pycache__/
+node_modules/

@@ -69,5 +69,4 @@ Harabeler: Plain, Rıhtım: Hangar, diğerleri: ConcertHall).
 (GLB doku değişimi), `crowdforge.py`, `uiforge.py` (UI sprite + ikon), `make_icons.py` (uygulama ikonu — değiştirilmedi).
 Hepsi `python3 -I scripts/<ad>.py` ile tekrar üretilebilir; `validate_derby.py` çıktıları doğrular (344 statik kontrol).
 
-Depodaki `scripts/*.mjs`, `AGENTS.md`, `src/`, `server/`, `public/` ve `native-android/` dosyaları eski (Kotlin / web) sürümden kalan
-geçmiş dosyalardır; Unity projesi bunları kullanmaz ve istek üzerine silinmemiştir.
+4.0.1 temizliğinde oyunla ilgisi olmayan eski web (Vite/React), Godot (`wreck-circuit/`) ve Kotlin (`native-android/`) dosyaları depodan kaldırıldı; geçmişte (git history) durmaya devam eder.
