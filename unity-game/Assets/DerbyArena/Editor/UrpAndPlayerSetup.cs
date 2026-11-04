@@ -30,8 +30,8 @@ namespace DerbyArena.EditorTools
         const string VertexLitMaterialPath = MaterialsFolder + "/RuntimeVertexLit.mat";
         const string PostMaterialPath = MaterialsFolder + "/RuntimePost.mat";
         const string IconFolder = "Assets/DerbyArena/Icons";
-        const string Version = "1.5.0";
-        const int VersionCode = 150;
+        const string Version = "2.0.0";
+        const int VersionCode = 200;
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
@@ -381,6 +381,16 @@ namespace DerbyArena.EditorTools
             // code stripping removed classes such as CapsuleCollider ("Can't add component because class
             // 'CapsuleCollider' doesn't exist"). Keep engine code; link.xml additionally preserves modules.
             PlayerSettings.stripEngineCode = false;
+
+            // Hardware statistics to Unity: off where the licence allows it (privacy policy states the rest).
+            try
+            {
+                var hw = typeof(PlayerSettings).GetProperty("submitAnalytics", BindingFlags.Public | BindingFlags.Static);
+                if (hw != null && hw.CanWrite) hw.SetValue(null, false, null);
+            }
+            catch (Exception ex) { Debug.LogWarning("DERBY: hardware statistics setting not applied: " + ex.Message); }
+            // Google Play requires a recent target API; Unity picks the highest installed SDK (36 in Build Automation).
+            PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
             PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Android, ManagedStrippingLevel.Minimal);
 
             // iOS: same identity; Unity Build Automation signs with your Apple credentials.

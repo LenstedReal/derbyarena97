@@ -13,7 +13,7 @@ using UnityEngine;
 
 namespace DerbyArena.Mission
 {
-    public enum MatchPhase { Loading, Countdown, Playing, Won, Lost }
+    public enum MatchPhase { Loading, Countdown, Playing, Won, Lost, Downed }
 
     /// <summary>
     /// Owns one match: spawns, objectives (reactor run / demolition / boss), timer, pickups,
@@ -73,6 +73,12 @@ namespace DerbyArena.Mission
         public int Assist;
         float damageScale = 1f;
         float healthScale = 1f;
+        /// <summary>The rewarded second chance was used in this match (one per match).</summary>
+        public bool ReviveUsed;
+        /// <summary>Seconds left of the second-chance offer (unscaled; the match is frozen meanwhile).</summary>
+        public float ReviveTimeLeft;
+        /// <summary>The rewarded "double scrap" was taken on the result screen.</summary>
+        public bool RewardDoubled;
 
         public static MatchDirector Begin(LevelConfig config, ArenaLoader arena, TouchControls touch, Transform sceneRoot)
         {
@@ -150,6 +156,7 @@ namespace DerbyArena.Mission
             player.AddComponent<EngineAudio>().Volume = 0.42f;
             player.AddComponent<PlayerDriver>().Init(this, controls);
             PlayerHealth.Died += OnPlayerDied;
+            PlayerHealth.DeferDeath = OfferSecondChance;
             PlayerCar.Locked = true;
 
             var cam = ChaseCamera.Main;
@@ -420,6 +427,76 @@ namespace DerbyArena.Mission
             if (wreck != null) Destroy(wreck);
         }
 
+        // ------------------------------------------------------------------ second chance (rewarded ad)
+        /// <summary>
+        /// Health hit zero: freeze the match and offer one rewarded "second chance" per match when an ad is ready.
+        /// Returns false (normal death) in the countdown, after a revive, or when no ad can be shown.
+        /// </summary>
+        bool OfferSecondChance(VehicleHealth victim, VehicleHealth attacker)
+        {
+            if (Phase != MatchPhase.Playing || ReviveUsed) return false;
+            var ads = DerbyArena.Ads.AdsManager.Instance;
+            if (ads == null || !ads.RewardedReady) return false;
+            ReviveUsed = true;
+            Phase = MatchPhase.Downed;
+            ReviveTimeLeft = DerbyArena.Ads.AdsConfig.ReviveWindowSeconds;
+            FreezeAll();
+            Time.timeScale = 0f;
+            AudioHub.Play2D(SynthAudio.Alarm(), 0.5f, 0.8f);
+            HudController.ShowSecondChance(this);
+            return true;
+        }
+
+        /// <summary>Player accepted: play the rewarded ad, revive on reward, otherwise the car dies.</summary>
+        public void AcceptSecondChance()
+        {
+            if (Phase != MatchPhase.Downed) return;
+            ReviveTimeLeft = 999f;   // the countdown stops while the ad plays
+            var ads = DerbyArena.Ads.AdsManager.Instance;
+            if (ads == null) { DeclineSecondChance(); return; }
+            ads.ShowRewarded(earned =>
+            {
+                if (this == null) return;
+                if (earned) Revive();
+                else DeclineSecondChance();
+            });
+        }
+
+        void Revive()
+        {
+            if (Phase != MatchPhase.Downed) return;
+            Phase = MatchPhase.Playing;
+            Time.timeScale = 1f;
+            if (PlayerHealth != null) PlayerHealth.Revive(DerbyArena.Ads.AdsConfig.ReviveHealthFraction, 40f, 3f);
+            if (PlayerCar != null)
+            {
+                PlayerCar.Locked = false;
+                PlayerCar.Nitro = 1f;
+            }
+            foreach (var e in Enemies)
+            {
+                if (e == null || e.Health == null || e.Health.Dead) continue;
+                e.Active = true;
+                if (e.Car != null) e.Car.Locked = false;
+                // shove nearby rivals away so the player is not wrecked again in the same second
+                Vector3 d = e.transform.position - PlayerCar.transform.position; d.y = 0f;
+                if (d.magnitude < 9f && e.Car != null && e.Car.Body != null)
+                    e.Car.Body.AddForce((d.normalized * 7f + Vector3.up * 1.5f) * e.Car.Body.mass, ForceMode.Impulse);
+            }
+            Say(Loc.T("İKİNCİ ŞANS!", "SECOND CHANCE!"), UiKit.Green);
+            AudioHub.Play2D(SynthAudio.Go(), 0.7f, 1.1f);
+        }
+
+        /// <summary>Player declined, the offer timed out, or the ad gave no reward: the deferred death happens.</summary>
+        public void DeclineSecondChance()
+        {
+            if (Phase != MatchPhase.Downed) return;
+            Phase = MatchPhase.Playing;
+            Time.timeScale = 1f;
+            if (PlayerHealth != null) PlayerHealth.Kill();
+            else Lose();
+        }
+
         void OnPlayerDied(VehicleHealth victim, VehicleHealth killer)
         {
             if (Phase != MatchPhase.Playing) return;
@@ -450,6 +527,7 @@ namespace DerbyArena.Mission
             }
             Save.Data.Scrap += Reward;
             Save.Data.TotalKills += Kills;
+            Save.Data.Wins++;
             Save.Write();
             FreezeAll();
             AudioHub.Play2D(SynthAudio.Win(), 0.8f, 1f);
@@ -469,6 +547,16 @@ namespace DerbyArena.Mission
             Save.Write();
             FreezeAll();
             AudioHub.Play2D(SynthAudio.Lose(), 0.7f, 1f);
+        }
+
+        /// <summary>Rewarded "double scrap" on the result screen: the match reward is granted a second time.</summary>
+        public void DoubleReward()
+        {
+            if (RewardDoubled || Reward <= 0) return;
+            RewardDoubled = true;
+            Save.Data.Scrap += Reward;
+            Save.Write();
+            AudioHub.Play2D(SynthAudio.Pickup(), 0.8f, 1f);
         }
 
         void FreezeAll()
@@ -492,6 +580,10 @@ namespace DerbyArena.Mission
             {
                 case MatchPhase.Countdown: TickCountdown(dt); break;
                 case MatchPhase.Playing: TickPlaying(dt); break;
+                case MatchPhase.Downed:
+                    ReviveTimeLeft -= Time.unscaledDeltaTime;
+                    if (ReviveTimeLeft <= 0f) DeclineSecondChance();
+                    break;
                 case MatchPhase.Won:
                 case MatchPhase.Lost:
                     endTimer -= Time.unscaledDeltaTime;

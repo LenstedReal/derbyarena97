@@ -7,7 +7,7 @@ namespace DerbyArena.Core
     [Serializable]
     public sealed class SaveData
     {
-        public int Version = 3;
+        public int Version = 4;
         public int Scrap = 0;
         public int Unlocked = 1;
         public int LastPlayed = 1;
@@ -26,8 +26,17 @@ namespace DerbyArena.Core
         public int Language = 0;              // 0 Turkish, 1 English (see Loc)
         public bool LanguageChosen = false;   // false -> language picker on first launch
         public float Brightness = 1.1f;
-        public int FrameRate = 60;            // 30 / 60 / 90 / 120 (high-refresh phones)       // 0.8 .. 1.4, scales key light, ambient and sky
+        public int FrameRate = 60;            // 30 / 60 / 90 / 120 (high-refresh phones)
         public int[] Fails = new int[Campaign.Total + 1];   // losses per level -> automatic assist
+
+        // 2.0
+        public bool DynamicResolution = true; // lowers the render size when the phone misses the frame rate
+        public int Wins = 0;                  // matches won (rate prompt timing)
+        public int RateState = 0;             // 0 not asked / asked later, 1 rated, 2 never ask again
+        public int RateAskAtWin = 3;          // the win count at which the rate prompt shows next
+        public string RewardDay = "";         // yyyyMMdd of the last rewarded scrap ad
+        public int RewardCount = 0;           // rewarded scrap ads watched on RewardDay
+        public bool PrivacySeen = false;      // privacy page opened at least once
     }
 
     public static class Save
@@ -102,6 +111,27 @@ namespace DerbyArena.Core
             d.Quality = Mathf.Clamp(d.Quality, 0, 2);
             d.Language = Mathf.Clamp(d.Language, 0, 1);
             if (d.FrameRate != 30 && d.FrameRate != 60 && d.FrameRate != 90 && d.FrameRate != 120) d.FrameRate = 60;
+            d.Wins = Mathf.Max(0, d.Wins);
+            d.RateState = Mathf.Clamp(d.RateState, 0, 2);
+            if (d.RateAskAtWin < 1) d.RateAskAtWin = 3;
+            if (d.RewardDay == null) d.RewardDay = "";
+            d.RewardCount = Mathf.Max(0, d.RewardCount);
+        }
+
+        /// <summary>Rewarded scrap ads left today (the counter resets with the calendar day).</summary>
+        public static int RewardedScrapLeft(int perDay)
+        {
+            string today = System.DateTime.Now.ToString("yyyyMMdd");
+            if (Data.RewardDay != today) return perDay;
+            return Mathf.Max(0, perDay - Data.RewardCount);
+        }
+
+        public static void CountRewardedScrap()
+        {
+            string today = System.DateTime.Now.ToString("yyyyMMdd");
+            if (Data.RewardDay != today) { Data.RewardDay = today; Data.RewardCount = 0; }
+            Data.RewardCount++;
+            Write();
         }
 
         /// <summary>First launch: pick a quality tier from the device (memory, shader level, HDR support).</summary>

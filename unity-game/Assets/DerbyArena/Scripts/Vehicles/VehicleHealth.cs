@@ -18,7 +18,14 @@ namespace DerbyArena.Vehicles
         public float Shield;
         public float ShieldMax = 60f;
         public bool Dead { get; private set; }
+        /// <summary>Health reached zero but the death was deferred (second-chance offer). The car is locked and immune.</summary>
+        public bool Downed { get; private set; }
         public float InvulnerableUntil;
+        /// <summary>
+        /// Asked once when health reaches zero (victim, attacker). Return true to defer the death: the car stays
+        /// as a wreck-in-waiting until Revive() or Kill() is called. Used for the rewarded "second chance".
+        /// </summary>
+        public Func<VehicleHealth, VehicleHealth, bool> DeferDeath;
         public VehicleHealth LastAttacker { get; private set; }
         public float LastHitTime { get; private set; } = -10f;
         public Vector3 LastHitFrom { get; private set; }
@@ -46,7 +53,7 @@ namespace DerbyArena.Vehicles
 
         public void Apply(float amount, VehicleHealth attacker, Vector3 from)
         {
-            if (Dead || amount <= 0f) return;
+            if (Dead || Downed || amount <= 0f) return;
             if (Time.time < InvulnerableUntil) return;
             if (attacker == this) return;
             if (attacker != null && attacker.Team == Team && Team != 0 && amount < 30f) amount *= 0.25f;
@@ -70,7 +77,40 @@ namespace DerbyArena.Vehicles
             if (visual == null) visual = GetComponent<VehicleVisual>();
             if (visual != null && amount >= 1.5f) visual.Flash();
             if (Damaged != null) Damaged(this, amount);
-            if (Current <= 0f) Die(attacker);
+            if (Current <= 0f)
+            {
+                if (DeferDeath != null && DeferDeath(this, attacker))
+                {
+                    Downed = true;
+                    LastAttacker = attacker;
+                    if (car != null) { car.Locked = true; car.NitroHeld = false; }
+                    Fx.Explosion(transform.position + Vector3.up, 0.6f);
+                    return;
+                }
+                Die(attacker);
+            }
+        }
+
+        /// <summary>Second chance taken: the car drives again with part of its health, briefly immune.</summary>
+        public void Revive(float healthFraction, float shield, float immuneSeconds)
+        {
+            if (Dead || !Downed) return;
+            Downed = false;
+            Current = Mathf.Clamp(Max * healthFraction, 1f, Max);
+            Shield = Mathf.Min(ShieldMax, Shield + shield);
+            InvulnerableUntil = Time.time + immuneSeconds;
+            fireUntil = 0f;
+            if (car != null) car.Locked = false;
+            Fx.Ring(transform.position + Vector3.up * 0.3f, 10f, new Color(0.3f, 1f, 0.5f));
+            Fx.Burst(transform.position + Vector3.up, new Color(0.3f, 1f, 0.5f), 18);
+        }
+
+        /// <summary>Second chance declined or expired: the deferred death happens now.</summary>
+        public void Kill()
+        {
+            if (Dead) return;
+            Downed = false;
+            Die(LastAttacker);
         }
 
         public void Heal(float amount)
@@ -105,23 +145,22 @@ namespace DerbyArena.Vehicles
             if (Died != null) Died(this, killer);
         }
 
+        static MaterialPropertyBlock charBlock;
+
+        /// <summary>Burnt-out look through a property block (1.5.0 instantiated every material of every wreck and never freed them).</summary>
         void Char()
         {
+            if (visual != null) visual.SetCharred(true);
+            if (charBlock == null) charBlock = new MaterialPropertyBlock();
             foreach (var r in GetComponentsInChildren<Renderer>(true))
             {
                 if (r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
-                var mats = r.materials;
-                for (int i = 0; i < mats.Length; i++)
-                {
-                    if (mats[i] == null) continue;
-                    if (mats[i].HasProperty("_Color"))
-                    {
-                        var col = mats[i].GetColor("_Color");
-                        mats[i].SetColor("_Color", new Color(col.r * 0.18f + 0.03f, col.g * 0.16f + 0.02f, col.b * 0.15f + 0.02f, col.a));
-                    }
-                    if (mats[i].HasProperty("_EmissionColor")) mats[i].SetColor("_EmissionColor", Color.black);
-                }
-                r.materials = mats;
+                var shared = r.sharedMaterial;
+                Color col = shared != null && shared.HasProperty("_Color") ? shared.GetColor("_Color") : Color.white;
+                charBlock.Clear();
+                charBlock.SetColor("_Color", new Color(col.r * 0.18f + 0.03f, col.g * 0.16f + 0.02f, col.b * 0.15f + 0.02f, col.a));
+                charBlock.SetColor("_EmissionColor", Color.black);
+                r.SetPropertyBlock(charBlock);
             }
         }
 
@@ -131,7 +170,13 @@ namespace DerbyArena.Vehicles
             smokeTimer -= Time.deltaTime;
             if (smokeTimer > 0f) return;
             Vector3 p = transform.position + transform.up * 1.3f + transform.forward * 1.2f;
-            if (Dead)
+            if (Downed)
+            {
+                smokeTimer = 0.08f;
+                Fx.Smoke(p, 1.3f);
+                Fx.Fire(p, 0.6f);
+            }
+            else if (Dead)
             {
                 smokeTimer = 0.09f;
                 if (Time.time < fireUntil) Fx.Fire(p, 1f);
@@ -148,7 +193,7 @@ namespace DerbyArena.Vehicles
 
         void OnCollisionEnter(Collision collision)
         {
-            if (Dead) return;
+            if (Dead || Downed) return;
             var other = collision.collider.GetComponentInParent<VehicleHealth>();
             if (other == null || other == this) return;
             if (GetInstanceID() > other.GetInstanceID()) return;   // one side resolves the pair

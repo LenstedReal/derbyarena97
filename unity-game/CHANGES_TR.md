@@ -1,3 +1,23 @@
+# DERBY ARENA — v2.0.0 (versionCode 200)
+
+Paket kimliği ve uygulama logosu aynı. Kayıtlar korunur (kayıt sürümü 4'e otomatik yükselir).
+
+| # | Yeni | Ayrıntı |
+|---|---|---|
+| 1 | **Savaş kiti (araç modelleri)** | Her araca tavan ışık barı (yanan lambalar), yarış şeritleri, ön koruma demiri. Rolüne göre: koçbaşı dikenleri (koçlar, boss, ağır zırh), kapı plakaları, roll-bar, spoyler, motor üstü kompresör, yan egzozlar. Paylaşılan malzeme, gölgesiz → performansa yük yok |
+| 2 | **Stadyum dekoru (arazi)** | Kolezyum: kırmızı-beyaz bariyer başlıkları, 4 projektör kulesi, lastik yığınları (çarpılabilir), varil grupları, kurukafa bayrakları. Bent arenası: yollara/borulara/kulelere çakışmayan lastik ve varil öbekleri |
+| 3 | Grafik | Bloom artık Orta kalitede de açık; vinyet hafifletildi. Patlayan araçlar malzeme kopyalamadan kararıyor (bellek sızıntısı giderildi) |
+| 4 | **Uyarlanabilir performans** | Maçta FPS 2 ölçümde üst üste hedefin %80'inin altına düşerse önce gölgeler, sonra çözünürlük (%85 → %72) iner. Ayarlar'da DİNAMİK ÇÖZÜNÜRLÜK açılıp kapatılabilir |
+| 5 | **Reklamlar (TEST kimlikleri)** | Google AdMob 11.6.0 + UMP rıza formu. Ödüllü: ikinci şans, hurdayı 2 katına çıkar, garajda +150 hurda (günde 3). Geçiş: ilk 2 bölüm yok, 3 maçta 1, en az 120 sn ara. Eklenti yoksa oyun reklamsız derlenir. Plan: `docs/REKLAM_PLANI_TR.md` |
+| 6 | Yasal sayfalar | Ayarlar'da Gizlilik, Kullanım Koşulları, Lisanslar (çevrimdışı özet + web'de tam metin), Reklam gizlilik seçenekleri (AEA/UK/CH), Puan ver. Web sayfaları `docs/` klasöründe (GitHub Pages) |
+| 7 | Puan isteği | 3. galibiyetten sonra bir kez sorar; "Sonra" derse 8 galibiyet sonra tekrar; "Hayır" derse bir daha sormaz |
+| 8 | Android geri tuşu | Menü alt sayfaları → ana sayfa; yasal sayfa → ayarlar; sonuç ekranı → menü |
+| 9 | Gizlilik | Unity analitiği kapatıldı (`submitAnalytics=false`); targetSdk otomatik (en yüksek kurulu) |
+
+Yapılmadı: Sezon 6 ve yeni arena; bir sonraki sürüm.
+
+---
+
 # DERBY ARENA — v1.5.0 (versionCode 150)
 
 | # | Yeni | Ayrıntı |

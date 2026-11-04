@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unity-independent static checks for Derby Arena 1.5.0. Not a substitute for a Unity compile or device test."""
+"""Unity-independent static checks for Derby Arena 2.0.0. Not a substitute for a Unity compile or device test."""
 from pathlib import Path
 import json, re, struct, sys
 
@@ -54,7 +54,7 @@ except Exception as e:
     check(False, 'manifest.json', repr(e))
 
 # C# structure
-files = sorted(SCRIPTS.rglob('*.cs')) + sorted((ROOT / 'Assets/DerbyArena/Editor').rglob('*.cs'))
+files = sorted(SCRIPTS.rglob('*.cs')) + sorted((ROOT / 'Assets/DerbyArena/Editor').rglob('*.cs')) + sorted((ROOT / 'Assets/DerbyArena/Ads').rglob('*.cs'))
 names = {}
 for f in files:
     t = strip(text(f)); st = []; ok = True
@@ -88,7 +88,7 @@ check('public const int Total = 50;' in camp, '50-level campaign')
 for k in ['Reactor', 'Demolition', 'Boss', 'Checkpoint', 'Survival', 'LastStand']:
     check(k in camp, 'Objective kind: ' + k)
 diag = text(SCRIPTS / 'Core/DerbyStartupDiagnostics.cs')
-check('Version = "1.5.0"' in diag, 'Runtime version 1.5.0')
+check('Version = "2.0.0"' in diag and 'VersionCode = 200' in diag, 'Runtime version 2.0.0 (200)')
 loc = text(SCRIPTS / 'Core/Loc.cs')
 check('public static string T(string turkish, string english)' in loc and 'SystemLanguage.Turkish' in loc, 'Turkish / English localisation (device language preselects)')
 menu = text(SCRIPTS / 'UI/MenuController.cs')
@@ -104,7 +104,7 @@ check('stripEngineCode = false' in editor, 'Engine code stripping disabled (Caps
 check('KeepFogVariants();' in editor, 'Fog shader variants kept')
 check('"com.lenstedreal.derbyarena"' in editor, 'Package id preserved')
 check((ROOT / 'Assets/link.xml').exists(), 'link.xml present')
-check('Version = "1.5.0"' in editor and 'VersionCode = 150' in editor, 'Player version 1.5.0 / code 150')
+check('Version = "2.0.0"' in editor and 'VersionCode = 200' in editor, 'Player version 2.0.0 / code 200')
 icons_hook = text(ROOT / 'Assets/DerbyArena/Editor/DerbyAndroidIcons.cs')
 check('IPostGenerateGradleAndroidProject' in icons_hook and '#if UNITY_EDITOR && UNITY_ANDROID' in icons_hook, 'Android launcher icons written into the Gradle project (guarded for iOS builds)')
 check('SaveAndReimport' not in editor, 'No asset re-import during the build (silently skipped the icons in 1.3.0)')
@@ -164,8 +164,54 @@ for s in ['asphalt', 'concrete', 'steel']:
     for k in ['albedo', 'normal']:
         check((MODELS / 'spillway' / f'{s}_{k}.png').exists(), f'Spillway texture: {s}_{k}')
 
+# 2.0: ads (AdMob test units), legal pages, battle kit, arena dressing, adaptive performance
+ADS = ROOT / 'Assets/DerbyArena/Ads'
+try:
+    man = json.loads(text(ROOT / 'Packages/manifest.json'))
+    regs = man.get('scopedRegistries', [])
+    check(man['dependencies'].get('com.google.ads.mobile') == '11.6.0', 'Google Mobile Ads Unity plugin 11.6.0 in manifest')
+    check(any('package.openupm.com' in r.get('url', '') and 'com.google' in r.get('scopes', []) for r in regs), 'OpenUPM scoped registry for com.google')
+    check(man['dependencies'].get('com.unity.external-dependency-manager') == '2.1.0', 'External Dependency Manager 2.1.0')
+except Exception as e:
+    check(False, 'manifest ads entries', repr(e))
+asm = json.loads(text(ADS / 'DerbyArena.Ads.asmdef'))
+check(any(v.get('name') == 'com.google.ads.mobile' and v.get('define') == 'DERBY_ADS' for v in asm.get('versionDefines', [])), 'DERBY_ADS defined only when the plugin is installed')
+check({'GoogleMobileAds.Api','GoogleMobileAds.Ump.Api'} <= set(asm.get('references', [])), 'Ads assembly references the plugin assemblies')
+cfg = text(ADS / 'AdsConfig.cs')
+check('public const bool TestMode = true;' in cfg, 'Ads in TEST mode (release: set false)')
+check('ca-app-pub-3940256099942544/1033173712' in cfg and 'ca-app-pub-3940256099942544/5224354917' in cfg, 'Google test interstitial + rewarded units')
+mgr = strip(text(ADS / 'AdsManager.cs'))
+for api in ['ConsentInformation.Update', 'LoadAndShowConsentFormIfRequired', 'CanRequestAds', 'MobileAds.Initialize', 'InterstitialAd.Load', 'RewardedAd.Load', 'ShowPrivacyOptionsForm']:
+    check(api in mgr, 'AdsManager uses ' + api)
+raw = text(ADS / 'AdsManager.cs')
+check(raw.find('#if DERBY_ADS') < raw.find('using GoogleMobileAds.Api;'), 'Plugin namespaces only behind DERBY_ADS')
+outside = [f.name for f in sorted(SCRIPTS.rglob('*.cs')) if 'GoogleMobileAds' in text(f)]
+check(not outside, 'Game scripts never reference the ad SDK directly', str(outside))
+gma = text(ROOT / 'Assets/GoogleMobileAds/Resources/GoogleMobileAdsSettings.asset')
+check('adMobAndroidAppId: ca-app-pub-' in gma and 'a187246822bbb47529482707f3e0eff8' in gma, 'AdMob settings asset with Android app ID')
+md = text(SCRIPTS / 'Mission/MatchDirector.cs')
+check('DeferDeath = OfferSecondChance' in md and 'ReviveUsed' in md, 'Rewarded second chance (once per match)')
+hud = text(SCRIPTS / 'UI/HudController.cs')
+check('ShowInterstitial' in hud and 'MatchFinished' in hud and 'DoubleReward' in hud and 'MaybeAskForRating' in hud, 'Result screen: capped interstitial, rewarded double scrap, rate prompt')
+mn = text(SCRIPTS / 'UI/MenuController.cs')
+check('RewardedScrapLeft' in mn and 'BuildLegal()' in mn and 'ShowPrivacyOptions' in mn and 'escapeKey' in mn, 'Menu: garage rewarded scrap, legal pages, ad privacy options, Android back')
+lg = text(SCRIPTS / 'Core/Legal.cs')
+check('AdMob' in lg and 'PrivacyUrl' in lg, 'In-game privacy summary mentions AdMob + web link')
+check('VehicleKit.Build' in text(SCRIPTS / 'Vehicles/VehicleVisual.cs'), 'Battle kit on every vehicle')
+check('ArenaDressing.Colosseum' in text(SCRIPTS / 'World/Arena.cs') and 'ArenaDressing.Spillway' in text(SCRIPTS / 'World/Arena.cs'), 'Stadium dressing in both arenas')
+check('AddComponent<AdaptivePerformance>' in text(SCRIPTS / 'Core/DerbyBootstrap.cs'), 'Adaptive performance in matches')
+check('SetPropertyBlock(charBlock)' in text(SCRIPTS / 'Vehicles/VehicleHealth.cs'), 'Wreck look without material instances')
+from PIL import Image as _I
+try:
+    fg = _I.open(ROOT / 'AndroidIcons/res/mipmap-xxxhdpi/app_icon_foreground.png').convert('RGBA')
+    a = fg.split()[3]; w, h = fg.size; c = w / 2
+    corner_ok = all(a.getpixel((int(c + dx * w * 0.33), int(c + dy * h * 0.33))) == 0 for dx in (-1, 1) for dy in (-1, 1))
+    check(corner_ok, 'Adaptive icon foreground stays inside the safe zone')
+except Exception as e:
+    check(False, 'adaptive icon check', repr(e))
+
 fails = [r for r in res if r[0] == 'FAIL']
-print('DERBY ARENA 1.5.0 STATIC VALIDATION (Unity-independent)')
+print('DERBY ARENA 2.0.0 STATIC VALIDATION (Unity-independent)')
 for st, label, detail in res:
     if st == 'FAIL' or '-v' in sys.argv: print(f'[{st}] {label}' + (f' — {detail}' if detail else ''))
 print(f'\nSummary: {len(res) - len(fails)} PASS, {len(fails)} FAIL')

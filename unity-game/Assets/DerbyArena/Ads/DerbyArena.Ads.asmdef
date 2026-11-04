@@ -1,0 +1,25 @@
+{
+    "name": "DerbyArena.Ads",
+    "rootNamespace": "DerbyArena.Ads",
+    "references": [
+        "GoogleMobileAds.Api",
+        "GoogleMobileAds.Core",
+        "GoogleMobileAds.Ump.Api",
+        "GoogleMobileAds.Ump.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.google.ads.mobile",
+            "expression": "1.0.0",
+            "define": "DERBY_ADS"
+        }
+    ],
+    "noEngineReferences": false
+}

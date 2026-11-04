@@ -32,6 +32,8 @@ namespace DerbyArena.Core
             Time.fixedDeltaTime = 1f / 60f;
             Save.AutoQuality();
             DerbyBootstrapQuality.Apply();
+            try { DerbyArena.Ads.AdsManager.Ensure(); }
+            catch (Exception ex) { Debug.LogWarning("DERBY: ads unavailable. " + ex.Message); }
 
             var cam = EnsureCamera();
             var sceneRoot = new GameObject("Scene").transform;
@@ -126,6 +128,7 @@ namespace DerbyArena.Core
             Fx.FollowEmbers(cam.transform);
 
             var controls = gameObject.AddComponent<TouchControls>();
+            gameObject.AddComponent<AdaptivePerformance>();
             var match = MatchDirector.Begin(cfg, arena, controls, sceneRoot);
             try { HudController.Create(match, controls); }
             catch (Exception ex) { Debug.LogError("DERBY: HUD failed. " + ex); }
@@ -154,6 +157,8 @@ namespace DerbyArena.Core
         }
 
         static int nativeW, nativeH;
+        /// <summary>Extra render scale set by AdaptivePerformance when the phone cannot hold the frame rate (1 = off).</summary>
+        public static float DynamicScale = 1f;
 
         /// <summary>
         /// Renders at most 1080p (high), 900p (medium) or 720p (low) on the short side. 1440p+ phones were
@@ -173,7 +178,7 @@ namespace DerbyArena.Core
                 int shortSide = Mathf.Min(nativeW, nativeH);
                 if (shortSide <= 0) return;
                 int cap = q == 0 ? 720 : (q == 1 ? 900 : 1080);
-                float scale = shortSide > cap ? (float)cap / shortSide : 1f;
+                float scale = (shortSide > cap ? (float)cap / shortSide : 1f) * (Save.Data.DynamicResolution ? DynamicScale : 1f);
                 int w = Mathf.RoundToInt(longSide * scale);
                 int h = Mathf.RoundToInt(shortSide * scale);
                 if (Screen.width != w || Screen.height != h) Screen.SetResolution(w, h, true);

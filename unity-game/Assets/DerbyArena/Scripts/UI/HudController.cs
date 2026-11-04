@@ -28,6 +28,10 @@ namespace DerbyArena.UI
         readonly List<float> feedTime = new List<float>();
         float hitTimer, damageFlash;
         bool paused;
+        GameObject revivePage;
+        Image reviveFill;
+        Text reviveText;
+        bool adPending;
         static Sprite star, arrowSprite;
         PlayerDriver driver;
         CanvasGroup loadingGroup;
@@ -48,6 +52,8 @@ namespace DerbyArena.UI
         public static void HitMarker() { if (inst != null) inst.hitTimer = 0.12f; }
 
         public static void ShowResults(MatchDirector m) { if (inst != null) inst.BuildResults(m); }
+
+        public static void ShowSecondChance(MatchDirector m) { if (inst != null) inst.BuildSecondChance(m); }
 
         public static HudController Create(MatchDirector m, TouchControls c)
         {
@@ -355,6 +361,25 @@ namespace DerbyArena.UI
             if (match.Phase == MatchPhase.Loading) return;
 
             if (controls.PausePressed && (match.Phase == MatchPhase.Playing || match.Phase == MatchPhase.Countdown)) TogglePause();
+            // Android back on the result screen -> main menu (same transition rules as the MENU button)
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (resultPage != null && !adPending && kb != null && kb.escapeKey.wasPressedThisFrame) Transition(() => GameFlow.ToMenu("home"));
+
+            if (revivePage != null)
+            {
+                if (match.Phase == MatchPhase.Downed)
+                {
+                    float f = Mathf.Clamp01(match.ReviveTimeLeft / DerbyArena.Ads.AdsConfig.ReviveWindowSeconds);
+                    if (reviveFill != null) reviveFill.fillAmount = f;
+                    if (reviveText != null) SetText(reviveText, Mathf.CeilToInt(Mathf.Min(match.ReviveTimeLeft, DerbyArena.Ads.AdsConfig.ReviveWindowSeconds)).ToString());
+                }
+                else
+                {
+                    Destroy(revivePage);
+                    revivePage = null;
+                    adPending = false;
+                }
+            }
 
             for (int i = 0; i < feed.Count; i++)
             {
@@ -720,6 +745,70 @@ namespace DerbyArena.UI
             if (p && !paused && match != null && match.Phase == MatchPhase.Playing) TogglePause();
         }
 
+        // ================================================================== second chance (rewarded ad)
+        void BuildSecondChance(MatchDirector m)
+        {
+            if (revivePage != null) Destroy(revivePage);
+            var bg = UiKit.Image("SecondChance", canvasRt, UiKit.Square, new Color(0f, 0f, 0f, 0.6f));
+            UiKit.Stretch(bg.rectTransform, 0f, 0f, 1f, 1f);
+            revivePage = bg.gameObject;
+            var panel = UiKit.Image("Panel", bg.transform, UiKit.Rounded, UiKit.Panel);
+            UiKit.Place(panel.rectTransform, 0.5f, 0.5f, 820f, 520f, 0.5f, 0.5f);
+            var t = panel.transform;
+            var title = UiKit.Rect("Title", t);
+            UiKit.Place(title, 0.5f, 1f, 780f, 100f, 0.5f, 1f);
+            UiKit.Label("Text", title, Loc.T("İKİNCİ ŞANS?", "SECOND CHANCE?"), 60, UiKit.Amber, TextAnchor.MiddleCenter, true);
+            var body = UiKit.Rect("Body", t);
+            UiKit.Place(body, 0.5f, 1f, 760f, 90f, 0.5f, 1f);
+            body.anchoredPosition = new Vector2(0f, -100f);
+            UiKit.Label("Text", body, Loc.T("Kısa bir reklam izle: aracın onarılır, kalkan ve nitro dolar, 3 saniye hasar almazsın. Her maçta bir kez.",
+                                            "Watch a short ad: your car is repaired with a shield and full nitro, and takes no damage for 3 seconds. Once per match."),
+                26, Color.white, TextAnchor.MiddleCenter, false);
+            Image fill;
+            var bar = UiKit.Bar(t, UiKit.Red, out fill);
+            UiKit.Place(bar.rectTransform, 0.5f, 1f, 700f, 30f, 0.5f, 1f);
+            bar.rectTransform.anchoredPosition = new Vector2(0f, -205f);
+            reviveFill = fill;
+            var count = UiKit.Rect("Count", t);
+            UiKit.Place(count, 0.5f, 1f, 200f, 70f, 0.5f, 1f);
+            count.anchoredPosition = new Vector2(0f, -240f);
+            reviveText = UiKit.Label("Text", count, "", 54, Color.white, TextAnchor.MiddleCenter, true);
+
+            var yes = UiKit.Button(t, Loc.T("REKLAM İZLE · DEVAM ET", "WATCH AD · CONTINUE"), UiKit.Green, 32, () =>
+            {
+                if (adPending) return;
+                adPending = true;
+                m.AcceptSecondChance();
+            });
+            yes.IgnoreBlock = true;
+            UiKit.Place(yes.Background.rectTransform, 0.5f, 0f, 520f, 100f, 0.5f, 0f);
+            yes.Background.rectTransform.anchoredPosition = new Vector2(-120f, 30f);
+            var no = UiKit.Button(t, Loc.T("VAZGEÇ", "GIVE UP"), UiKit.PanelLight, 30, () =>
+            {
+                if (adPending) return;
+                m.DeclineSecondChance();
+            });
+            no.IgnoreBlock = true;
+            UiKit.Place(no.Background.rectTransform, 0.5f, 0f, 220f, 100f, 0.5f, 0f);
+            no.Background.rectTransform.anchoredPosition = new Vector2(270f, 30f);
+        }
+
+        /// <summary>Runs a screen change; when an interstitial is due it plays first and the change follows when it closes.</summary>
+        void Transition(System.Action go)
+        {
+            if (adPending) return;
+            var ads = DerbyArena.Ads.AdsManager.Instance;
+            if (ads != null && interstitialDue)
+            {
+                adPending = true;
+                interstitialDue = false;
+                ads.ShowInterstitial(() => { adPending = false; go(); });
+                return;
+            }
+            go();
+        }
+        bool interstitialDue;
+
         void BuildPause()
         {
             var bg = UiKit.Image("Pause", canvasRt, UiKit.Square, new Color(0f, 0f, 0f, 0.7f));
@@ -848,10 +937,44 @@ namespace DerbyArena.UI
             float x = -270f;
             bool hasNext = won && m.Config.Number < Campaign.Total;
             int n = m.Config.Number;
-            if (hasNext) { ResultButton(panel.transform, Loc.T("SONRAKİ", "NEXT"), UiKit.Green, x, () => GameFlow.Play(n + 1)); x += 270f; }
-            ResultButton(panel.transform, Loc.T("TEKRAR", "RETRY"), UiKit.Amber, hasNext ? x : -135f, () => GameFlow.Play(n));
+            var ads = DerbyArena.Ads.AdsManager.Instance;
+            interstitialDue = ads != null && ads.MatchFinished(n);
+            if (hasNext) { ResultButton(panel.transform, Loc.T("SONRAKİ", "NEXT"), UiKit.Green, x, () => Transition(() => GameFlow.Play(n + 1))); x += 270f; }
+            ResultButton(panel.transform, Loc.T("TEKRAR", "RETRY"), UiKit.Amber, hasNext ? x : -135f, () => Transition(() => GameFlow.Play(n)));
             x += 270f;
-            ResultButton(panel.transform, Loc.T("MENÜ", "MENU"), UiKit.PanelLight, hasNext ? x : 135f, () => GameFlow.ToMenu(won ? "levels" : "home"));
+            ResultButton(panel.transform, Loc.T("MENÜ", "MENU"), UiKit.PanelLight, hasNext ? x : 135f, () => Transition(() => GameFlow.ToMenu(won ? "levels" : "home")));
+
+            // rewarded: double the match scrap (only when an ad is loaded, so the button never lies)
+            if (won && m.Reward > 0 && ads != null && ads.RewardedReady && !m.RewardDoubled)
+            {
+                var dbl = UiKit.Button(panel.transform, Loc.T("REKLAM İZLE · HURDAYI 2 KATINA ÇIKAR (+" + m.Reward + ")", "WATCH AD · DOUBLE THE SCRAP (+" + m.Reward + ")"), new Color(0.2f, 0.45f, 1f, 0.95f), 26, null);
+                dbl.IgnoreBlock = true;
+                UiKit.Place(dbl.Background.rectTransform, 0.5f, 0f, 800f, 70f, 0.5f, 0f);
+                dbl.Background.rectTransform.anchoredPosition = new Vector2(0f, 224f);
+                dbl.OnTap = () =>
+                {
+                    if (adPending) return;
+                    adPending = true;
+                    dbl.Interactable = false;
+                    ads.ShowRewarded(earned =>
+                    {
+                        adPending = false;
+                        if (this == null || dbl == null) return;
+                        if (earned)
+                        {
+                            m.DoubleReward();
+                            dbl.Caption.text = Loc.T("HURDA 2 KATINA ÇIKTI: +", "SCRAP DOUBLED: +") + m.Reward;
+                            dbl.SetColor(UiKit.Green);
+                        }
+                        else
+                        {
+                            dbl.Caption.text = Loc.T("REKLAM GÖSTERİLEMEDİ", "AD NOT AVAILABLE");
+                            dbl.SetColor(UiKit.PanelLight);
+                        }
+                    });
+                };
+            }
+            if (won) MaybeAskForRating(bg.transform);
             if (!won || n >= Campaign.Total)
             {
                 var hint = UiKit.Rect("Tip", panel.transform);
@@ -864,6 +987,33 @@ namespace DerbyArena.UI
                         : Loc.T("Garajda zırh ve motor yükselt, sonra tekrar dene.", "Upgrade armor and engine in the garage, then try again."));
                 UiKit.Label("Text", hint, tip, 26, won ? UiKit.Amber : UiKit.Cyan, TextAnchor.MiddleCenter, false);
             }
+        }
+
+        // ================================================================== rate prompt (opens the store page)
+        void MaybeAskForRating(Transform parent)
+        {
+            if (Save.Data.RateState != 0 || Save.Data.Wins < Save.Data.RateAskAtWin) return;
+            Save.Data.RateAskAtWin = Save.Data.Wins + 8;   // ask again after eight more wins unless answered
+            Save.Write();
+            var box = UiKit.Image("Rate", parent, UiKit.Rounded, UiKit.Panel);
+            UiKit.Place(box.rectTransform, 0.5f, 0f, 900f, 120f, 0.5f, 0f);
+            box.rectTransform.anchoredPosition = new Vector2(0f, 30f);
+            var q = UiKit.Rect("Q", box.transform);
+            UiKit.Place(q, 0f, 0.5f, 420f, 110f, 0f, 0.5f);
+            q.anchoredPosition = new Vector2(20f, 0f);
+            UiKit.Label("Text", q, Loc.T("Oyunu beğendin mi? Google Play'de puan verirsen çok seviniriz.", "Enjoying the game? A rating on Google Play would mean a lot."), 24, Color.white, TextAnchor.MiddleLeft, false);
+            var yes = UiKit.Button(box.transform, Loc.T("PUAN VER", "RATE"), UiKit.Amber, 26, () => { Save.Data.RateState = 1; Save.Write(); MenuController.OpenStorePage(); Destroy(box.gameObject); });
+            yes.IgnoreBlock = true;
+            UiKit.Place(yes.Background.rectTransform, 1f, 0.5f, 170f, 80f, 1f, 0.5f);
+            yes.Background.rectTransform.anchoredPosition = new Vector2(-280f, 0f);
+            var later = UiKit.Button(box.transform, Loc.T("SONRA", "LATER"), UiKit.PanelLight, 24, () => Destroy(box.gameObject));
+            later.IgnoreBlock = true;
+            UiKit.Place(later.Background.rectTransform, 1f, 0.5f, 120f, 80f, 1f, 0.5f);
+            later.Background.rectTransform.anchoredPosition = new Vector2(-150f, 0f);
+            var never = UiKit.Button(box.transform, Loc.T("SORMA", "NO THANKS"), UiKit.PanelLight, 22, () => { Save.Data.RateState = 2; Save.Write(); Destroy(box.gameObject); });
+            never.IgnoreBlock = true;
+            UiKit.Place(never.Background.rectTransform, 1f, 0.5f, 130f, 80f, 1f, 0.5f);
+            never.Background.rectTransform.anchoredPosition = new Vector2(-15f, 0f);
         }
 
         void ResultButton(Transform parent, string caption, Color color, float x, System.Action a)

@@ -20,7 +20,7 @@ Direksiyonu kavra, rakiplerine bindir, tavandaki makineliyle ateş et ve arenada
 - Garajda motor, zırh, silah, nitro ve roket yükseltmeleri
 - Gece yarışları, asit havuzları, elit rakipler ve her sezonda yeni bir sürpriz
 - Türkçe ve İngilizce dil desteği, 30/60/90/120 FPS seçenekleri
-- İnternet gerektirmez, reklam yok
+- İnternetsiz de oynanır; reklamlar az ve çoğu isteğe bağlı (ödüllü)
 
 SIRADA NE VAR?
 Sezon 6 yolda: yeni bir arena, yeni rakipler ve yeni görev türleri. Derby Arena sizden ilgi görür ve
@@ -38,7 +38,7 @@ HIGHLIGHTS
 - Upgrade engine, armor, weapon, nitro and rockets in the garage
 - Night races, acid pools, elite rivals and a new twist every season
 - Turkish and English, 30/60/90/120 FPS options
-- No internet required, no ads
+- Plays offline; few ads, most of them optional (rewarded)
 
 WHAT'S NEXT?
 Season 6 is on the way with a new arena, new rivals and new mission types. If Derby Arena earns your support

@@ -13,8 +13,11 @@ namespace DerbyArena.UI
     {
         RectTransform canvasRt, safe;
         GameObject page;
+        string current = "home";
         int chapter = 1;
         int selected = 1;
+        string legalDoc = "privacy";
+        string garageMsg = "";
 
         static readonly Color DarkText = new Color(0.08f, 0.06f, 0.03f);
         static readonly Color LockedTab = new Color(0.08f, 0.08f, 0.09f, 0.9f);
@@ -34,8 +37,18 @@ namespace DerbyArena.UI
             return m;
         }
 
+        void Update()
+        {
+            // Android back button (reported as Escape by the Input System): one level up, never quits silently.
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
+            if (current == "legal") Show("settings");
+            else if (current != "home" && current != "language") Show("home");
+        }
+
         void Show(string name)
         {
+            current = name;
             if (page != null) Destroy(page);
             page = UiKit.Rect("Page_" + name, safe).gameObject;
             UiKit.Stretch(page.GetComponent<RectTransform>(), 0f, 0f, 1f, 1f);
@@ -45,6 +58,7 @@ namespace DerbyArena.UI
                 case "levels": BuildLevels(); break;
                 case "garage": BuildGarage(); break;
                 case "settings": BuildSettings(); break;
+                case "legal": BuildLegal(); break;
                 default: BuildHome(); break;
             }
         }
@@ -312,7 +326,7 @@ namespace DerbyArena.UI
             y -= 118f;
         }
 
-        static void OpenStorePage()
+        public static void OpenStorePage()
         {
 #if UNITY_ANDROID
             Application.OpenURL("market://details?id=" + Application.identifier);
@@ -354,6 +368,35 @@ namespace DerbyArena.UI
                 b.Interactable = !max && afford;
             }
             Txt(P, Loc.T("Hurda kazanmak için bölümleri tamamla ve rakipleri imha et.", "Finish levels and destroy rivals to earn scrap."), 26, UiKit.Cyan, TextAnchor.MiddleLeft, false, 0f, 0f, 1300f, 50f, 0f, 0f);
+
+            // rewarded: free scrap, a few times per day (only offered when an ad is actually loaded)
+            var ads = DerbyArena.Ads.AdsManager.Instance;
+            int left = Save.RewardedScrapLeft(DerbyArena.Ads.AdsConfig.RewardedScrapPerDay);
+            bool ready = ads != null && ads.RewardedReady;
+            string caption = left <= 0
+                ? Loc.T("BUGÜNLÜK BİTTİ · YARIN TEKRAR", "DONE FOR TODAY · COME BACK TOMORROW")
+                : (ready ? Loc.T("REKLAM İZLE · +" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " HURDA (" + left + ")", "WATCH AD · +" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " SCRAP (" + left + ")")
+                         : Loc.T("REKLAM HAZIRLANIYOR…", "AD LOADING…"));
+            var free = Btn(P, caption, left > 0 && ready ? new Color(0.2f, 0.45f, 1f, 0.95f) : new Color(0.25f, 0.25f, 0.27f, 0.9f), 1f, 0f, 560f, 70f, 1f, 0f, 24, () =>
+            {
+                if (ads == null) return;
+                garageMsg = "";
+                ads.ShowRewarded(earned =>
+                {
+                    if (this == null) return;
+                    if (earned)
+                    {
+                        Save.Data.Scrap += DerbyArena.Ads.AdsConfig.RewardedScrapAmount;
+                        Save.CountRewardedScrap();
+                        garageMsg = Loc.T("+" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " HURDA EKLENDİ", "+" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " SCRAP ADDED");
+                    }
+                    else garageMsg = Loc.T("Reklam tamamlanmadı, hurda eklenmedi.", "The ad was not completed, no scrap added.");
+                    if (current == "garage") Show("garage");
+                });
+            });
+            free.Interactable = left > 0 && ready;
+            if (!string.IsNullOrEmpty(garageMsg))
+                Move(Txt(P, garageMsg, 24, UiKit.Green, TextAnchor.MiddleRight, true, 1f, 0f, 700f, 40f, 1f, 0f), -580f, 14f);
         }
 
         // ================================================================== settings
@@ -387,18 +430,65 @@ namespace DerbyArena.UI
             });
             string[] q = { Loc.T("DÜŞÜK", "LOW"), Loc.T("ORTA", "MEDIUM"), Loc.T("YÜKSEK", "HIGH") };
             Row(Loc.T("GRAFİK KALİTESİ", "GRAPHICS QUALITY"), q[Mathf.Clamp(Save.Data.Quality, 0, 2)], ref y, () => { Save.Data.Quality = (Save.Data.Quality + 1) % 3; Save.Data.QualityChosen = true; DerbyBootstrapQuality.Apply(); });
+            Row(Loc.T("DİNAMİK ÇÖZÜNÜRLÜK", "DYNAMIC RESOLUTION"), Save.Data.DynamicResolution ? on : off, ref y, () => { Save.Data.DynamicResolution = !Save.Data.DynamicResolution; DerbyBootstrapQuality.Apply(); });
+
+            // right column: privacy, legal, rating, version
+            float ry = -110f;
+            SideButton(Loc.T("GİZLİLİK POLİTİKASI", "PRIVACY POLICY"), ref ry, () => { legalDoc = "privacy"; Save.Data.PrivacySeen = true; Save.Write(); Show("legal"); });
+            SideButton(Loc.T("KULLANIM KOŞULLARI", "TERMS OF USE"), ref ry, () => { legalDoc = "terms"; Show("legal"); });
+            SideButton(Loc.T("LİSANSLAR VE KAYNAKLAR", "LICENSES AND CREDITS"), ref ry, () => { legalDoc = "licenses"; Show("legal"); });
+            var ads = DerbyArena.Ads.AdsManager.Instance;
+            if (ads != null && ads.PrivacyOptionsRequired)
+                SideButton(Loc.T("REKLAM GİZLİLİK SEÇENEKLERİ", "AD PRIVACY OPTIONS"), ref ry, () => ads.ShowPrivacyOptions(err => { if (this != null && current == "settings") Show("settings"); }));
+            SideButton(Loc.T("OYUNU DEĞERLENDİR", "RATE THE GAME"), ref ry, () => { Save.Data.RateState = 1; Save.Write(); OpenStorePage(); });
+            Txt(P, Loc.T("Sürüm ", "Version ") + DerbyStartupDiagnostics.Version + " (" + DerbyStartupDiagnostics.VersionCode + ")", 22, new Color(1f, 1f, 1f, 0.45f), TextAnchor.LowerRight, false, 1f, 0f, 520f, 40f, 1f, 0f);
+        }
+
+        void SideButton(string caption, ref float y, Action a)
+        {
+            var b = Btn(P, caption, UiKit.PanelLight, 1f, 1f, 520f, 76f, 1f, 1f, 26, a);
+            b.Background.rectTransform.anchoredPosition = new Vector2(0f, y);
+            b.Caption.color = UiKit.Cyan;
+            y -= 86f;
+        }
+
+        // ================================================================== legal (offline summary + web link)
+        void BuildLegal()
+        {
+            string title = legalDoc == "terms" ? Loc.T("KULLANIM KOŞULLARI", "TERMS OF USE")
+                         : legalDoc == "licenses" ? Loc.T("LİSANSLAR", "LICENSES") : Loc.T("GİZLİLİK", "PRIVACY");
+            var back = Btn(P, Loc.T("< GERİ", "< BACK"), UiKit.PanelLight, 0f, 1f, 210f, 84f, 0f, 1f, 32, () => Show("settings"));
+            back.IgnoreBlock = true;
+            Move(Txt(P, title, 56, Color.white, TextAnchor.MiddleLeft, true, 0f, 1f, 900f, 84f, 0f, 1f), 240f, 0f);
+            var panel = UiKit.Image("Doc", P, UiKit.Rounded, UiKit.Panel);
+            UiKit.Stretch(panel.rectTransform, 0f, 0f, 1f, 1f);
+            panel.rectTransform.offsetMin = new Vector2(0f, 110f);
+            panel.rectTransform.offsetMax = new Vector2(0f, -100f);
+            string text = legalDoc == "terms" ? Legal.TermsSummary() : legalDoc == "licenses" ? Legal.LicensesSummary() : Legal.PrivacySummary();
+            var body = UiKit.Rect("Body", panel.transform);
+            UiKit.Stretch(body, 0f, 0f, 1f, 1f);
+            body.offsetMin = new Vector2(36f, 24f);
+            body.offsetMax = new Vector2(-36f, -24f);
+            var label = UiKit.Label("Text", body, text, 22, Color.white, TextAnchor.UpperLeft, false);
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 14;
+            label.resizeTextMaxSize = 24;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
+            string url = legalDoc == "terms" ? Legal.TermsUrl : legalDoc == "licenses" ? Legal.LicensesUrl : Legal.PrivacyUrl;
+            Btn(P, Loc.T("TAM METNİ WEB'DE AÇ", "OPEN FULL TEXT ON THE WEB"), UiKit.Amber, 0.5f, 0f, 560f, 90f, 0.5f, 0f, 28, () => Legal.Open(url)).Caption.color = DarkText;
+            Txt(P, Loc.T("Son güncelleme: ", "Last updated: ") + Legal.Updated + "  ·  " + Legal.Contact, 20, UiKit.TextDim, TextAnchor.LowerRight, false, 1f, 0f, 700f, 40f, 1f, 0f);
         }
 
         void Row(string label, string value, ref float y, Action change)
         {
             var row = UiKit.Image("Row", P, UiKit.Rounded, UiKit.Panel);
-            UiKit.Place(row.rectTransform, 0f, 1f, 1300f, 82f, 0f, 1f);
+            UiKit.Place(row.rectTransform, 0f, 1f, 1180f, 72f, 0f, 1f);
             row.rectTransform.anchoredPosition = new Vector2(0f, y);
-            Move(Txt(row.transform, label, 32, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, 700f, 80f, 0f, 0.5f), 30f, 0f);
-            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 460f, 66f, 1f, 0.5f, 30, () => { change(); Save.Write(); Show("settings"); });
-            b.Background.rectTransform.anchoredPosition = new Vector2(-14f, 0f);
+            Move(Txt(row.transform, label, 28, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, 640f, 70f, 0f, 0.5f), 26f, 0f);
+            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 420f, 58f, 1f, 0.5f, 26, () => { change(); Save.Write(); Show("settings"); });
+            b.Background.rectTransform.anchoredPosition = new Vector2(-12f, 0f);
             b.Caption.color = UiKit.Amber;
-            y -= 90f;
+            y -= 78f;
         }
     }
 }

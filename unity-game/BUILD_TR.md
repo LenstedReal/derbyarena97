@@ -68,3 +68,10 @@ Dosyayı ve şifreyi güvenli yerde sakla, **GitHub'a koyma**.
 5. **Yeni kişisel geliştirici hesabıysan**: üretime çıkmadan önce kapalı testte **en az 12 test kullanıcısı 14 gün kesintisiz** kayıtlı olmalı. Sonra Play Console'dan üretim erişimi istenir.
 6. Hedef API: Play şu an **API 36 (Android 16)** istiyor. AAB'yi yükleyince Play Console gösterir. Uyarı çıkarsa B-3'teki **Android SDK version** alanını yükselt.
 7. Her yeni yüklemede versionCode artmalı. Kod bunu sürümle birlikte yükseltiyor (1.5.0 → 150).
+
+
+## 2.0.0 — Reklam eklentisi notları
+- `Packages/manifest.json` içinde OpenUPM kayıt defteri (`com.google` kapsamı), `com.google.ads.mobile` 11.6.0 ve `com.unity.external-dependency-manager` 2.1.0 var. Unity Build Automation bunları ilk derlemede indirir.
+- External Dependency Manager, Android derlemesinde Google kütüphanelerini Gradle'a kendisi ekler. "Resolve" uyarısı çıkarsa Unity'de Assets → External Dependency Manager → Android Resolver → Force Resolve.
+- Paket indirilemezse oyun yine derlenir (`DERBY_ADS` tanımsız kalır), sadece reklam gelmez. Derleme günlüğünde `com.google.ads.mobile` hatası var mı bak.
+- Yayın öncesi: `AdsConfig.TestMode=false`, gerçek birim ve uygulama kimlikleri (bkz. `docs/REKLAM_PLANI_TR.md`).

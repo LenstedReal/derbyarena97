@@ -176,10 +176,15 @@ namespace DerbyArena.Vehicles
             l.renderMode = LightRenderMode.Auto;
         }
 
+        bool charred;
+
+        /// <summary>Wreck look is applied by VehicleHealth through property blocks; hit flashes must not clear it.</summary>
+        public void SetCharred(bool on) { charred = on; flashOn = false; }
+
         /// <summary>White hit flash on all vehicle renderers (MaterialPropertyBlock, no material copies).</summary>
         public void Flash()
         {
-            if (renderers.Length == 0) return;
+            if (renderers.Length == 0 || charred) return;
             if (block == null) block = new MaterialPropertyBlock();
             block.Clear();
             block.SetColor("_Color", new Color(1.9f, 1.6f, 1.4f, 1f));
@@ -192,6 +197,7 @@ namespace DerbyArena.Vehicles
         void ClearFlash()
         {
             flashOn = false;
+            if (charred) return;
             if (block == null) block = new MaterialPropertyBlock();
             block.Clear();
             for (int i = 0; i < renderers.Length; i++) if (renderers[i] != null) renderers[i].SetPropertyBlock(block);
@@ -301,6 +307,8 @@ namespace DerbyArena.Vehicles
             try
             {
                 Bind(model.transform);
+                try { VehicleKit.Build(transform, spec, car != null ? car.Hull : null); }
+                catch (Exception kitEx) { Debug.LogWarning("DERBY: battle kit skipped for " + spec.DisplayName + ": " + kitEx.Message); }
                 CollectRenderers();
                 Loaded = true;
             }
@@ -398,6 +406,7 @@ namespace DerbyArena.Vehicles
             Barrel = barrel.transform;
             turretBase = Turret.localRotation;
             if (car != null) car.BindWheels(ws);
+            try { VehicleKit.Build(transform, spec, car != null ? car.Hull : null); } catch (Exception) { }
             CollectRenderers();
             Loaded = true;
         }

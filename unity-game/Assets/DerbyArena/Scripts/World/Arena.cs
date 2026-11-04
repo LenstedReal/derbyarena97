@@ -166,6 +166,8 @@ namespace DerbyArena.World
             var south = MeshFactory.Make("NeonSouth", stripCube, neonA, root, new Vector3(0f, 0.45f, -39.9f), new Vector3(72f, 0.12f, 0.08f));
             south.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
+            try { ArenaDressing.Spillway(root); }
+            catch (Exception ex) { Debug.LogWarning("DERBY: spillway dressing skipped. " + ex.Message); }
             StartCoroutine(LoadSpillway(cover));
         }
 
@@ -489,6 +491,8 @@ namespace DerbyArena.World
                 if (fr != null) fr.enabled = false;
                 Crowd.Spawn(root, quality);
                 BuildColosseumObstacles(arena);
+                try { ArenaDressing.Colosseum(root, theme.Accent, quality); }
+                catch (Exception ex) { Debug.LogWarning("DERBY: arena dressing skipped. " + ex.Message); }
                 Status = Loc.T("Kolezyum yüklendi, ", "Colosseum loaded, ") + (Time.realtimeSinceStartup - t0).ToString("0.0") + Loc.T(" sn", " s");
             }
             else

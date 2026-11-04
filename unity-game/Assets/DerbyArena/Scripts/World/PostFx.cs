@@ -32,7 +32,7 @@ namespace DerbyArena.World
             fx.mat = new Material(template);
             bool hdr = quality >= 2 && SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.DefaultHDR);
             cam.allowHDR = hdr;
-            fx.bloom = quality >= 2;
+            fx.bloom = quality >= 1;   // 2.0: soft bloom also on Medium (3 half-res levels, no HDR)
             fx.levels = hdr ? 4 : 3;
             fx.Configure(theme, hdr);
             return fx;
@@ -50,7 +50,7 @@ namespace DerbyArena.World
             mat.SetFloat("_Saturation", theme.Saturation);
             mat.SetColor("_Gain", theme.GradeGain);
             mat.SetColor("_Lift", theme.GradeLift);
-            mat.SetFloat("_Vignette", 0.35f);
+            mat.SetFloat("_Vignette", 0.42f);
         }
 
         void OnRenderImage(RenderTexture src, RenderTexture dst)

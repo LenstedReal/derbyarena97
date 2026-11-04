@@ -1,8 +1,8 @@
 {
   "dependencies": {
+    "com.google.ads.mobile": "11.6.0",
+    "com.unity.external-dependency-manager": "2.1.0",
     "com.unity.inputsystem": "1.11.2",
-    "com.unity.test-framework": "1.4.5",
-    "com.unity.ugui": "2.0.0",
     "com.unity.modules.androidjni": "1.0.0",
     "com.unity.modules.animation": "1.0.0",
     "com.unity.modules.assetbundle": "1.0.0",
@@ -15,6 +15,17 @@
     "com.unity.modules.ui": "1.0.0",
     "com.unity.modules.uielements": "1.0.0",
     "com.unity.modules.unitywebrequest": "1.0.0",
-    "com.unity.modules.vehicles": "1.0.0"
-  }
+    "com.unity.modules.vehicles": "1.0.0",
+    "com.unity.test-framework": "1.4.5",
+    "com.unity.ugui": "2.0.0"
+  },
+  "scopedRegistries": [
+    {
+      "name": "package.openupm.com",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.google"
+      ]
+    }
+  ]
 }
