@@ -7,7 +7,7 @@ namespace DerbyArena.Core
     [Serializable]
     public sealed class SaveData
     {
-        public int Version = 6;             // 5 = 4.0 (20 levels per season), 6 = 4.0.1 (control layout, easy-control defaults)
+        public int Version = 7;             // 5 = 4.0 (20 levels per season), 6 = 4.0.1 (controls), 7 = 4.0.2 (fresh start)
         public int Scrap = 0;
         public int Unlocked = 1;
         public int LastPlayed = 1;
@@ -83,7 +83,9 @@ namespace DerbyArena.Core
                 Debug.LogWarning("DERBY: save unreadable, starting fresh. " + ex.Message);
                 Data = new SaveData();
             }
+            int before = Data.Version;
             Sanitize();
+            if (Data.Version != before) Write();       // a migrated save is stored at once (the fresh start runs once)
         }
 
         public static void Write()
@@ -104,6 +106,7 @@ namespace DerbyArena.Core
             var d = Data;
             if (d.Version < 5) MigrateLegacyLevels(d);
             if (d.Version < 6) MigrateControls(d);
+            if (d.Version < 7) { ResetProgress(d); d.Version = 7; }
             if (d.Stars == null || d.Stars.Length != Campaign.Total + 1)
             {
                 var s = new int[Campaign.Total + 1];
@@ -190,6 +193,41 @@ namespace DerbyArena.Core
             d.ControlScale = 1f;
             d.ControlAlpha = 1f;
             d.Version = 6;
+        }
+
+        /// <summary>
+        /// 4.0.2: progress back to a new game (levels, stars, scrap, upgrades, garage items and vehicles, missions,
+        /// counters). Settings stay: language, controls, sound, graphics, privacy choices and the rating answer.
+        /// Runs once for every save older than version 7 (the requested fresh start) and from Settings on demand.
+        /// </summary>
+        public static void ResetProgress(SaveData d)
+        {
+            if (d == null) return;
+            d.Scrap = 0;
+            d.Unlocked = 1;
+            d.LastPlayed = 1;
+            d.TotalKills = 0;
+            d.Stars = new int[Campaign.Total + 1];
+            d.Fails = new int[Campaign.Total + 1];
+            d.Upgrades = new int[5];
+            d.Wins = 0;
+            d.Owned = new string[0];
+            d.Equipped = new string[Garage.SlotCount];
+            d.Vehicle = Fleet.DefaultId;
+            d.MatchesPlayed = 0;
+            d.MissionDay = "";
+            d.MissionProgress = new int[3];
+            d.MissionClaimed = new bool[3];
+            d.BestStreak = 0;
+            if (d.RateState == 0) d.RateAskAtWin = 3;
+        }
+
+        /// <summary>Settings → "Reset progress": clears the progress of the current save and writes it.</summary>
+        public static void ResetProgressNow()
+        {
+            ResetProgress(Data);
+            Fleet.ClearPreview();
+            Write();
         }
 
         static int[] Remap(int[] old, System.Func<int, int> map)

@@ -59,6 +59,10 @@ namespace DerbyArena.Core
             Boot.Reset();
             Boot.Set(0.05f, Loc.T("ARENA KURULUYOR", "BUILDING THE ARENA"));
             yield return null;
+            // 4.0.2: let the intro finish fading its picture in before the first long, blocking step (a frozen frame
+            // must be a complete one); bounded so a missing intro never holds the boot
+            float hold = 0f;
+            while (IntroSplash.Active && !IntroSplash.ReadyForWork && hold < 1.2f) { hold += Time.unscaledDeltaTime; yield return null; }
             int lvl = Mathf.Clamp(Save.Data.LastPlayed, 1, Campaign.Total);
             var cfg = Campaign.Get(lvl);
             ArenaLoader arena = null;
@@ -94,7 +98,9 @@ namespace DerbyArena.Core
                 chase.OrbitHeight = cfg.Arena == ArenaKind.Docks ? 4.2f : 2.6f;   // docks: clear the 2.6 m cover container
                 cam.transform.position = pos + new Vector3(4f, 3f, -9f);
                 cam.transform.LookAt(pos + Vector3.up);
-                if (IntroSplash.Active) chase.Dolly(60f);                           // parked far and high behind the intro; its fade-out starts the real 3.2 s dolly
+                // parked far and high behind the intro; its fade-out starts the real 3 s dolly. If the intro is already
+                // leaving (14 s cap) its dolly may have started before this centre was set: start it again from here.
+                if (IntroSplash.Active) chase.Dolly(IntroSplash.Leaving ? 3f : 60f);
             }
             catch (Exception ex) { Debug.LogError("DERBY: showcase failed. " + ex); }
 
@@ -303,7 +309,16 @@ namespace DerbyArena.Core
         {
             int id = ++build;
             Loaded = false;
-            if (visual != null) Destroy(visual.gameObject);
+            if (visual != null)
+            {
+                // a cached model arrives in the same frame (GlbLibrary.Spawn runs its callback synchronously), while
+                // Destroy only takes effect at the end of the frame: renamed and detached, the old holder can no longer
+                // be found as "Visual" by the kit measurement and the kit attachment (4.0.2)
+                visual.gameObject.name = "VisualOld";
+                visual.SetParent(null, true);
+                Destroy(visual.gameObject);
+                visual = null;
+            }
             foreach (Transform t in transform) if (t.name == "BattleKit") Destroy(t.gameObject);
             var holder = new GameObject("Visual");
             holder.transform.SetParent(transform, false);

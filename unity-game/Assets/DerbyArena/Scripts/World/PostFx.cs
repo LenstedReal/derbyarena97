@@ -55,7 +55,7 @@ namespace DerbyArena.World
             if (md != null && md.PlayerCar != null && md.PlayerCar.NitroActive && Time.timeScale > 0f && DerbyArena.Core.Save.Data.ScreenEffects) target = 1f;
             speed = Mathf.MoveTowards(speed, target, dt * (target > speed ? 4f : 2.5f));
             mat.SetFloat(IdFlash, flash);
-            mat.SetFloat(IdSpeed, Mathf.Max(speed, jolt * 0.8f));
+            mat.SetFloat(IdSpeed, Mathf.Max(speed, jolt * 0.6f));
         }
 
         public static PostFx Attach(Camera cam, int quality, Atmosphere.Theme theme)

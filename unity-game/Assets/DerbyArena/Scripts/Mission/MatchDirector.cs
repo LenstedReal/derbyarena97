@@ -218,8 +218,13 @@ namespace DerbyArena.Mission
             wait = 0f;
             while (wait < 6f && (PlayerVisual == null || !PlayerVisual.Loaded)) { wait += Time.unscaledDeltaTime; yield return null; }
 
-            // compile the shaders now (behind the loading screen) instead of stuttering on first use
-            try { Shader.WarmupAllShaders(); } catch (Exception ex) { Debug.LogWarning("DERBY: shader warmup skipped. " + ex.Message); }
+            // 4.0.2: shaders are warmed once per session (menu boot). Repeating the full warm-up before every match
+            // froze the loading screen for seconds on some phones; only a match that starts without the menu does it.
+            if (!DerbyArena.Core.Boot.ShadersWarm)
+            {
+                DerbyArena.Core.Boot.ShadersWarm = true;
+                try { Shader.WarmupAllShaders(); } catch (Exception ex) { Debug.LogWarning("DERBY: shader warmup skipped. " + ex.Message); }
+            }
 
             Phase = MatchPhase.Countdown;
             Countdown = 3.2f;
@@ -365,7 +370,7 @@ namespace DerbyArena.Mission
             {
                 Fx.Burst(pos + Vector3.up, new Color(1f, 0.3f, 0.2f), 12);
                 if (Config.Kind != ObjectiveKind.Survival || kind == EnemyKind.WarRig)
-                    Say(kind == EnemyKind.WarRig ? Loc.T("PATRON GELDİ!", "THE BOSS IS HERE!") : Loc.T("YENİ RAKİP: ", "NEW RIVAL: ") + spec.DisplayName.ToUpperInvariant(), UiKit.Red);
+                    Say(kind == EnemyKind.WarRig ? Loc.T("PATRON GELDİ!", "THE BOSS IS HERE!") : Loc.T("YENİ RAKİP: ", "NEW RIVAL: ") + Loc.Upper(spec.DisplayName), UiKit.Red);
             }
         }
 

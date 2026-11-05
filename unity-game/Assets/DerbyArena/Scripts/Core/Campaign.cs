@@ -136,10 +136,14 @@ namespace DerbyArena.Core
 
         public static bool AllCleared { get { return Save.Data.Stars[Total] > 0; } }
 
-        static readonly string[] BossNames =
+        // 4.0.2: boss names in both languages (the old English-only list carried the retired vehicle names)
+        static readonly string[] BossNamesTr = { "EZİCİ ALFA", "HURDA TOPÇUSU", "DÖKÜMHANE ZORBASI", "GECE ÇILGINI", "OMEGA MAMUT", "LİMAN KRAKENİ" };
+        static readonly string[] BossNamesEn = { "CRUSHER ALPHA", "SCRAP GUNNER", "FOUNDRY TYRANT", "MIDNIGHT BERSERKER", "OMEGA MAMMOTH", "DOCKYARD KRAKEN" };
+        static string BossName(int chapter)
         {
-            "CRUSHER ALPHA", "SCRAPGUN PRIME", "FOUNDRY TYRANT", "MIDNIGHT BERSERKER", "OMEGA WAR RIG", "DOCKYARD KRAKEN"
-        };
+            int i = Mathf.Clamp(chapter - 1, 0, BossNamesTr.Length - 1);
+            return Loc.T(BossNamesTr[i], BossNamesEn[i]);
+        }
 
         // R reactor, D demolition, C checkpoint, S survival, L last stand, B boss (20 per season; index 10 is a big
         // demolition, index 20 the boss)
@@ -255,14 +259,14 @@ namespace DerbyArena.Core
 
             switch (c.Kind)
             {
-                case ObjectiveKind.Boss: c.Title = Loc.T("PATRON: ", "BOSS: ") + BossNames[c.Chapter - 1]; break;
+                case ObjectiveKind.Boss: c.Title = Loc.T("PATRON: ", "BOSS: ") + BossName(c.Chapter); break;
                 case ObjectiveKind.Demolition: c.Title = big ? Loc.T("BÜYÜK DERBİ", "GRAND DERBY") : Loc.T("YIKIM DERBİSİ", "DEMOLITION DERBY"); break;
                 case ObjectiveKind.Checkpoint: c.Title = Loc.T("KONTROL NOKTASI", "CHECKPOINT RUN"); break;
                 case ObjectiveKind.Survival: c.Title = Loc.T("HAYATTA KAL", "SURVIVAL"); break;
                 case ObjectiveKind.LastStand: c.Title = Loc.T("SON KALAN", "LAST STAND"); break;
                 default: c.Title = Loc.T("REAKTÖR HATTI", "REACTOR RUN"); break;
             }
-            c.BossName = c.Boss ? BossNames[c.Chapter - 1] : "";
+            c.BossName = c.Boss ? BossName(c.Chapter) : "";
             c.Subtitle = Loc.T("SEZON ", "SEASON ") + c.Chapter + " · " + ChapterName(c.Chapter);
             c.Hint = HintFor(n, c);
             c.StarsRequired = StarsRequired(n);

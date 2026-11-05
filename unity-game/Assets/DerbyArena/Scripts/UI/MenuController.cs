@@ -49,6 +49,12 @@ namespace DerbyArena.UI
         void Update()
         {
             if (toast != null && Time.unscaledTime > toastUntil) { Destroy(toast.transform.parent.gameObject); toast = null; }
+            // the reset button's "sure? tap again" lapses after four seconds: show the plain caption again (4.0.2)
+            if (resetArmedUntil > 0f && Time.unscaledTime >= resetArmedUntil)
+            {
+                resetArmedUntil = 0f;
+                if (current == "settings") Show("settings");
+            }
             // Android back button (reported as Escape by the Input System): one level up, never quits silently.
             var kb = UnityEngine.InputSystem.Keyboard.current;
             if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
@@ -69,6 +75,19 @@ namespace DerbyArena.UI
             }
             page = UiKit.Rect("Page_" + name, safe).gameObject;
             UiKit.Stretch(page.GetComponent<RectTransform>(), 0f, 0f, 1f, 1f);
+            // 4.0.2: the showcase car sits in the free area right of the home panel; pages that fill the screen get a
+            // dark scrim so the 3D scene never shows through text and cards
+            var cam = DerbyArena.CameraRig.ChaseCamera.Main;
+            if (cam != null) cam.OrbitScreenShift = name == "home" ? 0.36f : 0f;
+            if (name == "levels" || name == "settings" || name == "controls" || name == "legal" || name == "missions")
+            {
+                // first child of the page (drawn under its content), stretched past the safe area to the screen edges
+                var scrim = UiKit.Image("Scrim", page.transform, UiKit.Square, new Color(0.01f, 0.012f, 0.018f, 0.72f));
+                UiKit.Stretch(scrim.rectTransform, 0f, 0f, 1f, 1f);
+                scrim.rectTransform.offsetMin = new Vector2(-400f, -400f);
+                scrim.rectTransform.offsetMax = new Vector2(400f, 400f);
+                scrim.transform.SetAsFirstSibling();
+            }
             switch (name)
             {
                 case "language": BuildLanguage(); break;
@@ -181,15 +200,19 @@ namespace DerbyArena.UI
         // ================================================================== home
         void BuildHome()
         {
-            var side = UiKit.Image("Side", P, UiKit.Carbon ?? UiKit.Square, SidePanel);
-            if (UiKit.Carbon != null) { side.type = Image.Type.Tiled; side.color = new Color(0.02f, 0.025f, 0.035f, 0.88f); }
-            UiKit.Stretch(side.rectTransform, 0f, 0f, 0.39f, 1f);
-            var edge = UiKit.Image("Edge", P, UiKit.Square, new Color(1f, 0.6f, 0.13f, 0.55f));
-            UiKit.Stretch(edge.rectTransform, 0.39f, 0f, 0.39f, 1f);
-            edge.rectTransform.sizeDelta = new Vector2(3f, 0f);
+            // 4.0.2: plain dark panel (the tiled carbon pattern shimmered on phones), a soft edge instead of a hard line
+            var side = UiKit.Image("Side", P, UiKit.Square, new Color(0.015f, 0.018f, 0.026f, 0.84f));
+            UiKit.Place(side.rectTransform, 0f, 0f, 720f, 0f, 0f, 0f);
+            side.rectTransform.anchorMax = new Vector2(0f, 1f);
+            side.rectTransform.sizeDelta = new Vector2(720f, 0f);
+            var edge = UiKit.Image("Edge", P, UiKit.Square, new Color(1f, 0.6f, 0.13f, 0.35f));
+            UiKit.Place(edge.rectTransform, 0f, 0f, 2f, 0f, 0f, 0f);
+            edge.rectTransform.anchorMax = new Vector2(0f, 1f);
+            edge.rectTransform.sizeDelta = new Vector2(2f, 0f);
+            edge.rectTransform.anchoredPosition = new Vector2(720f, 0f);
 
-            Move(Txt(P, "DERBY ARENA", 96, UiKit.Amber, TextAnchor.UpperLeft, true, 0f, 1f, 800f, 120f, 0f, 1f), 40f, -22f);
-            Move(Txt(P, "BLACKOUT RUN", 34, UiKit.Cyan, TextAnchor.UpperLeft, true, 0f, 1f, 800f, 50f, 0f, 1f), 46f, -138f);
+            Move(Txt(P, "DERBY ARENA", 92, UiKit.Amber, TextAnchor.UpperLeft, true, 0f, 1f, 660f, 116f, 0f, 1f), 40f, -22f);
+            Move(Txt(P, Loc.T("ÇARPIŞ  ·  YIK  ·  KAZAN", "SMASH  ·  WRECK  ·  WIN"), 30, UiKit.Cyan, TextAnchor.UpperLeft, true, 0f, 1f, 640f, 46f, 0f, 1f), 44f, -136f);
             if (UiKit.Hazard != null)
             {
                 var hz = UiKit.Image("Hazard", P, UiKit.Hazard, new Color(1f, 0.6f, 0.13f, 0.9f));
@@ -293,23 +316,23 @@ namespace DerbyArena.UI
                 int idx = i;
                 var mi = UiKit.IconImage(t, m.Icon, 30f, m.Done ? UiKit.Green : UiKit.Amber, 0f, 1f, 0f, 1f);
                 mi.rectTransform.anchoredPosition = new Vector2(22f, ry - 6f);
-                Move(Txt(t, m.Text, 22, m.Claimed ? UiKit.TextDim : Color.white, TextAnchor.MiddleLeft, false, 0f, 1f, 330f, 40f, 0f, 1f), 64f, ry);
+                Move(Txt(t, m.Text, 22, m.Claimed ? UiKit.TextDim : Color.white, TextAnchor.MiddleLeft, false, 0f, 1f, 320f, 40f, 0f, 1f), 64f, ry);
                 Image fill;
                 var bar = UiKit.Bar(t, m.Done ? UiKit.Green : UiKit.Amber, out fill);
-                UiKit.Place(bar.rectTransform, 0f, 1f, 150f, 18f, 0f, 1f);
-                bar.rectTransform.anchoredPosition = new Vector2(400f, ry - 12f);
+                UiKit.Place(bar.rectTransform, 0f, 1f, 140f, 18f, 0f, 1f);
+                bar.rectTransform.anchoredPosition = new Vector2(394f, ry - 12f);
                 fill.fillAmount = m.Target > 0 ? Mathf.Clamp01(m.Progress / (float)m.Target) : 0f;
                 if (m.Claimed)
                 {
                     var ck = UiKit.IconImage(t, "check", 28f, UiKit.Green, 0f, 1f, 0f, 1f);
-                    ck.rectTransform.anchoredPosition = new Vector2(590f, ry - 6f);
+                    ck.rectTransform.anchoredPosition = new Vector2(580f, ry - 6f);
                 }
                 else if (m.Done)
                 {
-                    var cb = Btn(t, Loc.T("AL", "CLAIM"), UiKit.Green, 0f, 1f, 76f, 40f, 0f, 1f, 20, () => { if (DailyMissions.Claim(idx)) Show("home"); });
-                    cb.Background.rectTransform.anchoredPosition = new Vector2(560f, ry);
+                    var cb = Btn(t, Loc.T("AL", "CLAIM"), UiKit.Green, 0f, 1f, 80f, 40f, 0f, 1f, 20, () => { if (DailyMissions.Claim(idx)) Show("home"); });
+                    cb.Background.rectTransform.anchoredPosition = new Vector2(544f, ry);
                 }
-                else Move(Txt(t, "+" + m.Reward, 20, UiKit.Amber, TextAnchor.MiddleRight, true, 0f, 1f, 76f, 40f, 0f, 1f), 560f, ry);
+                else Move(Txt(t, "+" + m.Reward, 20, UiKit.Amber, TextAnchor.MiddleRight, true, 0f, 1f, 74f, 40f, 0f, 1f), 546f, ry);
                 ry -= 62f;
             }
             var more = Btn(t, Loc.T("TÜMÜNÜ GÖR", "SEE ALL"), new Color(1f, 1f, 1f, 0.08f), 1f, 0f, 170f, 40f, 1f, 0f, 18, () => Show("missions"));
@@ -368,8 +391,14 @@ namespace DerbyArena.UI
         void BuildLevels()
         {
             Header(Loc.T("BÖLÜMLER", "LEVELS"), "flag");
+            // 4.0.2: tabs, cards and the season strip live in one area that ends where the detail panel starts, and
+            // are laid out in fractions of that area, so nothing runs under the panel on any screen shape
+            var area = UiKit.Rect("LevelArea", P);
+            UiKit.Stretch(area, 0f, 0f, 1f, 1f);
+            area.offsetMin = new Vector2(0f, 0f);
+            area.offsetMax = new Vector2(-(DetailWidth + 24f), 0f);
+
             int tabs = Campaign.Seasons + 1;   // + roadmap
-            float tabW = 300f, tabStep = 308f;
             for (int c = 1; c <= tabs; c++)
             {
                 int cc = c;
@@ -378,7 +407,7 @@ namespace DerbyArena.UI
                 bool open = upcoming || Campaign.IsOpen(first);
                 string caption = upcoming ? Loc.T("YAKINDA · YOL HARİTASI", "SOON · ROADMAP") : c + ". " + Campaign.ChapterName(c);
                 Color col = c == chapter ? UiKit.Primary : (upcoming ? new Color(0.35f, 0.22f, 0.08f, 0.92f) : (open ? UiKit.PanelLight : LockedTab));
-                var tab = Btn(P, caption, col, 0f, 1f, tabW, 66f, 0f, 1f, 19, () =>
+                var tab = UiKit.Button(area, caption, col, 19, () =>
                 {
                     chapter = cc;
                     if (cc <= Campaign.Seasons)
@@ -388,15 +417,18 @@ namespace DerbyArena.UI
                     }
                     Show("levels");
                 }, c == chapter, null);
+                var trt = tab.Background.rectTransform;
+                trt.anchorMin = new Vector2((c - 1) / (float)tabs, 1f);
+                trt.anchorMax = new Vector2(c / (float)tabs, 1f);
+                trt.pivot = new Vector2(0.5f, 1f);
+                trt.offsetMin = new Vector2(3f, -162f);
+                trt.offsetMax = new Vector2(-3f, -96f);
                 tab.Background.sprite = UiKit.Tab;
-                tab.Background.rectTransform.anchoredPosition = new Vector2((c - 1) * tabStep, -96f);
                 if (!open)
                 {
                     tab.Caption.color = UiKit.TextDim;
                     int need = Campaign.StarsRequired(first);
-                    var lk = UiKit.IconImage(tab.Background.transform, "lock", 24f, UiKit.TextDim, 1f, 0.5f, 1f, 0.5f);
-                    lk.rectTransform.anchoredPosition = new Vector2(-10f, 0f);
-                    if (need > 0 && Save.TotalStars() < need) tab.Caption.text = caption + "  ★" + need;
+                    if (need > 0 && Save.TotalStars() < need) tab.Caption.text = caption + "\n★" + need;
                 }
                 tab.Interactable = open;
             }
@@ -407,9 +439,9 @@ namespace DerbyArena.UI
                 return;
             }
 
-            // 10 x 2 cards
+            // 10 x 2 cards, each a tenth of the area wide
             int start = (chapter - 1) * Campaign.PerChapter + 1;
-            float cardW = 124f, cardH = 170f, stepX = 130f, stepY = 178f;
+            float cardH = 170f, stepY = 178f;
             for (int i = 0; i < Campaign.PerChapter; i++)
             {
                 int n = start + i;
@@ -417,11 +449,16 @@ namespace DerbyArena.UI
                 bool open = Campaign.IsOpen(n);
                 bool starGate = !open && n <= Save.Data.Unlocked;        // cleared up to here, only stars missing
                 int need = Campaign.StarsRequired(n);
-                Color col = !open ? new Color(0.05f, 0.05f, 0.06f, 0.85f) : (n == selected ? new Color(0.25f, 0.18f, 0.08f, 0.96f) : UiKit.Panel);
+                Color col = !open ? new Color(0.05f, 0.05f, 0.06f, 0.92f) : (n == selected ? new Color(0.25f, 0.18f, 0.08f, 0.98f) : new Color(0.07f, 0.075f, 0.095f, 0.96f));
                 int nn = n;
-                var card = UiKit.Image("Card", P, UiKit.Card, col);
-                UiKit.Place(card.rectTransform, 0f, 1f, cardW, cardH, 0f, 1f);
-                card.rectTransform.anchoredPosition = new Vector2((i % 10) * stepX, -180f - (i / 10) * stepY);
+                var card = UiKit.Image("Card", area, UiKit.Card, col);
+                var crt = card.rectTransform;
+                int col10 = i % 10, row = i / 10;
+                crt.anchorMin = new Vector2(col10 / 10f, 1f);
+                crt.anchorMax = new Vector2((col10 + 1) / 10f, 1f);
+                crt.pivot = new Vector2(0.5f, 1f);
+                crt.offsetMin = new Vector2(3f, -180f - row * stepY - cardH);
+                crt.offsetMax = new Vector2(-3f, -180f - row * stepY);
                 var cb = card.gameObject.AddComponent<UiButton>();
                 cb.Background = card; cb.BaseColor = col;
                 cb.OnTap = () => { selected = nn; Show("levels"); };
@@ -435,18 +472,23 @@ namespace DerbyArena.UI
                 Color typeCol = HudController.KindColor(cfg.Kind);
                 if (open)
                 {
-                    Move(Txt(t, n.ToString(), 44, Color.white, TextAnchor.MiddleCenter, true, 0.5f, 1f, cardW, 56f, 0.5f, 1f), 0f, -8f);
+                    StretchTop(Txt(t, n.ToString(), 44, Color.white, TextAnchor.MiddleCenter, true, 0.5f, 1f, 100f, 56f, 0.5f, 1f), -8f, 56f);
                     var ki = UiKit.IconImage(t, KindIcon(cfg.Kind), 40f, typeCol, 0.5f, 1f, 0.5f, 1f);
                     ki.rectTransform.anchoredPosition = new Vector2(0f, -66f);
                     UiKit.Stars(t, Save.Data.Stars[n], 22f, 0.5f, 0f, 0.5f, 0f, new Vector2(0f, 14f));
                 }
                 else
                 {
-                    Move(Txt(t, n.ToString(), 30, UiKit.TextDim, TextAnchor.MiddleCenter, true, 0.5f, 1f, cardW, 44f, 0.5f, 1f), 0f, -8f);
+                    StretchTop(Txt(t, n.ToString(), 30, UiKit.TextDim, TextAnchor.MiddleCenter, true, 0.5f, 1f, 100f, 44f, 0.5f, 1f), -8f, 44f);
                     var lk = UiKit.IconImage(t, "lock", 40f, new Color(1f, 1f, 1f, 0.35f), 0.5f, 1f, 0.5f, 1f);
                     lk.rectTransform.anchoredPosition = new Vector2(0f, -60f);
                     if (starGate && need > 0)
-                        Move(Txt(t, "★ " + need, 22, UiKit.Amber, TextAnchor.MiddleCenter, true, 0.5f, 0f, cardW, 36f, 0.5f, 0f), 0f, 10f);
+                    {
+                        var g = Txt(t, "★ " + need, 22, UiKit.Amber, TextAnchor.MiddleCenter, true, 0.5f, 0f, 100f, 36f, 0.5f, 0f);
+                        var grt = g.rectTransform.parent as RectTransform;
+                        grt.anchorMin = new Vector2(0f, 0f); grt.anchorMax = new Vector2(1f, 0f);
+                        grt.offsetMin = new Vector2(4f, 10f); grt.offsetMax = new Vector2(-4f, 46f);
+                    }
                     else
                     {
                         var ki = UiKit.IconImage(t, KindIcon(cfg.Kind), 26f, new Color(1f, 1f, 1f, 0.25f), 0.5f, 0f, 0.5f, 0f);
@@ -455,26 +497,46 @@ namespace DerbyArena.UI
                 }
             }
 
-            // season strip: feature, season stars
-            var strip = Frame(P, 0f, 1f, 1300f, 112f, 0f, 1f, 0f, -548f);
+            // season strip: feature line, season stars, next-season gate (three separate lines, never overlapping)
+            var strip = UiKit.Frame("Strip", area, UiKit.Panel);
+            var srt = strip.rectTransform;
+            srt.anchorMin = new Vector2(0f, 1f); srt.anchorMax = new Vector2(1f, 1f); srt.pivot = new Vector2(0.5f, 1f);
+            srt.offsetMin = new Vector2(3f, -548f - 132f); srt.offsetMax = new Vector2(-3f, -548f);
             var stt = strip.transform;
-            Move(Txt(stt, Campaign.ChapterFeature(chapter), 24, UiKit.Cyan, TextAnchor.UpperLeft, false, 0f, 1f, 1260f, 60f, 0f, 1f), 24f, -12f);
+            var feat = Txt(stt, Campaign.ChapterFeature(chapter), 24, UiKit.Cyan, TextAnchor.MiddleLeft, false, 0f, 1f, 100f, 44f, 0f, 1f);
+            var frt = feat.rectTransform.parent as RectTransform;
+            frt.anchorMin = new Vector2(0f, 1f); frt.anchorMax = new Vector2(1f, 1f);
+            frt.offsetMin = new Vector2(24f, -56f); frt.offsetMax = new Vector2(-24f, -10f);
             int seasonStars = 0;
             for (int i = 0; i < Campaign.PerChapter; i++) seasonStars += Save.Data.Stars[start + i];
-            Move(Txt(stt, Loc.T("SEZON YILDIZLARI  ", "SEASON STARS  ") + seasonStars + "/" + (Campaign.PerChapter * 3), 22, Color.white, TextAnchor.MiddleLeft, true, 0f, 0f, 360f, 36f, 0f, 0f), 24f, 14f);
+            Move(Txt(stt, Loc.T("SEZON YILDIZLARI  ", "SEASON STARS  ") + seasonStars + "/" + (Campaign.PerChapter * 3), 22, Color.white, TextAnchor.MiddleLeft, true, 0f, 0f, 330f, 36f, 0f, 0f), 24f, 16f);
             Image sfill;
             var sbar = UiKit.Bar(stt, UiKit.Amber, out sfill);
-            UiKit.Place(sbar.rectTransform, 0f, 0f, 500f, 22f, 0f, 0f);
-            sbar.rectTransform.anchoredPosition = new Vector2(380f, 22f);
+            var sbrt = sbar.rectTransform;
+            sbrt.anchorMin = new Vector2(0f, 0f); sbrt.anchorMax = new Vector2(0.55f, 0f); sbrt.pivot = new Vector2(0f, 0f);
+            sbrt.offsetMin = new Vector2(360f, 22f); sbrt.offsetMax = new Vector2(0f, 44f);
             sfill.fillAmount = seasonStars / (float)(Campaign.PerChapter * 3);
             if (chapter < Campaign.Seasons)
             {
                 int nextFirst = chapter * Campaign.PerChapter + 1;
                 int needNext = Campaign.StarsRequired(nextFirst);
-                Move(Txt(stt, Loc.T("Sonraki sezon: ★ ", "Next season: ★ ") + needNext + Loc.T(" (sende ", " (you have ") + Save.TotalStars() + ")", 22, Save.TotalStars() >= needNext ? UiKit.Green : UiKit.Amber, TextAnchor.MiddleRight, true, 1f, 0f, 380f, 36f, 1f, 0f), -24f, 14f);
+                var nx = Txt(stt, Loc.T("Sonraki sezon ★ ", "Next season ★ ") + needNext + Loc.T("  ·  sende ", "  ·  you have ") + Save.TotalStars(), 22, Save.TotalStars() >= needNext ? UiKit.Green : UiKit.Amber, TextAnchor.MiddleRight, true, 1f, 0f, 100f, 36f, 1f, 0f);
+                var nrt = nx.rectTransform.parent as RectTransform;
+                nrt.anchorMin = new Vector2(0.56f, 0f); nrt.anchorMax = new Vector2(1f, 0f);
+                nrt.offsetMin = new Vector2(12f, 14f); nrt.offsetMax = new Vector2(-24f, 50f);
             }
 
             BuildLevelDetail();
+        }
+
+        const float DetailWidth = 560f;
+
+        /// <summary>Makes a Txt label span its parent's width at a fixed top offset and height.</summary>
+        static void StretchTop(Text t, float top, float height)
+        {
+            var rt = t.rectTransform.parent as RectTransform;
+            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+            rt.offsetMin = new Vector2(2f, top - height); rt.offsetMax = new Vector2(-2f, top);
         }
 
         static string KindIcon(ObjectiveKind k)
@@ -494,7 +556,7 @@ namespace DerbyArena.UI
         {
             var sel = Campaign.Get(selected);
             bool open = Campaign.IsOpen(selected);
-            var detail = Frame(P, 1f, 1f, 560f, 880f, 1f, 1f, 0f, -96f);
+            var detail = Frame(P, 1f, 1f, DetailWidth, 880f, 1f, 1f, 0f, -96f);
             var d = detail.transform;
             Move(Txt(d, Loc.T("BÖLÜM ", "LEVEL ") + selected + "  ·  " + sel.Subtitle, 22, UiKit.TextDim, TextAnchor.MiddleLeft, true, 0f, 1f, 520f, 40f, 0f, 1f), 28f, -16f);
             var ki = UiKit.IconImage(d, KindIcon(sel.Kind), 52f, HudController.KindColor(sel.Kind), 0f, 1f, 0f, 1f);
@@ -551,7 +613,7 @@ namespace DerbyArena.UI
                 case ArenaKind.Colosseum: return Loc.T("Kolezyum", "Colosseum");
                 case ArenaKind.Docks: return Loc.T("Konteyner Limanı", "Container Port");
                 case ArenaKind.Ruins: return Loc.T("Çöl Harabeleri", "Desert Ruins");
-                default: return "Blackout Spillway";
+                default: return Loc.T("Paslı Kanal", "Rust Channel");
             }
         }
 
@@ -774,18 +836,27 @@ namespace DerbyArena.UI
                 y -= 128f;
             }
 
-            // rewarded: free scrap, a few times per day (only offered when an ad is actually loaded)
+            // rewarded: free scrap, a few times per day. 4.0.2: the button follows the ad live (AdButtonLive) instead of
+            // freezing on "ad loading…" when the ad arrived after the page was built
             var ads = DerbyArena.Ads.AdsManager.Instance;
-            int left = Save.RewardedScrapLeft(DerbyArena.Ads.AdsConfig.RewardedScrapPerDay);
-            bool ready = ads != null && ads.RewardedReady;
-            string caption = left <= 0
-                ? Loc.T("BUGÜNLÜK BİTTİ", "DONE FOR TODAY")
-                : (ready ? Loc.T("REKLAM İZLE · +" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " HURDA (" + left + ")", "WATCH AD · +" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " SCRAP (" + left + ")")
-                         : Loc.T("REKLAM HAZIRLANIYOR…", "AD LOADING…"));
-            var free = Btn(t, caption, left > 0 && ready ? new Color(0.2f, 0.45f, 1f, 0.95f) : new Color(0.25f, 0.25f, 0.27f, 0.9f), 0.5f, 0f, 600f, 70f, 0.5f, 0f, 22, () =>
+            var free = Btn(t, Loc.T("REKLAM HAZIRLANIYOR…", "AD LOADING…"), new Color(0.25f, 0.25f, 0.27f, 0.9f), 0.5f, 0f, 600f, 70f, 0.5f, 0f, 22, null, false, "ad");
+            free.Background.rectTransform.anchoredPosition = new Vector2(0f, 18f);
+            free.Interactable = false;
+            var live = free.gameObject.AddComponent<AdButtonLive>();
+            live.Button = free;
+            live.Allowed = () => Save.RewardedScrapLeft(DerbyArena.Ads.AdsConfig.RewardedScrapPerDay) > 0;
+            live.BlockedCaption = Loc.T("BUGÜNLÜK BİTTİ · YARIN TEKRAR", "DONE FOR TODAY · BACK TOMORROW");
+            live.ReadyCaption = () =>
             {
-                if (ads == null) return;
+                int left = Save.RewardedScrapLeft(DerbyArena.Ads.AdsConfig.RewardedScrapPerDay);
+                return Loc.T("REKLAM İZLE · +" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " HURDA (" + left + ")", "WATCH AD · +" + DerbyArena.Ads.AdsConfig.RewardedScrapAmount + " SCRAP (" + left + ")");
+            };
+            free.OnTap = () =>
+            {
+                if (ads == null || !ads.RewardedReady) return;
                 garageMsg = "";
+                live.Frozen = true;
+                free.Interactable = false;
                 ads.ShowRewarded(earned =>
                 {
                     if (this == null) return;
@@ -798,9 +869,7 @@ namespace DerbyArena.UI
                     else garageMsg = Loc.T("Reklam tamamlanmadı, hurda eklenmedi.", "The ad was not completed, no scrap added.");
                     if (current == "garage") Show("garage");
                 });
-            }, false, "ad");
-            free.Background.rectTransform.anchoredPosition = new Vector2(0f, 18f);
-            free.Interactable = left > 0 && ready;
+            };
         }
 
         void BuildSlot(Transform t, PartSlot slot)
@@ -943,8 +1012,37 @@ namespace DerbyArena.UI
             if (ads != null && ads.PrivacyOptionsRequired)
                 SideButton("ad", Loc.T("REKLAM GİZLİLİK SEÇENEKLERİ", "AD PRIVACY OPTIONS"), ref ry, () => ads.ShowPrivacyOptions(err => { if (this != null && current == "settings") Show("settings"); }));
             SideButton("star", Loc.T("OYUNU DEĞERLENDİR", "RATE THE GAME"), ref ry, () => { Save.Data.RateState = 1; Save.Write(); OpenStorePage(); });
+            // 4.0.2: reset progress (two taps, the second within four seconds)
+            bool armed = Time.unscaledTime < resetArmedUntil;
+            var reset = Btn(P, armed ? Loc.T("EMİN MİSİN? TEKRAR DOKUN", "SURE? TAP AGAIN") : Loc.T("İLERLEMEYİ SIFIRLA", "RESET PROGRESS"),
+                armed ? UiKit.Red : UiKit.PanelLight, 1f, 1f, 520f, 72f, 1f, 1f, 24, () =>
+                {
+                    if (Time.unscaledTime < resetArmedUntil)
+                    {
+                        resetArmedUntil = 0f;
+                        Save.ResetProgressNow();
+                        selected = Campaign.NextToPlay();
+                        chapter = 1;
+                        vehicleIndex = 0;
+                        if (Showcase.Instance != null) Showcase.Instance.Rebuild();
+                        Show("settings");
+                        Toast(Loc.T("İlerleme sıfırlandı. Bölüm 1'den başlıyorsun.", "Progress reset. You start from level 1."), UiKit.Green);
+                    }
+                    else { resetArmedUntil = Time.unscaledTime + 4f; Show("settings"); }
+                }, false, "wrench");
+            reset.Background.rectTransform.anchoredPosition = new Vector2(0f, ry);
+            reset.Caption.color = armed ? Color.white : UiKit.Red;
+            ry -= 82f;
+            var adsMgr = DerbyArena.Ads.AdsManager.Instance;
+            if (DerbyArena.Ads.AdsConfig.TestMode)
+            {
+                var adLine = Txt(P, Loc.T("Reklam: ", "Ads: ") + (adsMgr != null ? adsMgr.Describe() : "-"), 18, UiKit.TextDim, TextAnchor.UpperRight, false, 1f, 1f, 520f, 80f, 1f, 1f);
+                Move(adLine, 0f, ry - 4f);
+            }
             Txt(P, Loc.T("Sürüm ", "Version ") + DerbyStartupDiagnostics.Version + " (" + DerbyStartupDiagnostics.VersionCode + ")", 20, new Color(1f, 1f, 1f, 0.45f), TextAnchor.LowerRight, false, 1f, 0f, 520f, 40f, 1f, 0f);
         }
+
+        float resetArmedUntil;
 
         void SideButton(string icon, string caption, ref float y, Action a)
         {
@@ -978,20 +1076,32 @@ namespace DerbyArena.UI
             label.verticalOverflow = VerticalWrapMode.Truncate;
             string url = legalDoc == "terms" ? Legal.TermsUrl : legalDoc == "licenses" ? Legal.LicensesUrl : Legal.PrivacyUrl;
             var open = Btn(P, Loc.T("TAM METNİ WEB'DE AÇ", "OPEN FULL TEXT ON THE WEB"), UiKit.Primary, 0.5f, 0f, 560f, 86f, 0.5f, 0f, 26, () => Legal.Open(url), true, "globe");
-            Txt(P, Loc.T("Son güncelleme: ", "Last updated: ") + Legal.Updated + "  ·  " + Legal.Contact, 20, UiKit.TextDim, TextAnchor.LowerRight, false, 1f, 0f, 700f, 40f, 1f, 0f);
+            Txt(P, Loc.T("Son güncelleme: ", "Last updated: ") + Legal.Updated + "  ·  " + Loc.T("Geliştirici: ", "Developer: ") + Legal.Developer, 20, UiKit.TextDim, TextAnchor.LowerRight, false, 1f, 0f, 700f, 40f, 1f, 0f);
         }
 
         void Row(string icon, string label, string value, ref float y, Action change) { Row(icon, label, value, ref y, change, current); }
 
+        /// <summary>Width of a full page in canvas units: the canvas is 1080 high (match height), minus the safe-area
+        /// insets and the 12-unit page margins. Computed from the screen, so it is right before the first layout pass.</summary>
+        static float PageWidth()
+        {
+            float h = Mathf.Max(1f, Screen.height);
+            return Mathf.Max(800f, Screen.safeArea.width * 1080f / h - 24f);
+        }
+
         void Row(string icon, string label, string value, ref float y, Action change, string pageAfter)
         {
+            // 4.0.2: the rows leave room for the 520-wide right column on every screen shape (16:10 and 4:3 tablets
+            // used to run the rows under the privacy / reset buttons); at most 1180 wide as before
+            float rowW = Mathf.Clamp(PageWidth() - 560f, 700f, 1180f);
+            float valueW = Mathf.Min(420f, rowW * 0.36f);
             var row = UiKit.Image("Row", P, UiKit.Card, UiKit.Panel);
-            UiKit.Place(row.rectTransform, 0f, 1f, 1180f, 66f, 0f, 1f);
+            UiKit.Place(row.rectTransform, 0f, 1f, rowW, 66f, 0f, 1f);
             row.rectTransform.anchoredPosition = new Vector2(0f, y);
             var ic = UiKit.IconImage(row.transform, icon, 30f, UiKit.TextDim, 0f, 0.5f, 0f, 0.5f);
             ic.rectTransform.anchoredPosition = new Vector2(20f, 0f);
-            Move(Txt(row.transform, label, 26, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, 640f, 64f, 0f, 0.5f), 66f, 0f);
-            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, 420f, 54f, 1f, 0.5f, 24, () => { change(); Save.Write(); Show(pageAfter); });
+            Move(Txt(row.transform, label, 26, Color.white, TextAnchor.MiddleLeft, true, 0f, 0.5f, rowW - valueW - 96f, 64f, 0f, 0.5f), 66f, 0f);
+            var b = Btn(row.transform, value, UiKit.PanelLight, 1f, 0.5f, valueW, 54f, 1f, 0.5f, 24, () => { change(); Save.Write(); Show(pageAfter); });
             b.Background.rectTransform.anchoredPosition = new Vector2(-10f, 0f);
             b.Caption.color = UiKit.Amber;
             y -= 72f;

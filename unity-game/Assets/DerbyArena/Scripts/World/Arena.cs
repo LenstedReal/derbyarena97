@@ -250,13 +250,37 @@ namespace DerbyArena.World
             return t;
         }
 
+        // 4.0.2: the channel's materials and parsed meshes are kept for the whole session. Coming back to this arena
+        // (menu → match, or match after match) used to fetch, decode and parse everything again behind the loading
+        // screen; now only the first visit pays for it. Static references keep the assets alive across scene loads.
+        static readonly Dictionary<string, Material> spillMats = new Dictionary<string, Material>();
+        static readonly Dictionary<string, Mesh> spillMeshes = new Dictionary<string, Mesh>();
+        static bool lowMemoryHooked;
+
+        /// <summary>
+        /// The channel arena's textures and meshes stay cached for the session (a second visit no longer reloads them
+        /// for seconds). If the phone runs low on memory only the references are dropped: what the current scene
+        /// uses stays alive, the rest is freed by the next scene load (4.0.2).
+        /// </summary>
+        static void HookLowMemory()
+        {
+            if (lowMemoryHooked) return;
+            lowMemoryHooked = true;
+            Application.lowMemory += () => { spillMats.Clear(); spillMeshes.Clear(); };
+        }
+
         IEnumerator LoadSpillway(Dictionary<string, GameObject> cover)
         {
             float t0 = Time.realtimeSinceStartup;
+            HookLowMemory();
+            // this visit's materials: cached textured ones, or a plain stand-in that is not cached (a failed download
+            // gets another chance next time)
             var mats = new Dictionary<string, Material>();
             string[] sets = { "asphalt", "concrete", "steel" };
             for (int s = 0; s < sets.Length; s++)
             {
+                Material cached;
+                if (spillMats.TryGetValue(sets[s], out cached) && cached != null) { mats[sets[s]] = cached; continue; }
                 byte[] a = null, n = null;
                 yield return Fetch("spillway/" + sets[s] + "_albedo.jpg", b => a = b);   // 2.1 textures (texforge): JPEG albedo, PNG normal
                 yield return Fetch("spillway/" + sets[s] + "_normal.png", b => n = b);
@@ -268,6 +292,7 @@ namespace DerbyArena.World
                 mats[set] = albedo != null
                     ? Mats.TexturedNormal(albedo, normal, tint, smooth, set == "steel" ? 0.35f : 0f)
                     : Mats.Lit(new Color(0.35f, 0.35f, 0.36f), 0.7f, 0.1f, Color.black, 0f);
+                if (albedo != null && mats[set] != null) spillMats[set] = mats[set];
                 yield return null;
             }
 
@@ -276,14 +301,19 @@ namespace DerbyArena.World
             for (int i = 0; i < SpillParts.Length; i++)
             {
                 string part = SpillParts[i];
-                byte[] data = null;
-                yield return Fetch("spillway/" + part + ".obj", b => data = b);
-                if (data == null) continue;
-                yield return null;
-                Mesh mesh = null;
-                try { mesh = ObjMesh.Parse(System.Text.Encoding.UTF8.GetString(data), part); }
-                catch (Exception ex) { Debug.LogError("DERBY: OBJ parse failed: " + part + " | " + ex.Message); }
-                if (mesh == null || mesh.vertexCount == 0) continue;
+                Mesh mesh;
+                if (!spillMeshes.TryGetValue(part, out mesh) || mesh == null)
+                {
+                    byte[] data = null;
+                    yield return Fetch("spillway/" + part + ".obj", b => data = b);
+                    if (data == null) continue;
+                    yield return null;
+                    mesh = null;
+                    try { mesh = ObjMesh.Parse(System.Text.Encoding.UTF8.GetString(data), part); }
+                    catch (Exception ex) { Debug.LogError("DERBY: OBJ parse failed: " + part + " | " + ex.Message); }
+                    if (mesh == null || mesh.vertexCount == 0) continue;
+                    spillMeshes[part] = mesh;
+                }
 
                 var go = new GameObject(part);
                 go.transform.SetParent(root, false);

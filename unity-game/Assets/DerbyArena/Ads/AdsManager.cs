@@ -28,6 +28,41 @@ namespace DerbyArena.Ads
         public bool PrivacyOptionsRequired { get; private set; }
         /// <summary>Short status for the diagnostics overlay / settings.</summary>
         public string Status { get; private set; } = "idle";
+        /// <summary>The last consent / load error (shown in Settings while TestMode is on).</summary>
+        public string LastError { get; private set; } = "";
+        /// <summary>A rewarded ad is being requested right now.</summary>
+        public bool RewardedLoading
+        {
+            get
+            {
+#if DERBY_ADS
+                return rewardedLoading;
+#else
+                return false;
+#endif
+            }
+        }
+
+        /// <summary>One line for the settings page: test / live, SDK state, ad availability.</summary>
+        public string Describe()
+        {
+            string mode = AdsConfig.TestMode ? "TEST" : "LIVE";
+#if DERBY_ADS
+            string state = !Initialized ? Status : (rewardedLoaded ? "rewarded ready" : (rewardedLoading ? "rewarded loading" : "rewarded retry"));
+            state += interstitialLoaded ? " · interstitial ready" : "";
+#else
+            string state = "no plugin";
+#endif
+            return mode + " · " + state + (string.IsNullOrEmpty(LastError) ? "" : " · " + LastError);
+        }
+
+        /// <summary>Asks for a rewarded ad now if none is loaded or loading (garage / result screen opened).</summary>
+        public void RequestRewarded()
+        {
+#if DERBY_ADS
+            if (Initialized && !rewardedLoaded && !rewardedLoading) { rewardedRetryAt = 0f; LoadRewarded(); }
+#endif
+        }
 
         public bool InterstitialReady { get { return interstitialLoaded; } }
         public bool RewardedReady { get { return rewardedLoaded; } }
@@ -81,6 +116,7 @@ namespace DerbyArena.Ads
                     if (error != null)
                     {
                         Debug.LogWarning("[ads] consent update failed: " + error.Message);
+                        LastError = "consent: " + error.Message;
                         FinishConsent();
                         return;
                     }
@@ -95,6 +131,7 @@ namespace DerbyArena.Ads
             {
                 Debug.LogWarning("[ads] not started: " + ex.Message);
                 Status = "error";
+                LastError = "start: " + ex.Message;      // shown in Settings (test mode): no logcat needed
                 ConsentDone = true;
             }
 #else
@@ -109,7 +146,13 @@ namespace DerbyArena.Ads
             ConsentDone = true;
             try { PrivacyOptionsRequired = ConsentInformation.PrivacyOptionsRequirementStatus == PrivacyOptionsRequirementStatus.Required; }
             catch (Exception) { PrivacyOptionsRequired = false; }
-            if (ConsentInformation.CanRequestAds()) InitializeSdk();
+            bool canRequest = false;
+            try { canRequest = ConsentInformation.CanRequestAds(); } catch (Exception) { }
+            // 4.0.2: with Google's sample app ID the consent service answers "publisher misconfiguration" and the
+            // consent status stays unknown, so CanRequestAds() is false and 4.0.1 never started the SDK: no test ad
+            // ever loaded ("ad loading…" forever). Test builds start the SDK anyway (test units only serve test ads);
+            // a release build with a real, configured app ID gets a proper answer from the consent service.
+            if (canRequest || AdsConfig.TestMode) InitializeSdk();
             else Status = "no consent";
         }
 
@@ -128,18 +171,21 @@ namespace DerbyArena.Ads
                 {
                     Initialized = true;
                     Status = "ready";
+                    LoadRewarded();          // rewarded first: it is the one the garage and the second chance need
                     LoadInterstitial();
-                    LoadRewarded();
                 });
             }
             catch (Exception ex)
             {
                 Debug.LogWarning("[ads] init failed: " + ex.Message);
                 Status = "error";
+                LastError = "init: " + ex.Message;
                 showingInit = false;
+                initRetryAt = Time.realtimeSinceStartup + 30f;   // no retry every frame (Update fallback)
             }
         }
         bool showingInit;
+        float initRetryAt = 8f;
 
         static string InterstitialId
         {
@@ -176,7 +222,8 @@ namespace DerbyArena.Ads
                 if (error != null || ad == null)
                 {
                     Debug.LogWarning("[ads] interstitial load failed: " + (error != null ? error.GetMessage() : "null"));
-                    interstitialRetryAt = Time.unscaledTime + 30f;
+                    LastError = "interstitial: " + (error != null ? error.GetMessage() : "null");
+                    interstitialRetryAt = Time.unscaledTime + 20f;
                     return;
                 }
                 interstitial = ad;
@@ -198,11 +245,13 @@ namespace DerbyArena.Ads
                 if (error != null || ad == null)
                 {
                     Debug.LogWarning("[ads] rewarded load failed: " + (error != null ? error.GetMessage() : "null"));
-                    rewardedRetryAt = Time.unscaledTime + 30f;
+                    LastError = "rewarded: " + (error != null ? error.GetMessage() : "null");
+                    rewardedRetryAt = Time.unscaledTime + 15f;
                     return;
                 }
                 rewarded = ad;
                 rewardedLoaded = true;
+                LastError = "";
                 ad.OnAdFullScreenContentOpened += OnFullscreenOpened;
                 ad.OnAdFullScreenContentClosed += () => { rewardedLoaded = false; OnFullscreenClosed(); LoadRewarded(); };
                 ad.OnAdFullScreenContentFailed += err => { rewardedLoaded = false; OnFullscreenClosed(); LoadRewarded(); };
@@ -211,6 +260,8 @@ namespace DerbyArena.Ads
 
         void Update()
         {
+            // test builds: if the consent service never answers, start the SDK after a few seconds anyway
+            if (!Initialized && !showingInit && AdsConfig.TestMode && Time.realtimeSinceStartup > initRetryAt) InitializeSdk();
             if (!Initialized) return;
             if (!interstitialLoaded && !interstitialLoading && Time.unscaledTime >= interstitialRetryAt) LoadInterstitial();
             if (!rewardedLoaded && !rewardedLoading && Time.unscaledTime >= rewardedRetryAt) LoadRewarded();

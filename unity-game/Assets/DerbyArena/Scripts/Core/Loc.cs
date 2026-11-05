@@ -34,5 +34,16 @@ namespace DerbyArena.Core
         }
 
         public static string LanguageName { get { return IsEnglish ? "ENGLISH" : "TÜRKÇE"; } }
+
+        /// <summary>Capitals in the current language (4.0.2): in Turkish 'i' becomes 'İ' and 'ı' becomes 'I'
+        /// (ToUpperInvariant turned "Demir Boğa" into "DEMIR BOĞA").</summary>
+        public static string Upper(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s;
+            if (IsEnglish) return s.ToUpperInvariant();
+            var sb = new System.Text.StringBuilder(s.Length);
+            foreach (char ch in s) sb.Append(ch == 'i' ? 'İ' : ch == 'ı' ? 'I' : char.ToUpperInvariant(ch));
+            return sb.ToString();
+        }
     }
 }

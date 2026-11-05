@@ -1,3 +1,40 @@
+# Test raporu — v4.0.2 (402)
+
+| Test | Sonuç |
+|---|---|
+| Cihaz videosu (kullanıcı, 3 dk 28 sn, 2712×1220): saniyede bir kare + kritik anlarda tam çözünürlük kare kare incelendi | 15 bulgu; hepsi koda kadar izlendi ve düzeltildi (`CHANGES_TR.md` 4.0.2 tablosu) |
+| Süspansiyon yan-kesit simülasyonu (60 Hz, gövde + yunuslama, 4.0.1 ile karşılaştırmalı; pürüzlü zemin, 25/30 cm kaldırım, 9° ve 12° rampa, atlama rampası, 3,7–13 m/s iniş) | pürüzlü zeminde sarsıntı (ivme RMS) 11,6/15,8/17,5 → 4,0/5,1/7,5 m/s² (10/20/30 m/s), havada kalma 0,63/0,73 sn → 0/0,03 sn (20/30 m/s); 30 cm kaldırımda sıçrama 1,0 → 0,34 m/s; 9° rampada atlama korunuyor (havada 0,25/0,50/0,73 sn, 20/27/34 m/s); 11 m/s inişte sıkışma 0,73 m (gövde teması 0,77). Bilinen fark: 27–34 m/s'de 9° rampa girişinde ön tampon köşesi ~0,1 sn rampaya hafifçe değebilir (4.0.1'de değmiyordu) |
+| `python3 -I validate_derby.py` (4.0.2 kontrolleri: sürüş, kamera, açılış, yazı sığdırma, HUD/bölüm düzeni, garaj ölçümü ve yatma, jant, reklam başlatma, kayıt v7, yasal metinler, araç adları, inceleme düzeltmeleri) | 0 FAIL |
+| Roslyn anlamsal derleme, 5 yapılandırma | 0 hata |
+| Bağımsız çalışma zamanı incelemesi 1 (ikinci ajan, tüm 4.0.2 farkı) | 11 bulgu, aşağıdaki tabloda; hepsi işlendi |
+| Bağımsız çalışma zamanı incelemesi 2 (son düzeltmelerin farkı) | aşağıda |
+| Unity derlemesi ve cihaz testi | **bekliyor** — `KNOWN_ISSUES_TR.md` §A2 (B1–B10) kabul listesi |
+
+### İnceleme 1 bulguları
+| # | Bulgu | Durum |
+|---|---|---|
+| 1 | Tümsek hız sınırı dünya dikeyinde: 9°'lik atlama rampalarında araba rampaya bastırılıyor, gövde sürtüyor, atlama ~0,3 m'de kalıyor; ölüm sıçraması ve roket savurması da kesiliyor | Düzeltildi: sınır aracın kendi dikey ekseninde (rampada hız kesilmez), ölmüş araç ve roket savurması muaf (`ArcadeCar.Launched`). Simülasyonda temas normali ekseninin pürüzlü zeminde arabayı yere bastırdığı da görüldü, o yüzden araç ekseni seçildi |
+| 2 | Kamera duvara 0,6 m'den yakınken duvarın gerisine konuyordu (en az 3,2 m kuralı); kalın duvarda ileri-geri pompalama, ince sınır duvarında dışarıda kalma; yükselme çarpışma kontrolsüz | Düzeltildi: kamera hiçbir zaman çarpma noktasının gerisine konmuyor; yükselme ayrıca küre taramasıyla kontrol ediliyor |
+| 3 | Açılış arka planda geçen süreyi sayıyordu; geç çıkışta menü kamerası 60 sn'lik yaklaşmaya takılabiliyordu | Düzeltildi: `IntroSplash.Leaving`, `OnApplicationPause` |
+| 4 | Ödüllü reklamdan hemen sonra tam ekran reklam | Düzeltildi |
+| 5 | Kayıt v7 tüm oyuncuların ilerlemesini bir kez sıfırlar | Bilerek: kullanıcı sıfırlama istedi, oyun henüz yayında değil |
+| 6 | Reklam servisi başlayamazsa düğme sonsuza kadar "başlıyor…"; "tamamlanmadı" yazısı 0,3 sn'de siliniyordu | Düzeltildi: "şu an kullanılamıyor" yazısı, 2,5 sn bekletme |
+| 7 | İlerleme satırı mesafe yokken ortanın solunda | Düzeltildi: mesafe yokken ortalanıyor |
+| 8 | "YENİ RAKİP: DEMIR BOĞA" (noktasız I) | Düzeltildi: `Loc.Upper` (Türkçe büyük harf) |
+| 9 | Çok sert inişte (≥10,5 m/s) gövde yere vuruyor (kuvvet sınırı 1,7) | Düzeltildi: sınır 4.0.1'deki gibi 2,5 |
+| 10 | Kanal arenası önbelleği ~25 MB'ı oturum boyu tutuyor; başarısız indirmenin düz malzemesi de önbelleğe giriyordu | Düzeltildi: bellek azalınca önbellek bırakılıyor; yalnız dokulu malzeme önbelleğe giriyor |
+| 11 | "EMİN MİSİN? TEKRAR DOKUN" 4 sn sonra da ekranda kalıyordu | Düzeltildi: süre bitince eski yazıya dönüyor |
+| — | İnceleme sırasında bulunup düzeltilenler: garajda önbellekteki model aynı karede gelince parçalar eski modele ölçülüp takılıyordu (eski model önce ayrılıyor); test modunda SDK başlatma hatası her karede tekrar denenmiyor | Düzeltildi |
+
+---|---|
+| Cihaz videosu (kullanıcı, 3 dk 28 sn, 2712×1220): saniyede bir kare + kritik anlarda tam çözünürlük kare kare incelendi | 15 bulgu; hepsi koda kadar izlendi ve düzeltildi (`CHANGES_TR.md` 4.0.2 tablosu) |
+| `python3 -I validate_derby.py` (4.0.2 kontrolleri: sürüş, kamera, açılış, yazı sığdırma, HUD/bölüm düzeni, garaj ölçümü, jant, reklam başlatma, kayıt v7, yasal metinler, araç adları) | 0 FAIL |
+| Roslyn anlamsal derleme, 5 yapılandırma | 0 hata |
+| Bağımsız çalışma zamanı incelemesi (ikinci ajan, değişen kod) | sonuçları ve yapılan düzeltmeler aşağıda / `KNOWN_ISSUES_TR.md` |
+| Unity derlemesi ve cihaz testi | **bekliyor** — `KNOWN_ISSUES_TR.md` §A2 (B1–B10) kabul listesi |
+
+---
+
 # Test raporu — v4.0.1 (401)
 
 | Test | Sonuç |

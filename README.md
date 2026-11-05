@@ -1,6 +1,6 @@
 # DERBY ARENA
 
-Unity 6 (6000.3.27f1, Built-in RP) araç savaşı oyunu · paket `com.lenstedreal.derbyarena` · sürüm 4.0.1 (401)
+Unity 6 (6000.3.27f1, Built-in RP) araç savaşı oyunu · paket `com.lenstedreal.derbyarena` · sürüm 4.0.2 (402)
 
 | Klasör | İçerik |
 |---|---|

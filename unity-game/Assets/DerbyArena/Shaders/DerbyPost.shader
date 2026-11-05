@@ -38,7 +38,7 @@ Shader "Hidden/DerbyArena/Post"
         half3 c = tex2D(_MainTex, uv).rgb;
         if (_Speed > 0.001)
         {
-            float2 dir = (uv - 0.5) * (_Speed * 0.012);
+            float2 dir = (uv - 0.5) * (_Speed * 0.0045);   // 4.0.2: subtle (0.012 smeared the whole frame on phones)
             c.r = tex2D(_MainTex, uv - dir).r;
             c.b = tex2D(_MainTex, uv + dir).b;
         }

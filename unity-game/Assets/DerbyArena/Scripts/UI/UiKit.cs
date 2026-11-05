@@ -349,7 +349,12 @@ namespace DerbyArena.UI
             t.alignment = anchor;
             t.fontStyle = FontStyle.Normal;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
-            t.verticalOverflow = VerticalWrapMode.Overflow;
+            // 4.0.2: every label shrinks to fit its box (down to 60 %) and is clipped there, so a long translation
+            // or the wider Poppins glyphs can never spill over a neighbouring element any more
+            t.resizeTextForBestFit = true;
+            t.resizeTextMaxSize = size;
+            t.resizeTextMinSize = Mathf.Max(10, Mathf.RoundToInt(size * 0.6f));
+            t.verticalOverflow = VerticalWrapMode.Truncate;
             t.raycastTarget = false;
             var sh = rt.gameObject.AddComponent<Shadow>();
             sh.effectColor = new Color(0f, 0f, 0f, 0.55f);

@@ -178,6 +178,10 @@ namespace DerbyArena.UI
                     WheelAngle = touchSteer * 90f;
                     break;
             }
+            // 4.0.2: a mild response curve for the finger and tilt modes. Small movements give finer corrections, so
+            // the car holds a straight line instead of wobbling with every twitch of the thumb; full travel is still
+            // full lock (the sensitivity setting changes how far that is). The arrow buttons already ramp.
+            if (mode != SteerMode.Arrows) touchSteer = Mathf.Sign(touchSteer) * Mathf.Pow(Mathf.Abs(touchSteer), 1.3f);
             Steer = keySteering ? Mathf.Clamp(keySteer, -1f, 1f) : touchSteer;
 
             if (Save.Data.AutoGas && Brake < 0.5f) Throttle = Mathf.Max(Throttle, 1f);

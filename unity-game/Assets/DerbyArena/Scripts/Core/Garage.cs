@@ -80,10 +80,10 @@ namespace DerbyArena.Core
             P("stripe_white",   "YARIŞ BEYAZI",      "RACING WHITE",        600, 10, new Color(0.95f, 0.95f, 0.95f), 3, PartSlot.Stripe),
             P("stripe_gold",    "GENİŞ ALTIN",       "WIDE GOLD",           900, 25, new Color(0.95f, 0.75f, 0.25f), 2, PartSlot.Stripe),
 
-            // roof: 1 light bar, 0 none, 2 roof rack, 3 siren bar
+            // roof: 1 light bar, 0 none, 2 spot lamps (id kept from the 4.0 roof rack), 3 siren bar
             P("roof_lightbar", "FAR ÇUBUĞU",  "LIGHT BAR",  0,    0,  Color.white, 1, PartSlot.Roof),
             P("roof_none",     "TEMİZ TAVAN", "CLEAN ROOF", 0,    0,  Color.white, 0, PartSlot.Roof),
-            P("roof_rack",     "ÇATI RAFI",   "ROOF RACK",  700,  8,  Color.white, 2, PartSlot.Roof),
+            P("roof_rack",     "SPOT FARLAR", "SPOT LAMPS", 700,  8,  Color.white, 2, PartSlot.Roof),
             P("roof_siren",    "SİREN ÇUBUĞU","SIREN BAR",  1500, 35, Color.white, 3, PartSlot.Roof),
 
             // spoiler: 1 low wing, 0 none, 2 high wing, 3 ducktail
@@ -244,8 +244,8 @@ namespace DerbyArena.Core
     }
 
     /// <summary>
-    /// The vehicle collection (4.0): the Interceptor is free, the four rival chassis are bought with scrap and star
-    /// totals, the War Rig and the Tiger I "T-12" sit at the end of the campaign. Prices rise steeply on purpose:
+    /// The vehicle collection (4.0; names 4.0.2): the Red Bolt is free, the four rival chassis are bought with scrap and star
+    /// totals, the Black Mammoth and the Tiger T-12 sit at the end of the campaign. Prices rise steeply on purpose:
     /// the last two need a real investment of play.
     /// </summary>
     public static class Fleet
@@ -254,29 +254,29 @@ namespace DerbyArena.Core
 
         public static readonly VehicleDef[] Defs =
         {
-            new VehicleDef { Id = "interceptor", NameTr = "BREAKLINE INTERCEPTOR", NameEn = "BREAKLINE INTERCEPTOR",
+            new VehicleDef { Id = "interceptor", NameTr = "KIZIL ŞİMŞEK", NameEn = "RED BOLT",
                 BlurbTr = "Dengeli muscle car: hız, zırh ve ateş gücü ortada. Her şeye uyar.",
                 BlurbEn = "Balanced muscle car: speed, armour and firepower in the middle. Fits everything.",
                 Price = 0, StarsNeeded = 0, Make = DerbyArena.Vehicles.VehicleSpec.Interceptor, Speed = 3, Armor = 3, Firepower = 3, Handling = 3 },
-            new VehicleDef { Id = "drifter", NameTr = "RAZOR DRIFTER", NameEn = "RAZOR DRIFTER",
+            new VehicleDef { Id = "drifter", NameTr = "GÖLGE TİLKİ", NameEn = "SHADOW FOX",
                 BlurbTr = "Hafif ve çevik: en hızlı dönüş, en uzun drift. Zırhı ince, vurulmadan vur.",
                 BlurbEn = "Light and nimble: sharpest turns, longest drifts. Thin armour, so hit before you get hit.",
                 Price = 3500, StarsNeeded = 24, Make = DerbyArena.Vehicles.VehicleSpec.PlayerDrifter, Speed = 4, Armor = 2, Firepower = 2, Handling = 5 },
-            new VehicleDef { Id = "rammer", NameTr = "BASTION RAMMER", NameEn = "BASTION RAMMER",
+            new VehicleDef { Id = "rammer", NameTr = "DEMİR BOĞA", NameEn = "IRON BULL",
                 BlurbTr = "Ağır gövde, güçlendirilmiş burun: çarpma hasarı %40 fazla, can yüksek, dönüş yavaş.",
                 BlurbEn = "Heavy body, reinforced nose: ramming hurts 40% more, lots of health, slow turning.",
                 Price = 8000, StarsNeeded = 54, Make = DerbyArena.Vehicles.VehicleSpec.PlayerRammer, Speed = 2, Armor = 5, Firepower = 3, Handling = 2 },
-            new VehicleDef { Id = "hunter", NameTr = "SIEGE HUNTER", NameEn = "SIEGE HUNTER",
+            new VehicleDef { Id = "hunter", NameTr = "AKREP", NameEn = "SCORPION",
                 BlurbTr = "Uzun menzilli top ve +2 roket: uzaktan sök, sonra yaklaş.",
                 BlurbEn = "Long-range gun and +2 rockets: strip them from afar, then close in.",
                 Price = 15000, StarsNeeded = 96, Make = DerbyArena.Vehicles.VehicleSpec.PlayerHunter, Speed = 3, Armor = 3, Firepower = 5, Handling = 3 },
-            new VehicleDef { Id = "warrig", NameTr = "WAR RIG", NameEn = "WAR RIG",
-                BlurbTr = "Patronların kamyonu: 420 can, çarpınca ezer, 6 roket. Yavaş ama durdurulamaz.",
-                BlurbEn = "The bosses' truck: 420 health, crushes on contact, 6 rockets. Slow but unstoppable.",
+            new VehicleDef { Id = "warrig", NameTr = "KARA MAMUT", NameEn = "BLACK MAMMOTH",
+                BlurbTr = "Patronların zırhlı tırı: 420 can, çarpınca ezer, 6 roket. Yavaş ama durdurulamaz.",
+                BlurbEn = "The bosses' armoured hauler: 420 health, crushes on contact, 6 rockets. Slow but unstoppable.",
                 Price = 35000, StarsNeeded = 160, BossesNeeded = 3, Make = DerbyArena.Vehicles.VehicleSpec.PlayerWarRig, Speed = 2, Armor = 5, Firepower = 4, Handling = 1 },
-            new VehicleDef { Id = "t12", NameTr = "TIGER I  ·  T-12", NameEn = "TIGER I  ·  T-12",
-                BlurbTr = "Oyunun son aracı: Panzerkampfwagen VI Tiger I. 8,8 cm KwK 36 top, 650 can, paletler her şeyi ezer. Antende Türk bayrağı.",
-                BlurbEn = "The endgame vehicle: Panzerkampfwagen VI Tiger I. 8.8 cm KwK 36 gun, 650 health, tracks crush everything. Turkish flag on the antenna.",
+            new VehicleDef { Id = "t12", NameTr = "KAPLAN T-12", NameEn = "TIGER T-12",
+                BlurbTr = "Oyunun son aracı: Tiger I tankından esinlenen ağır zırhlı. 8,8 cm top, 650 can, paletler her şeyi ezer. Antende Türk bayrağı.",
+                BlurbEn = "The endgame vehicle: a heavy tank inspired by the Tiger I. 8.8 cm gun, 650 health, tracks crush everything. Turkish flag on the antenna.",
                 Price = 75000, StarsNeeded = 230, BossesNeeded = 5, Make = DerbyArena.Vehicles.VehicleSpec.TigerT12, Speed = 1, Armor = 5, Firepower = 5, Handling = 1, Tank = true },
         };
 

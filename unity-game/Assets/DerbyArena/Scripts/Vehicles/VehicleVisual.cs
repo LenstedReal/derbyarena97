@@ -160,11 +160,20 @@ namespace DerbyArena.Vehicles
                     if (m == null || m.name == null || m.name.IndexOf("chrome", StringComparison.OrdinalIgnoreCase) < 0) continue;
                     if (inst == null)
                     {
+                        // 4.0.2: the scene has no reflection probe, so a highly metallic surface shows almost no albedo:
+                        // the 0.95 metallic of 4.0 rendered every rim colour as the same dark grey. A low metallic value
+                        // keeps the colour readable; the neon rim also glows a little.
                         inst = new Material(m);
                         inst.name = m.name + "_rim";
                         inst.color = rim.Color;
-                        if (inst.HasProperty("_Metallic")) inst.SetFloat("_Metallic", rim.Color.maxColorComponent > 0.9f ? 0.95f : 0.7f);
-                        if (inst.HasProperty("_Glossiness")) inst.SetFloat("_Glossiness", rim.Color.maxColorComponent > 0.9f ? 0.9f : 0.6f);
+                        bool bright = rim.Id == "rim_chrome" || rim.Id == "rim_steel";
+                        if (inst.HasProperty("_Metallic")) inst.SetFloat("_Metallic", bright ? 0.35f : 0.15f);
+                        if (inst.HasProperty("_Glossiness")) inst.SetFloat("_Glossiness", bright ? 0.8f : 0.55f);
+                        if (rim.Id == "rim_cyan" && inst.HasProperty("_EmissionColor"))
+                        {
+                            inst.EnableKeyword("_EMISSION");
+                            inst.SetColor("_EmissionColor", rim.Color * 0.8f);
+                        }
                     }
                     r.sharedMaterial = inst;
                 }

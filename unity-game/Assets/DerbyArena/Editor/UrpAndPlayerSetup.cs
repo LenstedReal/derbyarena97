@@ -32,8 +32,8 @@ namespace DerbyArena.EditorTools
         const string VertexLitMaterialPath = MaterialsFolder + "/RuntimeVertexLit.mat";
         const string PostMaterialPath = MaterialsFolder + "/RuntimePost.mat";
         const string IconFolder = "Assets/DerbyArena/Icons";
-        const string Version = "4.0.1";
-        const int VersionCode = 401;
+        const string Version = "4.0.2";
+        const int VersionCode = 402;
         internal const string ScenePath = "Assets/DerbyArena/Scenes/BlackoutSpillway.unity";
 
         static UrpAndPlayerSetup()
@@ -338,6 +338,17 @@ namespace DerbyArena.EditorTools
             }
         }
 
+        static void SetStaticBool(Type owner, string property, bool value)
+        {
+            try
+            {
+                var p = owner.GetProperty(property, BindingFlags.Public | BindingFlags.Static);
+                if (p != null && p.CanWrite && p.PropertyType == typeof(bool)) p.SetValue(null, value, null);
+                else Debug.LogWarning("DERBY: player setting not found: " + owner.Name + "." + property);
+            }
+            catch (Exception ex) { Debug.LogWarning("DERBY: player setting " + property + " not applied: " + ex.Message); }
+        }
+
         public static void ApplyBuildSettings()
         {
             if (!File.Exists(ScenePath))
@@ -383,6 +394,11 @@ namespace DerbyArena.EditorTools
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.Android.renderOutsideSafeArea = true;
+            // 4.0.2 smoothness: Android frame pacing spreads frames evenly at the 60 fps target (less judder while
+            // driving), and the incremental GC splits collections over frames (the HUD builds a few strings per frame).
+            // Set through reflection so a renamed property in a future Unity can never break the build.
+            SetStaticBool(typeof(PlayerSettings.Android), "optimizedFramePacing", true);
+            SetStaticBool(typeof(PlayerSettings), "gcIncremental", true);
 
             // 4.0.1: ASTC for every imported texture (UI sprites, clouds, ruins PBR set). ETC2 stays the fallback
             // Unity picks on the rare GLES3 device without ASTC. The GLB textures are decoded at runtime from JPEG/PNG

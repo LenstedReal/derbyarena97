@@ -17,7 +17,7 @@ namespace DerbyArena.Vehicles
     /// <summary>Which optional parts a car gets. The player's comes from the garage shop, rivals' from their role.</summary>
     public sealed class KitStyle
     {
-        public int Roof = 1;        // 0 none, 1 light bar, 2 roof rack, 3 siren bar
+        public int Roof = 1;        // 0 none, 1 light bar, 2 spot lamps, 3 siren bar
         public int Spoiler = 1;     // 0 none, 1 low wing, 2 high wing, 3 ducktail
         public int Bumper = 1;      // 0 none, 1 bull bar, 2 steel plough, 3 spiked bar
         public int Exhaust = 0;     // 0 stock, 1 side pipes, 2 stacks, 3 flame pipes
@@ -136,7 +136,11 @@ namespace DerbyArena.Vehicles
 
         static Shape Measure(Transform car, VehicleSpec spec)
         {
-            var filters = car.GetComponentsInChildren<MeshFilter>(true);
+            // 4.0.2: only the model counts. The garage showcase keeps its glowing pad ring next to the model; measured
+            // as part of the car it made the body 3.8 m wide, so bars, spikes and pipes stood far off the car in the
+            // garage while the match (no ring) looked different. Both now measure the "Visual" holder only.
+            var visual = car.Find("Visual");
+            var filters = (visual != null ? visual : car).GetComponentsInChildren<MeshFilter>(true);
             // every clone of a model template measures the same, so the result is cached per file, scale and
             // vertex count (the count tells a loaded model from the fallback box); saves ~0.6 MB of garbage per spawn
             int vertTotal = 0;
@@ -149,16 +153,20 @@ namespace DerbyArena.Vehicles
             string key = (spec.GlbFile ?? "") + "|" + spec.Scale.ToString("F3") + "|" + vertTotal;
             Shape cached;
             if (shapeCache.TryGetValue(key, out cached)) return cached;
-            Shape result = MeasureNow(car, spec, filters);
+            Shape result = MeasureNow(car, visual, spec, filters);
             if (result != null) shapeCache[key] = result;
             return result;
         }
 
-        static Shape MeasureNow(Transform car, VehicleSpec spec, MeshFilter[] filters)
+        static Shape MeasureNow(Transform car, Transform visual, VehicleSpec spec, MeshFilter[] filters)
         {
             var verts = new List<Vector3>(16384);
             var tris = new List<int>(65536);
-            Matrix4x4 toCar = car.worldToLocalMatrix;
+            // 4.0.2: measured in the holder's resting frame, so a body that happens to lean (VehicleVisual tilts the
+            // holder in corners) at spawn time does not skew the measurement that every later spawn reuses
+            Matrix4x4 toCar = visual != null
+                ? Matrix4x4.TRS(visual.localPosition, BodyTurn, visual.localScale) * visual.worldToLocalMatrix
+                : car.worldToLocalMatrix;
             for (int i = 0; i < filters.Length; i++)
             {
                 var mf = filters[i];
@@ -279,6 +287,7 @@ namespace DerbyArena.Vehicles
                 // tracked vehicles carry no car kit; only the neon underglow (if any) applies
                 if (style.Neon) Neon(root, style, spec.BodySize * spec.Scale, 0.25f * spec.Scale, quality);
                 Merge(root);
+                FollowBody(root, car);
                 return;
             }
 
@@ -345,17 +354,17 @@ namespace DerbyArena.Vehicles
             }
             else if (style.Roof == 2)
             {
-                // roof rack: two rails along the roof, three crossbars, a strapped box
-                float rackL = Mathf.Max(0.6f, roofZ1 - roofZ0 - 0.3f);
-                float rackZ = (roofZ0 + roofZ1) * 0.5f;
+                // spot lamps (4.0.2, replaces the roof rack that ran into the gun turret): a short bar at the front
+                // edge of the roof with two big round off-road lamps facing forward
+                float spotW = Mathf.Min(barW * 0.8f, halfW * 1.3f);
+                Part("SpotBar", cube, steelMat, root, new Vector3(0f, barY, barZ), new Vector3(spotW, 0.06f, 0.1f), Quaternion.identity);
+                var spotMat = Glow(new Color(1f, 0.95f, 0.8f), player ? 3.4f : 2.4f);
                 for (int side = -1; side <= 1; side += 2)
-                    Part("RackRail", cyl, steelMat, root, new Vector3(side * barW * 0.38f, roofY + 0.09f, rackZ), new Vector3(0.05f, rackL, 0.05f), Quaternion.Euler(90f, 0f, 0f));
-                for (int i = -1; i <= 1; i++)
-                    Part("RackBar", cyl, steelMat, root, new Vector3(0f, roofY + 0.09f, rackZ + i * rackL * 0.42f), new Vector3(0.045f, barW * 0.8f, 0.045f), Quaternion.Euler(0f, 0f, 90f));
-                for (int side = -1; side <= 1; side += 2)
-                    Part("RackLeg", cube, steelMat, root, new Vector3(side * barW * 0.38f, roofY + 0.045f, rackZ), new Vector3(0.05f, 0.09f, 0.05f), Quaternion.identity);
-                Part("RackBox", cube, Lit(new Color(0.35f, 0.3f, 0.2f), 0.8f, 0f), root, new Vector3(-barW * 0.12f, roofY + 0.24f, rackZ - rackL * 0.1f), new Vector3(barW * 0.4f, 0.26f, rackL * 0.45f), Quaternion.identity);
-                Part("RackCan", cyl, Lit(new Color(0.5f, 0.12f, 0.1f), 0.5f, 0.3f), root, new Vector3(barW * 0.26f, roofY + 0.22f, rackZ + rackL * 0.05f), new Vector3(0.22f, 0.3f, 0.22f), Quaternion.identity);
+                {
+                    Vector3 at = new Vector3(side * spotW * 0.36f, barY + 0.12f, barZ + 0.02f);
+                    Part("SpotHousing", cyl, steelMat, root, at, new Vector3(0.24f, 0.08f, 0.24f), Quaternion.Euler(90f, 0f, 0f));
+                    Part("SpotLens", cyl, spotMat, root, at + new Vector3(0f, 0f, 0.045f), new Vector3(0.2f, 0.01f, 0.2f), Quaternion.Euler(90f, 0f, 0f));
+                }
             }
 
             // racing stripes following hood, roof and trunk (steep buckets = glass are skipped)
@@ -425,13 +434,15 @@ namespace DerbyArena.Vehicles
             int engine = player ? Upgrades.Level(Upgrades.Engine) : (boss ? 4 : 0);
             int nitro = player ? Upgrades.Level(Upgrades.Nitro) : 0;
 
-            // ram spikes: spiked bar, or armour 4+ on a bull bar
-            if (style.Bumper == 3 || (style.Bumper == 1 && armor >= 4))
+            // ram spikes: only the spiked bar has them (4.0.2: armour upgrades used to add a fork of long rods), short
+            // cones that start on the lower rail
+            if (style.Bumper == 3)
             {
                 for (int i = 0; i < 5; i++)
                 {
-                    float x = Mathf.Lerp(-railW * 0.42f, railW * 0.42f, i / 4f);
-                    Part("RamSpike", cyl, rustMat, root, new Vector3(x, railY + 0.02f, barFrontZ + 0.3f), new Vector3(0.07f, 0.55f, 0.07f), Quaternion.Euler(90f, 0f, 0f));
+                    float x = Mathf.Lerp(-railW * 0.4f, railW * 0.4f, i / 4f);
+                    Part("RamSpike", cyl, rustMat, root, new Vector3(x, railY, barFrontZ + 0.17f), new Vector3(0.07f, 0.3f, 0.07f), Quaternion.Euler(90f, 0f, 0f));
+                    Part("RamTip", cyl, steelMat, root, new Vector3(x, railY, barFrontZ + 0.33f), new Vector3(0.035f, 0.06f, 0.035f), Quaternion.Euler(90f, 0f, 0f));
                 }
             }
 
@@ -448,12 +459,7 @@ namespace DerbyArena.Vehicles
                         Part("Bolt", cube, steelMat, root, new Vector3(side * (doorX + 0.06f), plateY + plateH * 0.3f, (doorZ0 + doorZ1) * 0.5f + b * plateL * 0.35f), new Vector3(0.04f, 0.06f, 0.06f), Quaternion.identity);
                 }
             }
-            if (armor >= 3 && quality > 0)
-            {
-                float rw = Mathf.Min(barW, halfW * 1.4f);
-                for (int i = -1; i <= 1; i++)
-                    Part("RollBar", cyl, steelMat, root, new Vector3(0f, roofY + 0.05f, Mathf.Lerp(roofZ0 + 0.2f, roofZ1 - 0.35f, (i + 1) / 2f)), new Vector3(0.05f, rw, 0.05f), Quaternion.Euler(0f, 0f, 90f));
-            }
+            // (4.0.2: the roof roll bars of armour 3+ are gone — they crossed the gun turret)
 
             // spoiler on the trunk: low wing, high wing with end plates, or a ducktail lip
             var wingMat = Lit(Color.Lerp(spec.Paint, Color.black, 0.55f), 0.5f, 0.2f);
@@ -515,6 +521,29 @@ namespace DerbyArena.Vehicles
             if (style.Neon) Neon(root, style, new Vector3(halfW * 2f, top - low, front - back), low + 0.08f, quality, doorX, (front + back) * 0.5f);
 
             Merge(root);
+            FollowBody(root, car);
+        }
+
+        /// <summary>Resting turn of the "Visual" holder (models face -z, cars drive +z).</summary>
+        static readonly Quaternion BodyTurn = Quaternion.Euler(0f, 180f, 0f);
+
+        /// <summary>
+        /// 4.0.2: the kit hangs under the "Visual" holder so it leans with the body. VehicleVisual tilts the holder
+        /// up to 5 degrees in corners and under braking; on the car root the kit stayed level, so in a match the
+        /// spoiler, lamps and bars floated off or sank into the body while the garage (no lean) looked right.
+        /// The local transform undoes the holder's resting turn and scale, so the car-space layout is kept.
+        /// </summary>
+        static void FollowBody(Transform root, Transform car)
+        {
+            if (root == null || car == null) return;
+            var visual = car.Find("Visual");
+            if (visual == null) return;
+            float scale = Mathf.Max(0.0001f, visual.localScale.x);
+            Quaternion undo = Quaternion.Inverse(BodyTurn);
+            root.SetParent(visual, false);
+            root.localRotation = undo;
+            root.localScale = Vector3.one / scale;
+            root.localPosition = -(undo * visual.localPosition) / scale;
         }
 
         static void StripeRun(Transform root, Mesh cube, Material mat, int kind, float halfW, float y, float z, float len, Quaternion tilt)

@@ -180,7 +180,13 @@ namespace DerbyArena.Combat
                 if (knockback)
                 {
                     var body = hp.GetComponent<Rigidbody>();
-                    if (body != null) body.AddExplosionForce(body.mass * 6f, point, radius * 1.5f, 0.6f, ForceMode.Impulse);
+                    if (body != null)
+                    {
+                        body.AddExplosionForce(body.mass * 6f, point, radius * 1.5f, 0.6f, ForceMode.Impulse);
+                        // 4.0.2: the knock-up is meant to lift the car; the suspension's bump cap must not take it back
+                        var kicked = hp.GetComponent<DerbyArena.Vehicles.ArcadeCar>();
+                        if (kicked != null) kicked.Launched(0.5f);
+                    }
                 }
             }
             if (owner == null || owner.Team != 0)

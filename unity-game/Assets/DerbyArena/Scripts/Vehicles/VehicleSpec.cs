@@ -1,3 +1,4 @@
+using DerbyArena.Core;
 using UnityEngine;
 
 namespace DerbyArena.Vehicles
@@ -127,7 +128,7 @@ namespace DerbyArena.Vehicles
         {
             return new VehicleSpec
             {
-                DisplayName = "Tiger I  T-12", GlbFile = "vehicles/tiger_t12.glb", Role = DriverRole.Player,
+                DisplayName = Loc.T("Kaplan T-12", "Tiger T-12"), GlbFile = "vehicles/tiger_t12.glb", Role = DriverRole.Player,
                 Tank = true, Cannon = true, CannonReload = 1.6f, FixedPaint = true,
                 Mass = 5600f, TopSpeed = 19f, Accel = 8f, BrakeDecel = 18f, TurnRate = 1.35f, Grip = 14f, Health = 650f, Scale = 0.85f,
                 WheelRadius = 0.4f, WheelFront = new Vector3(1.4f, 0.4f, 2.4f), WheelRear = new Vector3(1.4f, 0.4f, -2.4f),
@@ -141,7 +142,7 @@ namespace DerbyArena.Vehicles
         {
             return new VehicleSpec
             {
-                DisplayName = "Breakline Interceptor", GlbFile = "vehicles/player_muscle.glb", Role = DriverRole.Player,
+                DisplayName = Loc.T("Kızıl Şimşek", "Red Bolt"), GlbFile = "vehicles/player_muscle.glb", Role = DriverRole.Player,
                 Mass = 1450f, TopSpeed = 27f, Accel = 13.5f, TurnRate = 2.2f, Grip = 9.5f, Health = 170f,
                 GunDamage = 7.5f, GunInterval = 0.09f, GunRange = 44f, RocketAmmo = 4, RocketDamage = 48f,
                 Paint = new Color(0.8f, 0.38f, 0.12f), Accent = new Color(1f, 0.55f, 0.12f)
@@ -162,7 +163,7 @@ namespace DerbyArena.Vehicles
         // combined with burst/pause rhythm and a limited number of simultaneous shooters (MatchDirector).
         public static VehicleSpec Drifter()
         {
-            var s = Raider("Razor Drifter", "vehicles/enemy_raider_a.glb");
+            var s = Raider(Loc.T("Gölge Tilki", "Shadow Fox"), "vehicles/enemy_raider_a.glb");
             s.Role = DriverRole.Flanker; s.Mass = 1150f; s.TopSpeed = 25f; s.Accel = 12.5f; s.TurnRate = 2.4f; s.Grip = 8f;
             s.Health = 85f; s.GunDamage = 2.6f; s.GunInterval = 0.2f; s.GunRange = 32f; s.Rockets = false; s.RocketAmmo = 0;
             s.ScrapValue = 30; s.Accent = new Color(0.95f, 0.2f, 0.25f); s.Paint = new Color(0.7f, 0.12f, 0.14f);
@@ -171,7 +172,7 @@ namespace DerbyArena.Vehicles
 
         public static VehicleSpec Rammer()
         {
-            var s = Raider("Bastion Rammer", "vehicles/enemy_raider_b.glb");
+            var s = Raider(Loc.T("Demir Boğa", "Iron Bull"), "vehicles/enemy_raider_b.glb");
             s.Role = DriverRole.Rammer; s.Mass = 2100f; s.TopSpeed = 24f; s.Accel = 12f; s.TurnRate = 1.8f; s.Grip = 10f;
             s.Health = 150f; s.GunDamage = 2.2f; s.GunInterval = 0.28f; s.GunRange = 22f; s.Rockets = false; s.RocketAmmo = 0;
             s.RamMul = 1.3f; s.Scale = 1.08f; s.ScrapValue = 40; s.Accent = new Color(0.55f, 0.6f, 0.65f); s.Paint = new Color(0.38f, 0.44f, 0.52f);
@@ -180,7 +181,7 @@ namespace DerbyArena.Vehicles
 
         public static VehicleSpec Hunter()
         {
-            var s = Raider("Siege Hunter", "vehicles/enemy_raider_c.glb");
+            var s = Raider(Loc.T("Akrep", "Scorpion"), "vehicles/enemy_raider_c.glb");
             s.Role = DriverRole.Sniper; s.Mass = 1500f; s.TopSpeed = 22f; s.Accel = 11f; s.TurnRate = 1.9f; s.Grip = 9f;
             s.Health = 110f; s.GunDamage = 3f; s.GunInterval = 0.24f; s.GunRange = 38f; s.Rockets = true; s.RocketAmmo = 99;
             s.RocketDamage = 18f; s.ScrapValue = 45; s.Accent = new Color(0.25f, 0.75f, 0.55f); s.Paint = new Color(0.32f, 0.46f, 0.24f);
@@ -191,7 +192,7 @@ namespace DerbyArena.Vehicles
         {
             return new VehicleSpec
             {
-                DisplayName = "War Rig", GlbFile = "vehicles/enemy_boss_warrig.glb", Role = DriverRole.Boss,
+                DisplayName = Loc.T("Kara Mamut", "Black Mammoth"), GlbFile = "vehicles/enemy_boss_warrig.glb", Role = DriverRole.Boss,
                 Mass = 4200f, TopSpeed = 20f, Accel = 9.5f, TurnRate = 1.45f, Grip = 11f, Health = 600f, Scale = 1.25f,
                 GunDamage = 2.6f, GunInterval = 0.16f, GunRange = 40f, Rockets = true, RocketAmmo = 999, RocketDamage = 16f, RamMul = 1.3f,
                 ScrapValue = 200, Accent = new Color(0.85f, 0.12f, 0.1f), Paint = new Color(0.34f, 0.06f, 0.05f)

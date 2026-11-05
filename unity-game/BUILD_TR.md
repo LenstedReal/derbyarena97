@@ -1,39 +1,36 @@
-# DERBY ARENA — Build (v4.0.1)
+# DERBY ARENA — Build (v4.0.2)
 
 | | |
 |---|---|
 | Unity | 6000.3.27f1 |
 | Pipeline | Built-in |
 | Paketler | Input System 1.11.2, uGUI 2.0.0, Google Mobile Ads 11.6.0 (OpenUPM), çekirdek modüller |
-| Android | `com.lenstedreal.derbyarena`, 4.0.1 / 401, ARM64, IL2CPP, min API 25, GLES3 → Vulkan, ASTC dokular |
-| iOS | `com.lenstedreal.derbyarena`, 4.0.1 / build 401, iOS 13+, IL2CPP |
+| Android | `com.lenstedreal.derbyarena`, 4.0.2 / 402, ARM64, IL2CPP, min API 25, GLES3 → Vulkan, ASTC dokular |
+| iOS | `com.lenstedreal.derbyarena`, 4.0.2 / build 402, iOS 13+, IL2CPP |
 
 ## Tek dal: `main`
-4.0.1'den itibaren tüm kod **yalnızca `main` dalında**. `unity/blackout-run` dalı artık kullanılmıyor; Unity Build
-Automation hedefleri `main`'den derler. Geçiş sırası (bir kez):
+Tüm kod **yalnızca `main` dalında**; Unity Build Automation'daki Android (APK) ve AAB hedefleri `main`'den derler.
+`unity/blackout-run` dalı 4.0.1 sonrası silindi. Yeni bir teslim geldiğinde Termux'ta `git push origin main` yeterli.
 
-1. `main`'e push et (Termux komutları teslim notunda).
-2. Unity Dashboard → **DevOps → Build Automation → Configurations** → "Blackout Run Android" → **Edit** →
-   **Basic settings → Branch**: `main` → **Save Changes**. Varsa "Blackout Run AAB" hedefinde aynısını yap.
-3. Bir derleme başlat; log'da `DERBY BUILD SETTINGS APPLIED: ... / 4.0.1 / 401 / ...` satırını gör.
-4. Ancak bundan sonra eski dalı sil: `git push origin --delete unity/blackout-run` (isteğe bağlı; silmeden
-   bırakılırsa zarar vermez, sadece eski kalır).
+GitHub Pages (oyundaki Gizlilik / Koşullar / Lisanslar bağlantıları): depo → **Settings → Pages → Build and deployment →
+Source: Deploy from a branch → Branch: `main`, klasör `/docs` → Save**. Adresler:
+`https://lenstedreal.github.io/derbyarena97/privacy.html`, `terms.html`, `licenses.html`.
 
 GitHub Actions (`.github/workflows/unity-android.yml`): her push'ta sadece **statik doğrulama** (`validate_derby.py`)
-çalışır. APK işi Unity lisans secret'ları ister ve 4.0.1'den itibaren **yalnızca elle** (Actions → unity-android →
-Run workflow) başlar; bu yüzden push'lar artık kırmızı X almaz. Gerçek derlemeler Build Automation'dan alınır.
+çalışır. APK işi Unity lisans secret'ları ister ve **yalnızca elle** (Actions → unity-android → Run workflow) başlar;
+push'lar kırmızı X almaz. Gerçek derlemeler Build Automation'dan alınır.
 
 ## Unity Build Automation
 1. Dal: `main`, proje yolu `unity-game`, Unity 6000.3.27f1.
 2. Android hedefi mevcut ("Blackout Run Android"). Build öncesi `DerbyBuildSettingsEnforcer` tüm ayarları ve
    `Assets/Resources/Derby/Materials/*.mat` şablonlarını üretir. Logda şunu ara:
-   `DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / 4.0.1 / 401 / ARM64 + iOS`
+   `DERBY BUILD SETTINGS APPLIED: BUILT-IN PIPELINE + RESOURCE MATERIALS / DERBY ARENA / 4.0.2 / 402 / ARM64 + iOS`
 3. iOS: Build Automation'da yeni hedef → iOS, aynı dal. Apple Developer hesabı (yıllık ücretli) + sertifika/provisioning
    profili gerekir; bunlar olmadan iOS derlemesi imzalanamaz.
 4. Google Play için AAB: Android hedefinde "Build App Bundle" seç + keystore'u Build Automation'a yükle.
 5. "119 errors" gibi AssemblyUpdater satırları derlemeyi durdurmaz; derleme sonucuna (APK/AAB üretildi mi) bak.
 
-## Kontroller (4.0.1)
+## Kontroller (4.0.2)
 Dokunmatik, varsayılan: **kaydırmalı direksiyon** (ekranın sol yarısına dokun, sağa-sola kaydır), **otomatik gaz açık**,
 sağda FREN / NİTRO / DRİFT / ATEŞ / ROKET. Ayarlar → Kontroller: direksiyon tipi (kaydırma / simit / oklar / eğim),
 hassasiyet, otomatik gaz, sürüş yardımı, düğme boyutu ve saydamlığı, düzen (Klasik / Sürücü / Sol El) ve
@@ -87,7 +84,7 @@ Dosyayı ve şifreyi güvenli yerde sakla, **GitHub'a koyma**.
 4. **Test → Kapalı test** → yeni sürüm → `.aab` yükle → **Play App Signing** açık kalsın.
 5. **Yeni kişisel geliştirici hesabıysan**: üretime çıkmadan önce kapalı testte **en az 12 test kullanıcısı 14 gün kesintisiz** kayıtlı olmalı. Sonra Play Console'dan üretim erişimi istenir.
 6. Hedef API: Play şu an **API 36 (Android 16)** istiyor. AAB'yi yükleyince Play Console gösterir. Uyarı çıkarsa B-3'teki **Android SDK version** alanını yükselt.
-7. Her yeni yüklemede versionCode artmalı. Kod bunu sürümle birlikte yükseltiyor (4.0.1 → 401).
+7. Her yeni yüklemede versionCode artmalı. Kod bunu sürümle birlikte yükseltiyor (4.0.2 → 402).
 
 
 ## 2.0.0 — Reklam eklentisi notları
