@@ -224,7 +224,9 @@ namespace DerbyArena.CameraRig
 
             float fov = Mathf.Lerp(60f, 67f, s01) + (Car != null && Car.NitroActive ? 6f : 0f);
             if (cam != null) cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, 1f - Mathf.Exp(-5f * dt));
+            bool shaking = trauma > 0f;
             ApplyShake(dt);
+            if (shaking) KeepOutOfWalls(pivot);         // a hard shake must not push the lens into a wall either
         }
 
         void KeepOutOfWalls(Vector3 pivot)

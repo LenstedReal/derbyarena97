@@ -150,11 +150,11 @@ namespace DerbyArena.Vehicles
         }
 
         const float ClimbRate = 4.5f;      // m/s the spring may compress on a step (tyre climbing a curb)
-        const float RampSlope = 0.36f;     // ramps up to ~20 degrees are followed at any speed (tan 20)
+        const float RampSlope = 0.36f;     // the step limit never holds back a ramp of up to ~20 degrees (tan 20)
         const float MaxCompVel = 3.5f;     // damper input cap while extending (m/s)
         const float MaxLandVel = 12f;      // damper input cap while compressing (landing) (m/s)
         const float MaxBumpRise = 3.2f;    // speed along the car's up axis a bump may give while the wheels are down (m/s)
-        const float RiseFilter = 0.2f;     // s: ground rise must last this long to reach the damper (ramps yes, bumps no)
+        const float RiseLength = 1.5f;     // m: ground rise must last this far to reach the damper (ramps yes, bumps no)
         const float RiseSlope = 0.16f;     // ground rise fed to the damper is capped at a 9-degree ramp at the current speed
 
         /// <summary>
@@ -234,19 +234,21 @@ namespace DerbyArena.Vehicles
                 if (Probe(origin, up, maxLen, out dist, out normal))
                 {
                     // 4.0.2 rough-ground handling (checked in a pitch-plane simulation against 4.0.1: on a rough floor
-                    // the body shakes ~3x less and no longer leaves the ground, a 30 cm curb lifts it ~3x less, 9-degree
-                    // jump ramps launch as before).
+                    // the body shakes 2-3x less and practically never leaves the ground, a 30 cm curb lifts it ~2.5x
+                    // less, 9-degree jump ramps launch as before up to nitro speed).
                     //  * The tyre is a small sphere: it rolls over seams, curbs and pipe feet instead of catching them.
                     //  * The ground may push the spring in only as fast as a tyre climbs a curb, plus what a ramp of up
                     //    to ~20 degrees gives at the current speed, plus the body's own approach: a step no longer fires
                     //    the spring in one physics step, while ramps and landings are followed at once.
                     //  * The damper works on the body's own motion toward the ground (approach), so seams and steps add
-                    //    no spike, plus the ground rise that lasts (low-pass filtered, capped at a 9-degree ramp): a ramp
-                    //    lifts the nose in time, a bumpy floor cannot pump the car into the air.
+                    //    no spike, plus the ground rise that lasts (low-pass filtered over 1.5 m of travel, capped at a
+                    //    9-degree ramp): a ramp lifts the nose in time, a bumpy floor cannot pump the car into the air.
                     float approach = -Vector3.Dot(Body.GetPointVelocity(origin), up);
                     float trueComp = maxLen - dist;
                     float rise = Mathf.Clamp((trueComp - lastTrue[i]) / dt - approach, 0f, riseCap);
-                    riseLp[i] += (rise - riseLp[i]) * Mathf.Clamp01(dt / RiseFilter);
+                    // filtered over distance, not time: a 5 m jump ramp is crossed in 0.15 s at top speed, which a
+                    // time filter missed (weaker launches, nose into the ramp); below 4 m/s it still settles in ~0.4 s
+                    riseLp[i] += (rise - riseLp[i]) * Mathf.Clamp01(Mathf.Max(along, 4f) * dt / RiseLength);
                     lastTrue[i] = trueComp;
                     float comp = Mathf.Min(trueComp, lastComp[i] + (ClimbRate + rampRise + Mathf.Max(0f, approach)) * dt);
                     float compVel = Mathf.Clamp(approach + riseLp[i], -MaxCompVel, MaxLandVel);

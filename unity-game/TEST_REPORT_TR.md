@@ -3,11 +3,11 @@
 | Test | Sonuç |
 |---|---|
 | Cihaz videosu (kullanıcı, 3 dk 28 sn, 2712×1220): saniyede bir kare + kritik anlarda tam çözünürlük kare kare incelendi | 15 bulgu; hepsi koda kadar izlendi ve düzeltildi (`CHANGES_TR.md` 4.0.2 tablosu) |
-| Süspansiyon yan-kesit simülasyonu (60 Hz, gövde + yunuslama, 4.0.1 ile karşılaştırmalı; pürüzlü zemin, 25/30 cm kaldırım, 9° ve 12° rampa, atlama rampası, 3,7–13 m/s iniş) | pürüzlü zeminde sarsıntı (ivme RMS) 11,6/15,8/17,5 → 4,0/5,1/7,5 m/s² (10/20/30 m/s), havada kalma 0,63/0,73 sn → 0/0,03 sn (20/30 m/s); 30 cm kaldırımda sıçrama 1,0 → 0,34 m/s; 9° rampada atlama korunuyor (havada 0,25/0,50/0,73 sn, 20/27/34 m/s); 11 m/s inişte sıkışma 0,73 m (gövde teması 0,77). Bilinen fark: 27–34 m/s'de 9° rampa girişinde ön tampon köşesi ~0,1 sn rampaya hafifçe değebilir (4.0.1'de değmiyordu) |
+| Süspansiyon yan-kesit simülasyonu (60 Hz, gövde + yunuslama, 4.0.1 ile karşılaştırmalı; pürüzlü zemin, 25/30 cm kaldırım, 9° ve 12° rampa, atlama rampası, 3,7–13 m/s iniş) | pürüzlü zeminde sarsıntı (ivme RMS) 11,6/15,8/17,5 → 4,3/6,9/9,3 m/s² (10/20/30 m/s), havada kalma 0,07/0,63/0,73 sn → 0/0,03/0,10 sn; 30 cm kaldırımda sıçrama 1,0 → 0,38 m/s; 9° atlama rampasında havada kalma 0,43/0,55/0,63 → 0,45/0,57/0,70 sn (20/28/36 m/s); rampa düzlüğünde durunca araba normal yüksekliğe oturuyor; 11 m/s inişte sıkışma 0,73 m (gövde teması 0,77). Bilinen fark: yalnız nitro hızında (36 m/s) 9° rampa girişinde ön tampon köşesi ~0,07 sn rampaya hafifçe değebilir (bu simülasyonun temkinli gövde modelinde; ikinci incelemenin modelinde 0,21 m boşluk kalıyor) |
 | `python3 -I validate_derby.py` (4.0.2 kontrolleri: sürüş, kamera, açılış, yazı sığdırma, HUD/bölüm düzeni, garaj ölçümü ve yatma, jant, reklam başlatma, kayıt v7, yasal metinler, araç adları, inceleme düzeltmeleri) | 0 FAIL |
 | Roslyn anlamsal derleme, 5 yapılandırma | 0 hata |
 | Bağımsız çalışma zamanı incelemesi 1 (ikinci ajan, tüm 4.0.2 farkı) | 11 bulgu, aşağıdaki tabloda; hepsi işlendi |
-| Bağımsız çalışma zamanı incelemesi 2 (son düzeltmelerin farkı) | aşağıda |
+| Bağımsız çalışma zamanı incelemesi 2 (son düzeltmelerin farkı) | 1 bulgu (yüksek hızda rampa, aşağıda), düzeltildi; geri kalan her şey sorunsuz |
 | Unity derlemesi ve cihaz testi | **bekliyor** — `KNOWN_ISSUES_TR.md` §A2 (B1–B10) kabul listesi |
 
 ### İnceleme 1 bulguları
@@ -25,6 +25,14 @@
 | 10 | Kanal arenası önbelleği ~25 MB'ı oturum boyu tutuyor; başarısız indirmenin düz malzemesi de önbelleğe giriyordu | Düzeltildi: bellek azalınca önbellek bırakılıyor; yalnız dokulu malzeme önbelleğe giriyor |
 | 11 | "EMİN MİSİN? TEKRAR DOKUN" 4 sn sonra da ekranda kalıyordu | Düğme kaldırıldı (kullanıcı istemedi); silip yüklemede ilerlemenin geri gelmesinin asıl nedeni Android yedeğiydi, kapatıldı |
 | — | İnceleme sırasında bulunup düzeltilenler: garajda önbellekteki model aynı karede gelince parçalar eski modele ölçülüp takılıyordu (eski model önce ayrılıyor); test modunda SDK başlatma hatası her karede tekrar denenmiyor | Düzeltildi |
+
+### İnceleme 2 bulguları (son düzeltmelerin farkı, ayrı bir ajan + kendi simülasyonu)
+| # | Bulgu | Durum |
+|---|---|---|
+| 1 | Rampa yükselmesi amortisöre 0,2 sn'lik zaman süzgeciyle giriyordu; 5 m'lik atlama rampası 28–40 m/s'de 0,13–0,19 sn'de geçildiği için yüksek hızda atlama %10–25 kısalıyor, süspansiyon dibe yaklaşıyordu | Düzeltildi: süzgeç zamana değil yola göre (1,5 m), 4 m/s altında da sönümleniyor (rampada durunca araba havada kalmıyor); iki simülasyonda da atlamalar 4.0.1 düzeyinde veya üstünde, pürüzlü zemin kazancı korunuyor |
+| — | `RampSlope` açıklaması yanlış genellik içeriyordu | Düzeltildi |
+| — | Sert kamera sarsıntısı merceği duvara 0,4 m'ye kadar itebiliyordu (görsel) | Düzeltildi: sarsıntıdan sonra da duvar kontrolü |
+| — | Kontrol edilip sorunsuz bulunanlar: ArcadeCar işaret/birimleri, `Launched` ve tüm itme yolları, kamera (NaN yok, duvar arkası yok), açılış/dolly, reklam düğmeleri ve tam ekran reklam engeli, Türkçe büyük harf, arena önbelleği, ayar satırları, kit `FollowBody` cebiri, `SetStaticBool` | — |
 
 ---|---|
 | Cihaz videosu (kullanıcı, 3 dk 28 sn, 2712×1220): saniyede bir kare + kritik anlarda tam çözünürlük kare kare incelendi | 15 bulgu; hepsi koda kadar izlendi ve düzeltildi (`CHANGES_TR.md` 4.0.2 tablosu) |
