@@ -23,7 +23,7 @@
 | 8 | "YENİ RAKİP: DEMIR BOĞA" (noktasız I) | Düzeltildi: `Loc.Upper` (Türkçe büyük harf) |
 | 9 | Çok sert inişte (≥10,5 m/s) gövde yere vuruyor (kuvvet sınırı 1,7) | Düzeltildi: sınır 4.0.1'deki gibi 2,5 |
 | 10 | Kanal arenası önbelleği ~25 MB'ı oturum boyu tutuyor; başarısız indirmenin düz malzemesi de önbelleğe giriyordu | Düzeltildi: bellek azalınca önbellek bırakılıyor; yalnız dokulu malzeme önbelleğe giriyor |
-| 11 | "EMİN MİSİN? TEKRAR DOKUN" 4 sn sonra da ekranda kalıyordu | Düzeltildi: süre bitince eski yazıya dönüyor |
+| 11 | "EMİN MİSİN? TEKRAR DOKUN" 4 sn sonra da ekranda kalıyordu | Düğme kaldırıldı (kullanıcı istemedi); silip yüklemede ilerlemenin geri gelmesinin asıl nedeni Android yedeğiydi, kapatıldı |
 | — | İnceleme sırasında bulunup düzeltilenler: garajda önbellekteki model aynı karede gelince parçalar eski modele ölçülüp takılıyordu (eski model önce ayrılıyor); test modunda SDK başlatma hatası her karede tekrar denenmiyor | Düzeltildi |
 
 ---|---|

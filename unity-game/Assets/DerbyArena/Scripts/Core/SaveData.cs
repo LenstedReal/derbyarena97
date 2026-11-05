@@ -198,7 +198,8 @@ namespace DerbyArena.Core
         /// <summary>
         /// 4.0.2: progress back to a new game (levels, stars, scrap, upgrades, garage items and vehicles, missions,
         /// counters). Settings stay: language, controls, sound, graphics, privacy choices and the rating answer.
-        /// Runs once for every save older than version 7 (the requested fresh start) and from Settings on demand.
+        /// Runs once for every save older than version 7 (the requested fresh start). There is no reset button: the
+        /// save is no longer backed up by Android (see Editor/DerbyAndroidNoBackup.cs), so deleting the game deletes it.
         /// </summary>
         public static void ResetProgress(SaveData d)
         {
@@ -220,14 +221,6 @@ namespace DerbyArena.Core
             d.MissionClaimed = new bool[3];
             d.BestStreak = 0;
             if (d.RateState == 0) d.RateAskAtWin = 3;
-        }
-
-        /// <summary>Settings → "Reset progress": clears the progress of the current save and writes it.</summary>
-        public static void ResetProgressNow()
-        {
-            ResetProgress(Data);
-            Fleet.ClearPreview();
-            Write();
         }
 
         static int[] Remap(int[] old, System.Func<int, int> map)

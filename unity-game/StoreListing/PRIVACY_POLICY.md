@@ -11,7 +11,7 @@ Bu politika, LenstedReal tarafından geliştirilen DERBY ARENA mobil oyununda (p
 
 - **Hesap yok:** Oyunda hesap açma, giriş ve uygulama içi satın alma yoktur. Ad, e-posta veya telefon numarası istenmez; geliştirici sunucusuna hiçbir kişisel veri gönderilmez.
 
-- **Cihazda saklanan veriler:** İlerleme (bölümler, yıldızlar, hurda, garaj), ayarlar ve kontrol düzeni yalnızca telefonunda (Unity PlayerPrefs) tutulur. Ayarlar → İlerlemeyi sıfırla ile ilerlemeni, uygulamayı kaldırarak tüm verileri silebilirsin.
+- **Cihazda saklanan veriler:** İlerleme (bölümler, yıldızlar, hurda, garaj), ayarlar ve kontrol düzeni yalnızca telefonunda (Unity PlayerPrefs) tutulur ve Android yedeğine (Google hesabı) alınmaz; uygulamayı kaldırdığında hepsi silinir.
 
 - **Eğim direksiyonu:** Seçersen ivmeölçer yalnızca oyun sırasında okunur; bu veri cihazdan çıkmaz ve kaydedilmez.
 
@@ -38,7 +38,7 @@ This policy explains which data the DERBY ARENA mobile game by LenstedReal (pack
 
 - **No account:** There is no sign-up, login or in-app purchase. No name, e-mail or phone number is asked for, and no personal data is sent to a developer server.
 
-- **Data stored on the device:** Progress (levels, stars, scrap, garage), settings and the control layout are kept only on your phone (Unity PlayerPrefs). Settings → Reset progress clears your progress; uninstalling the app removes all data.
+- **Data stored on the device:** Progress (levels, stars, scrap, garage), settings and the control layout are kept only on your phone (Unity PlayerPrefs) and are not included in Android backups (Google account); uninstalling the app deletes all of them.
 
 - **Tilt steering:** If you choose it, the accelerometer is read only while you play; that data never leaves the device and is not stored.
 

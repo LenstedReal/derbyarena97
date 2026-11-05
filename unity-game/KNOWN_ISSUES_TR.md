@@ -22,7 +22,7 @@ ilk cihaz testinde özellikle bakılması gereken yerleri ve bilinen sınırlar�
 | # | Konu | Ne beklenir |
 |---|---|---|
 | B1 | Açılış | Siyah → tam parlak DERBY ARENA görseli + durum satırı; yarı saydam donuk kare yok; çıkışta siyaha geçip menü açılır, ikisi üst üste binmez |
-| B2 | İlk açılış | İlerleme bir kez sıfırlanır (Bölüm 1, 0 hurda, sadece Kızıl Şimşek); ayarlar ve kontrol düzeni korunur |
+| B2 | İlk açılış / silip yükleme | 4.0.2'nin ilk açılışında ilerleme bir kez sıfırlanır (Bölüm 1, 0 hurda, sadece Kızıl Şimşek); ayarlar ve kontrol düzeni korunur. Oyun silinip yeniden kurulunca eski ilerleme geri gelmez (Android yedeği kapalı). Build Automation logunda `DERBY BACKUP: android:allowBackup=false` satırı görünür |
 | B3 | Yazılar | Hiçbir ekranda yazı yazının üstüne binmez; uzun yazılar kendi kutusunda küçülür; Ayarlar/Kontroller satırları tablette (16:10, 4:3) sağ sütunun altına girmez |
 | B4 | HUD | İlerleme ve mesafe aynı satırda; mesajlar onların altında; geri sayım yükleme ekranı kapanınca görünür |
 | B5 | Bölümler | 6 sekme ve 20 kart detay panelinin solunda; arkadaki araba kartların arasından görünmez |

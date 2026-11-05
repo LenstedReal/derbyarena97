@@ -49,12 +49,6 @@ namespace DerbyArena.UI
         void Update()
         {
             if (toast != null && Time.unscaledTime > toastUntil) { Destroy(toast.transform.parent.gameObject); toast = null; }
-            // the reset button's "sure? tap again" lapses after four seconds: show the plain caption again (4.0.2)
-            if (resetArmedUntil > 0f && Time.unscaledTime >= resetArmedUntil)
-            {
-                resetArmedUntil = 0f;
-                if (current == "settings") Show("settings");
-            }
             // Android back button (reported as Escape by the Input System): one level up, never quits silently.
             var kb = UnityEngine.InputSystem.Keyboard.current;
             if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
@@ -1012,27 +1006,6 @@ namespace DerbyArena.UI
             if (ads != null && ads.PrivacyOptionsRequired)
                 SideButton("ad", Loc.T("REKLAM GİZLİLİK SEÇENEKLERİ", "AD PRIVACY OPTIONS"), ref ry, () => ads.ShowPrivacyOptions(err => { if (this != null && current == "settings") Show("settings"); }));
             SideButton("star", Loc.T("OYUNU DEĞERLENDİR", "RATE THE GAME"), ref ry, () => { Save.Data.RateState = 1; Save.Write(); OpenStorePage(); });
-            // 4.0.2: reset progress (two taps, the second within four seconds)
-            bool armed = Time.unscaledTime < resetArmedUntil;
-            var reset = Btn(P, armed ? Loc.T("EMİN MİSİN? TEKRAR DOKUN", "SURE? TAP AGAIN") : Loc.T("İLERLEMEYİ SIFIRLA", "RESET PROGRESS"),
-                armed ? UiKit.Red : UiKit.PanelLight, 1f, 1f, 520f, 72f, 1f, 1f, 24, () =>
-                {
-                    if (Time.unscaledTime < resetArmedUntil)
-                    {
-                        resetArmedUntil = 0f;
-                        Save.ResetProgressNow();
-                        selected = Campaign.NextToPlay();
-                        chapter = 1;
-                        vehicleIndex = 0;
-                        if (Showcase.Instance != null) Showcase.Instance.Rebuild();
-                        Show("settings");
-                        Toast(Loc.T("İlerleme sıfırlandı. Bölüm 1'den başlıyorsun.", "Progress reset. You start from level 1."), UiKit.Green);
-                    }
-                    else { resetArmedUntil = Time.unscaledTime + 4f; Show("settings"); }
-                }, false, "wrench");
-            reset.Background.rectTransform.anchoredPosition = new Vector2(0f, ry);
-            reset.Caption.color = armed ? Color.white : UiKit.Red;
-            ry -= 82f;
             var adsMgr = DerbyArena.Ads.AdsManager.Instance;
             if (DerbyArena.Ads.AdsConfig.TestMode)
             {
@@ -1041,8 +1014,6 @@ namespace DerbyArena.UI
             }
             Txt(P, Loc.T("Sürüm ", "Version ") + DerbyStartupDiagnostics.Version + " (" + DerbyStartupDiagnostics.VersionCode + ")", 20, new Color(1f, 1f, 1f, 0.45f), TextAnchor.LowerRight, false, 1f, 0f, 520f, 40f, 1f, 0f);
         }
-
-        float resetArmedUntil;
 
         void SideButton(string icon, string caption, ref float y, Action a)
         {

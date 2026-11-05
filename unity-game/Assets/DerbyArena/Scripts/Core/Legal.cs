@@ -31,7 +31,7 @@ namespace DerbyArena.Core
         public static string PrivacySummary()
         {
             return Loc.T(
-                "DERBY ARENA (LenstedReal) hesap açtırmaz, ad, e-posta veya telefon istemez; geliştiriciye hiçbir kişisel veri gönderilmez. İlerlemen ve ayarların yalnızca telefonunda saklanır; Ayarlar → İlerlemeyi Sıfırla ile ilerlemeni, uygulamayı kaldırarak tüm verileri silebilirsin. " +
+                "DERBY ARENA (LenstedReal) hesap açtırmaz, ad, e-posta veya telefon istemez; geliştiriciye hiçbir kişisel veri gönderilmez. İlerlemen ve ayarların yalnızca telefonunda saklanır ve Android yedeğine (Google hesabı) alınmaz; uygulamayı kaldırdığında hepsi silinir. " +
                 "Eğim direksiyonu seçersen ivmeölçer yalnızca o anda okunur; bu veri cihazdan çıkmaz ve kaydedilmez.\n\n" +
                 "REKLAMLAR: Oyun Google AdMob reklamları gösterir (bölüm sonlarında geçiş reklamı; ikinci şans, hurda ikramiyesi ve garajda isteğe bağlı ödüllü reklamlar). " +
                 "Google reklam kimliğini, IP adresini ve cihaz bilgilerini reklam sunmak, ölçmek ve dolandırıcılığı önlemek için işleyebilir. " +
@@ -42,7 +42,7 @@ namespace DerbyArena.Core
                 "GELECEK: İlerlemeyi korumak için isteğe bağlı Google ile giriş eklenirse, işlenecek veriler önceden bu politikada açıklanacaktır.\n\n" +
                 "HAKLARIN: KVKK ve GDPR kapsamındaki bilgi alma, düzeltme, silme ve itiraz hakların için: " + Contact + "\n\n" +
                 "Tam metin: " + PrivacyUrl,
-                "DERBY ARENA (LenstedReal) has no accounts and never asks for a name, e-mail or phone number; no personal data is sent to the developer. Your progress and settings are stored only on your phone; Settings → Reset Progress clears your progress and uninstalling removes all data. " +
+                "DERBY ARENA (LenstedReal) has no accounts and never asks for a name, e-mail or phone number; no personal data is sent to the developer. Your progress and settings are stored only on your phone and are not included in Android backups (Google account); uninstalling the app deletes all of them. " +
                 "If you choose tilt steering, the accelerometer is read only while you play; that data never leaves the device and is not stored.\n\n" +
                 "ADS: The game shows Google AdMob ads (an interstitial between some matches; optional rewarded ads for the second chance, the scrap bonus and in the garage). " +
                 "Google may process your advertising ID, IP address and device information to serve and measure ads and to prevent fraud. " +
